@@ -153,8 +153,13 @@ Assert-SetEqual $protocolVersions @(
 if ($manifest.version -ne '0.1.0') {
     throw "Gate 1.1 plugin version must remain exactly 0.1.0: $($manifest.version)"
 }
-if ($serverScript -notmatch 'fail-closed' -or $serverScript -notmatch 'exit\s+78') {
-    throw 'MCP entry point no longer has the fail-closed Gate 1.1 stub contract.'
+if ($serverScript -match 'not implemented yet' -or $serverScript -match 'exit\s+78\s*$') {
+    throw 'MCP entry point still contains the obsolete Gate 1.1 fail-closed stub.'
+}
+if ($serverScript -notmatch 'Initialize-HcrRuntime' -or
+    $serverScript -notmatch "'tools/list'" -or
+    $serverScript -notmatch "'tools/call'") {
+    throw 'MCP entry point does not load and expose the Gate 2 runtime.'
 }
 foreach ($path in $documentationPaths) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {

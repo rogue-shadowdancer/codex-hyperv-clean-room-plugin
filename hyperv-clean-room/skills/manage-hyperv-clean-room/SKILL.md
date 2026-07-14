@@ -8,9 +8,9 @@ description: Safely plan, operate, audit, and troubleshoot Windows Hyper-V clean
 Use the plugin's MCP tools as the authority. Do not reconstruct Hyper-V commands
 from this skill when an equivalent tool is available.
 
-Gate 1.1 freezes this guidance and the schemas, but the MCP entry point still
-fails closed. Do not present this repository revision as a working Hyper-V
-automation tool.
+Gate 2 implements the MCP surface and validates it with mock adapters. Real
+guest execution still fails closed until a separately authorized clean-machine
+gate. Do not turn mock results into claims about a real Hyper-V host.
 
 ## Required workflow
 
@@ -44,7 +44,7 @@ automation tool.
 - Treat VM creation, checkpoint creation, restore, guest file transfer,
   installation, launch, uninstall, and reinstall as state-changing actions.
 - Never submit a password or serialized credential through an MCP tool. Use the
-  future interactive credential initializer with only `-ProfileName` and
+  interactive credential initializer with only `-ProfileName` and
   `-VmName`. Its two `Get-Credential` prompts and PowerShell Direct checks must
   prove different SIDs, an administrator orchestration role, and a standard
   non-administrator test role before DPAPI persistence. Then refer only to the

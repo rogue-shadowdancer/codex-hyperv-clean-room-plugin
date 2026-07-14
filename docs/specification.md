@@ -1,7 +1,10 @@
 # Hyper-V Clean Room v1 specification
 
-Status: Gate 1.1 frozen baseline. The MCP entry point remains a fail-closed
-stub; no runtime behavior is implemented in this gate.
+Status: Gate 2 mock-validated runtime baseline. The PowerShell 5.1 MCP entry
+point, all 16 tool surfaces, state and ownership guards, validators, evidence
+flow, and credential initializer are implemented. Gate 2 performs no real
+Hyper-V mutation. The real guest execution adapter remains fail-closed pending
+an explicitly authorized clean-machine gate.
 
 ## Purpose and boundary
 
@@ -269,17 +272,17 @@ is public.
   Never modify an automatic assertion and never let `run_test_profile` produce
   a passed manual assertion.
 
-Credential setup is intentionally not an MCP tool. The future interactive
+Credential setup is intentionally not an MCP tool. The interactive
 `Initialize-GuestCredential.ps1` accepts exactly `-ProfileName` and `-VmName`;
 it accepts no credential, password, or output-path parameter. It calls
 `Get-Credential` separately for the orchestration administrator and standard
 test user, validates both through PowerShell Direct, proves that their SIDs
 differ, proves the orchestration identity is an administrator, and proves the
 test identity is a non-administrator before saving either bundle with
-same-user/same-machine DPAPI `Export-Clixml`. Gate 1.1 freezes this contract but
-does not create the runtime script. MCP arguments carry only the validated
-profile name. Do not log either username unless it is required in final guest
-identity evidence.
+same-user/same-machine DPAPI `Export-Clixml`. Gate 2 implements this script and
+tests its parameter and prompt boundary without collecting credentials. MCP
+arguments carry only the validated profile name. Do not log either username
+unless it is required in final guest identity evidence.
 
 PowerShell Direct does not by itself prove an interactive desktop result.
 Silent install/uninstall and process/module assertions may be automated through
@@ -436,6 +439,43 @@ Gate 1.1 keeps exactly 16 MCP tools, exactly five public schemas, plugin version
 `0.1.0`, and schema version 1. It proves only manifest shape, launch-path
 resolution, skill validity, JSON parsing, Draft 2020-12 fixtures, PowerShell
 syntax, documentation integrity, and the frozen contract. The MCP entry point
-still fails closed. This gate does not prove an MCP handshake, Hyper-V behavior,
-guest access, plugin installation, marketplace or cache runtime discovery, VM
-mutation, package execution, evidence collection, or clean-machine testing.
+remained fail-closed at that gate. Gate 1.1 did not prove an MCP handshake,
+Hyper-V behavior, guest access, plugin installation, marketplace or cache
+runtime discovery, VM mutation, package execution, evidence collection, or
+clean-machine testing.
+
+## Gate 2 acceptance boundary
+
+Gate 2 preserves exactly 16 MCP tools, exactly five public schemas, plugin
+version `0.1.0`, and schema version 1. It implements line-delimited UTF-8
+JSON-RPC stdio, bounded stderr diagnostics, protocol negotiation across the
+four frozen versions, closed tool-input schemas, JSON-string text results, the
+common envelope, and MCP `isError` projection.
+
+The runtime implements a test-mode-only mock adapter and a default Hyper-V
+adapter boundary. Host, VM, and checkpoint paths have guarded real-adapter
+implementations, but Gate 2 does not execute them against a real host. Real
+guest inspection, artifact transfer, and declarative execution remain
+fail-closed with `GUEST_ADAPTER_UNVALIDATED` until a separately authorized
+clean-machine gate completes their implementation and validation. Mock mode
+requires both `HCR_ADAPTER_MODE=mock` and `HCR_TEST_MODE=1`; the installed MCP
+configuration supplies neither.
+
+Gate 2 proves, under Windows PowerShell 5.1 and mock adapters only:
+
+- all 16 tools are discoverable and callable through MCP;
+- malformed apply input does not consume a plan, while the first well-formed
+  apply atomically consumes it across concurrent server processes;
+- expiry, host/ISO/switch/volume/VM/checkpoint drift and ownership disagreement
+  stop mutation, and wrong restore confirmation values still consume a plan;
+- restore-token plaintext is returned once and never persisted;
+- profile and evidence validation, ordinary-user token checks, operation-bound
+  automatic/manual/cleanup identities, cleanup triggering and continuation,
+  attestation, and evidence export follow schema-v1 semantics; and
+- the credential initializer accepts only the two frozen parameters, prompts
+  twice, validates distinct roles, and uses two DPAPI `Export-Clixml` writes.
+
+This gate does not prove plugin installation, marketplace/cache runtime
+discovery, a real VM or checkpoint mutation, PowerShell Direct guest behavior,
+package execution on Windows, credential persistence with live accounts, or
+clean-machine evidence. Those claims remain prohibited until the next gate.

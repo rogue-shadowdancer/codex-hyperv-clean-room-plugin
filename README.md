@@ -6,17 +6,20 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: Gate 1.1 complete
+### Status: Gate 2 complete
 
-Gate 1.1 freezes the pre-first-release v1 cleanup, profile, evidence, plan, and
-credential contracts. The baseline remains plugin version `0.1.0` and
-`schemaVersion: 1`, with exactly 16 MCP tools and five public Draft 2020-12
-schemas.
+Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,
+profile, evidence, plan, and credential contracts. The baseline remains plugin
+version `0.1.0` and `schemaVersion: 1`, with exactly 16 MCP tools and five
+public Draft 2020-12 schemas.
 
-The production runtime is **not implemented**. The MCP entry point deliberately
-fails closed, and no real VM, artifact, credential, checkpoint, or evidence
-workflow has been executed or validated. Do not install this revision as a
-working automation tool.
+JSON-RPC transport, common envelopes, persistent ownership and atomic plan
+guards, native profile/evidence validation, mock-backed guest/test flows,
+evidence export, and the interactive DPAPI credential initializer are
+implemented and tested. No real Hyper-V mutation or PowerShell Direct package
+workflow was authorized or executed in Gate 2. The real guest adapter therefore
+remains fail-closed; do not present this revision as clean-machine-validated
+automation.
 
 The frozen safety model includes:
 
@@ -38,14 +41,13 @@ Read the [documentation center](docs/README.md), the authoritative
 the next entry point are in [TASK_HANDOFF.md](TASK_HANDOFF.md).
 
 Development and CI use Python only to validate Draft 2020-12 schemas. The
-future production runtime must use Windows PowerShell 5.1 and must not depend on
-Python.
+production runtime uses Windows PowerShell 5.1 and does not depend on Python.
 
-Run the structural Gate 1.1 checks without changing a personal marketplace:
+Run the complete Gate 2 checks without changing a personal marketplace or a
+real VM:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-gate1.ps1 -MarketplacePath .\tests\fixtures\marketplace.json
-powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\gate1-contract.tests.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-gate2.ps1 -MarketplacePath .\tests\fixtures\marketplace.json
 ```
 
 ## 简体中文
@@ -53,15 +55,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\gate1-contract.tests
 `hyperv-clean-room` 是一个仅面向 Windows 的 Codex plugin 设计，用于受保护的
 Hyper-V VM 操作、声明式 current-user package lifecycle 测试和结构化 evidence。
 
-### 状态：Gate 1.1 已完成
+### 状态：Gate 2 已完成
 
-Gate 1.1 已冻结首次发布前的 v1 cleanup、profile、evidence、plan 和 credential
-合同。基线仍为 plugin version `0.1.0` 与 `schemaVersion: 1`，并保持精确 16 个
-MCP tools 和 5 个 public Draft 2020-12 schemas。
+Gate 2 已依据冻结的 v1 cleanup、profile、evidence、plan 和 credential 合同实现
+PowerShell 5.1 MCP runtime。基线仍为 plugin version `0.1.0` 与
+`schemaVersion: 1`，并保持精确 16 个 MCP tools 和 5 个 public Draft 2020-12
+schemas。
 
-Production runtime **尚未实现**。MCP 入口会故意 fail closed；本 gate 没有执行或
-验证真实 VM、artifact、credential、checkpoint 或 evidence 流程。不要把当前版本
-安装成可工作的自动化工具。
+JSON-RPC transport、common envelope、持久 ownership 与原子 plan guard、原生
+profile/evidence validation、mock-backed guest/test flow、evidence export 和交互式
+DPAPI credential initializer 均已实现并通过测试。Gate 2 未获授权、也未执行任何真实
+Hyper-V mutation 或 PowerShell Direct package workflow；因此 real guest adapter
+仍然 fail closed，不得把当前版本描述为已经通过 clean-machine 验证的自动化工具。
 
 已冻结的安全边界包括：
 
@@ -80,5 +85,10 @@ Production runtime **尚未实现**。MCP 入口会故意 fail closed；本 gate
 [最小 profile 示例](examples/minimal-test-profile.json)。Gate 结果和下一入口位于
 [TASK_HANDOFF.md](TASK_HANDOFF.md)。
 
-Python 只用于开发和 CI 的 Draft 2020-12 schema 验证；未来 production runtime
-必须使用 Windows PowerShell 5.1，且不得依赖 Python。
+Python 只用于开发和 CI 的 Draft 2020-12 schema 验证；production runtime 使用
+Windows PowerShell 5.1，且不依赖 Python。完整 Gate 2 检查不会改写个人 marketplace，
+也不会触碰真实 VM：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-gate2.ps1 -MarketplacePath .\tests\fixtures\marketplace.json
+```

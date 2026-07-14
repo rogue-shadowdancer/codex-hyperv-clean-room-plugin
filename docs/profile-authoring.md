@@ -1,8 +1,8 @@
 # Hyper-V Clean Room 测试 profile 编写指南
 
-本指南说明 `test-profile.schema.json` 的 Gate 1.1 合同。字段名、step type 和
-tool name 保留精确英文拼写。当前 MCP runtime 尚未实现，本文只描述已冻结合同，
-不表示真实 VM 或 package lifecycle 已通过验证。
+本指南说明 `test-profile.schema.json` 的 schema-v1 合同。字段名、step type 和
+tool name 保留精确英文拼写。Gate 2 runtime 已使用 mock adapter 验证；本文及该
+验证均不表示真实 VM、PowerShell Direct 或 package lifecycle 已通过验证。
 
 完整 JSON 只维护一份：[minimal-test-profile.json](../examples/minimal-test-profile.json)。
 该文件同时参加 Draft 2020-12 schema 和 semantic contract tests。本文不复制第二份

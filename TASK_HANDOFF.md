@@ -1,84 +1,102 @@
-# TaskHandoff — Gate 1.1 complete
+# TaskHandoff — Gate 2 complete
 
 ## Outcome
 
-Gate 1.1 refreezes the pre-first-release v1 cleanup, profile, evidence, plan,
-artifact, credential, and protocol contracts. The plugin remains version
-`0.1.0`, all public schemas remain `schemaVersion: 1`, the surface remains
-exactly 16 MCP tools and five public schemas, and `mcp/server.ps1` remains a
-fail-closed stub. No Gate 2 runtime was implemented.
+Gate 2 replaces the fail-closed MCP stub with a Windows PowerShell 5.1
+line-delimited JSON-RPC runtime while preserving plugin version `0.1.0`, schema
+version 1, exactly 16 MCP tools, and exactly five public Draft 2020-12 schemas.
+The complete tool surface is executable against a test-mode-only mock adapter.
+No real VM, VHDX, checkpoint, ISO attachment, credential prompt, PowerShell
+Direct session, package lifecycle, marketplace/cache, installation, remote, or
+push mutation was performed.
 
-## Frozen contract changes
+The default Hyper-V adapter implements host, VM, VM-creation, checkpoint-create,
+and checkpoint-restore boundaries, but Gate 2 did not execute them against a
+real host. Real guest inspection, transfer, and declarative execution
+deliberately return `GUEST_ADAPTER_UNVALIDATED` until a separately authorized
+clean-machine gate. Gate 2 must not be cited as real Hyper-V validation.
 
-- `test-profile.schema.json` now requires explicit `cleanupSteps`; the separate
-  closed cleanup object permits nine non-destructive types, at most 16 entries,
-  1–120 seconds each, and a semantic total of at most 300 seconds. Execution and
-  manual IDs are globally unique. Actions cannot be optional.
-- Cleanup triggers only after execution begins and a required assertion,
-  action, timeout, or guest-adapter failure occurs. It runs in order within
-  budget, only stops a current-operation PID after identity revalidation,
-  continues after cleanup failure, and never uninstalls, deletes, restores, or
-  rolls back.
-- `evidence.schema.json` now requires immutable `cleanupTriggered` state and
-  identity-bound `cleanupResults`. When untriggered, every declared cleanup is
-  `notPerformed`. Cleanup state/results never change `overallStatus`, which is
-  derived only from required automatic/manual assertions.
-- Every profile has exactly one first-position `stageArtifact`.
-  `run_test_profile.artifactPath` is a host-local ordinary file and the runner
-  verifies host/guest hashes. Standalone `stage_artifact` never carries state
-  into another operation.
-- Each test operation has a server-controlled evidence staging root. Manual
-  references stay relative to it until `collect_evidence` exports them.
-- `Initialize-GuestCredential.ps1` is specified with only `-ProfileName` and
-  `-VmName`, two interactive credential prompts, PowerShell Direct role/SID
-  checks, then DPAPI persistence. The script is not implemented in this gate.
-- Restore-token plaintext is returned once only by a successful plan response.
-  Apply atomically consumes an existing plan before value or drift checks;
-  wrong values consume it. VM volume revalidation requires stable identity and
-  current capacity at least `requiredBytes`, not byte-for-byte free-space
-  equality.
-- Production remains Windows PowerShell 5.1 without Python. Supported MCP
-  versions are exactly `2024-11-05`, `2025-03-26`, `2025-06-18`, and
-  `2025-11-25`; protocol runtime is still unimplemented.
+## Implemented areas
 
-## Documentation and tests
+- `mcp/server.ps1` now negotiates only the four frozen protocol versions,
+  reserves stdout for one UTF-8 JSON response per line, exposes `tools/list`
+  and `tools/call`, returns every tool result as JSON text, and maps failed
+  envelopes to MCP `isError`.
+- The runtime has closed input schemas for all 16 tools, bounded error
+  projection without PowerShell records or stacks, operation envelopes, path
+  checks, hash helpers, and test-mode gating for the mock adapter.
+- State uses atomic UTF-8 JSON replacement, cross-process exclusive locks,
+  separate plan/operation/ownership records, exact Notes markers, and
+  VM-ID/name/path/VHDX agreement. Plans live for 15 minutes.
+- The first well-formed apply atomically consumes an existing plan before kind,
+  expiry, confirmation, or drift checks. VM apply rechecks host, ISO, switch,
+  target-volume identity/capacity, name, and paths. Checkpoint apply rechecks
+  VM, ownership, configuration, inventory, current state, and target identity.
+- Restore-token plaintext is returned only in a successful restore-plan
+  response. State persists only its SHA-256, and wrong name/token values consume
+  the plan.
+- Native PowerShell profile and evidence validators enforce the frozen schema
+  and semantic contract without Python. Evidence results are bound in order to
+  immutable operation, automatic, manual, and cleanup identities. Cleanup is
+  armed only after execution starts, continues after a cleanup failure, and
+  never changes `overallStatus`.
+- Mock-backed guest execution stages and hashes the artifact for each test
+  operation, enforces the standard-user token invariant, records launched
+  process identity, runs only declared step types, preserves manual assertions,
+  accepts bound attestations, and exports validated evidence plus a SHA-256
+  inventory from a server-controlled root.
+- `mcp/Initialize-GuestCredential.ps1` accepts exactly `-ProfileName` and
+  `-VmName`, prompts separately for administrator and standard-user roles,
+  validates distinct SIDs and role membership through PowerShell Direct, and
+  persists two current-user/current-machine DPAPI `Export-Clixml` objects. Gate
+  2 validates this boundary statically and does not collect credentials.
 
-`docs/README.md` is the documentation center. `docs/profile-authoring.md` is
-the Simplified Chinese authoring guide. `examples/minimal-test-profile.json` is
-the only complete documentation profile and participates in schema and semantic
-tests. The root README is bilingual and explicitly says the plugin is not yet
-a working installable tool.
+## Verification
 
-Validation passed against both the repository marketplace fixture and the real
-personal marketplace without writes. Contract tests report 16 tools, nine
-cleanup types, four MCP versions, and five schemas. Draft 2020-12 tests pass the
-canonical example plus 10 valid, 13 schema-invalid, and 7 semantic-invalid
-fixtures. Plugin validation, companion-skill quick validation, YAML/JSON
-parsing, all PowerShell parsers, Markdown local links, strict UTF-8/mojibake
-checks, sensitive-document scans, and `git diff --check` pass. Development-only
-Python packages are confined to ignored `.artifacts`.
-
-The fresh read-only contract/docs review found four actionable issues; all were
-repaired. Its final read-only re-review returned `No actionable findings.`
-
-No VM, VHDX, checkpoint, ISO, credential, evidence, marketplace/cache,
-installation, remote, or push mutation was performed.
+- Gate 2 runtime/protocol/security tests pass under Windows PowerShell 5.1 with
+  426 assertions, 16 tools, four protocol versions, one winner in a concurrent
+  two-process apply race, happy evidence `passed`, failure evidence `failed`,
+  and ordered cleanup continuation. All mutations in that suite are mock state
+  writes below ignored `.artifacts`; reported real Hyper-V mutations: zero.
+- Frozen contract tests pass with 16 declared tools, nine cleanup types, four
+  MCP versions, and five schemas.
+- Draft 2020-12 tests pass the canonical example plus 10 valid, 13
+  schema-invalid, and 7 semantic-invalid fixtures. Five actual runtime outputs
+  independently pass the four applicable frozen schemas and evidence semantic
+  validation.
+- Scaffold/manifest checks, JSON/YAML parsing, all PowerShell parsers, Markdown
+  local links, strict UTF-8/mojibake checks, sensitive-file scans, and
+  `git diff --check` pass.
+- Plugin and companion-skill validators pass. No personal marketplace or Codex
+  cache file is written by Gate 2 validation.
 
 ## Repository state and blockers
 
-The gate started from clean `master` at the required Gate 1 commit with no
-remote and no user-owned uncommitted changes. Repository-state rule for this
-handoff: the Gate 1.1 revision is the commit containing this file, not a
-precommit working-tree snapshot. Before Gate 2 edits, the successor must verify
-that containing commit is checked out on `master`, the tree is clean, and no
-remote exists. Blockers: none.
+Gate 2 started from clean `master` at
+`f98cf7a43f8e186fb2981e55fcdbe66081107d8e`, with no remote and no user-owned
+uncommitted changes. The completed Gate 2 revision is the commit containing
+this handoff; after that commit, the expected branch is `master` with a clean
+tree and no remote. Gate 2 blockers: none.
 
-## Gate 2 exact entry
+Known next-gate boundary: real guest execution is intentionally fail-closed,
+and the real host/VM/checkpoint adapter has not been exercised. That is not a
+Gate 2 failure because this gate's acceptance surface is mock-only.
 
-Gate 2 must run in a new independent Codex task. Read `AGENTS.md`,
-`docs/specification.md`, `docs/README.md`, and this handoff before editing.
-Implement the MCP JSON-RPC runtime, common envelope, mock Hyper-V adapter,
-state/ownership store, atomic plan/apply guards, profile/evidence validators,
-interactive credential initializer, guest/tool surfaces, and protocol/security
-tests. Use mock adapters only; do not create or restore a real VM. Preserve the
-16-tool/schema-v1 compatibility surface and all Gate 1.1 cleanup semantics.
+## Next gate exact entry
+
+Gate 3 must run in a new independent Codex task. Before editing, read
+`AGENTS.md`, `docs/specification.md`, `docs/README.md`, and this handoff; verify
+that the commit containing this file is checked out on `master`, the tree is
+clean, and no remote exists.
+
+Gate 3 owns only real-adapter closure and clean-machine validation. Begin with
+read-only host inspection and a written mutation plan. Do not perform a real
+VM creation, checkpoint creation/restore, guest transfer, credential prompt, or
+package lifecycle action without new explicit user authorization naming that
+scope. After authorization, replace the `GUEST_ADAPTER_UNVALIDATED` path with
+fixed declarative PowerShell Direct operations, validate the two-role DPAPI
+initializer on dedicated accounts, exercise each guarded real mutation only on
+an explicitly dedicated VM/root, collect and validate evidence, add
+clean-machine regression coverage, update this handoff, validate, and commit.
+Never add a deletion surface or weaken the schema-v1/16-tool contract to make
+real-host testing pass.
