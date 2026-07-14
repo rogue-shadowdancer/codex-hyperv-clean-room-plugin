@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/schemas/vm-plan.schema.json",
+  "title": "Hyper-V clean-room VM creation plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "planId",
+    "createdAt",
+    "expiresAt",
+    "hostFingerprint",
+    "isoSha256",
+    "switchId",
+    "name",
+    "vmRoot",
+    "processorCount",
+    "startupMemoryGb",
+    "maximumMemoryGb",
+    "diskSizeGb",
+    "generation",
+    "secureBoot",
+    "vtpm"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "planId": { "type": "string", "format": "uuid" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "hostFingerprint": { "type": "string", "minLength": 64, "maxLength": 64 },
+    "isoSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "switchId": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "vmRoot": { "type": "string", "minLength": 3 },
+    "processorCount": { "type": "integer", "minimum": 1, "maximum": 64 },
+    "startupMemoryGb": { "type": "integer", "minimum": 2, "maximum": 256 },
+    "maximumMemoryGb": { "type": "integer", "minimum": 2, "maximum": 512 },
+    "diskSizeGb": { "type": "integer", "minimum": 40, "maximum": 2048 },
+    "generation": { "const": 2 },
+    "secureBoot": { "const": true },
+    "vtpm": { "const": true }
+  }
+}

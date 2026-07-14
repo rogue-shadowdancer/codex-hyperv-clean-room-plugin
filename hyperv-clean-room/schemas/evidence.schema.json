@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/schemas/evidence.schema.json",
+  "title": "Hyper-V clean-room evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "operationId",
+    "createdAt",
+    "profileId",
+    "baselineType",
+    "vm",
+    "guest",
+    "artifact",
+    "automaticAssertions",
+    "manualAssertions",
+    "overallStatus",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "operationId": { "type": "string", "format": "uuid" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "profileId": { "type": "string" },
+    "baselineType": {
+      "enum": ["stock-clean", "webview2-absent-derived"]
+    },
+    "vm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "checkpointName", "ownershipVerified"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "checkpointName": { "type": ["string", "null"] },
+        "ownershipVerified": { "type": "boolean" }
+      }
+    },
+    "guest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "windowsBuild",
+        "architecture",
+        "userName",
+        "isAdministrator",
+        "isElevated",
+        "tokenIntegrity"
+      ],
+      "properties": {
+        "windowsBuild": { "type": "string" },
+        "architecture": { "const": "x64" },
+        "userName": { "type": "string" },
+        "isAdministrator": { "type": "boolean" },
+        "isElevated": { "type": "boolean" },
+        "tokenIntegrity": { "enum": ["low", "medium", "high", "system"] },
+        "profilePathContainsNonAscii": { "type": "boolean" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileName", "size", "sourceSha256", "guestSha256"],
+      "properties": {
+        "fileName": { "type": "string" },
+        "size": { "type": "integer", "minimum": 0 },
+        "sourceSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "guestSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "automaticAssertions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/assertion" }
+    },
+    "manualAssertions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/assertion" }
+    },
+    "overallStatus": { "enum": ["passed", "failed", "incomplete"] },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 1000 }
+    }
+  },
+  "$defs": {
+    "assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "required", "status", "summary"],
+      "properties": {
+        "id": { "type": "string" },
+        "required": { "type": "boolean" },
+        "status": {
+          "enum": ["passed", "failed", "notPerformed", "unsupported"]
+        },
+        "summary": { "type": "string", "maxLength": 2000 },
+        "evidence": { "type": ["object", "null"] }
+      }
+    }
+  }
+}

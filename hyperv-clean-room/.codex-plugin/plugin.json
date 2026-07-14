@@ -1,0 +1,36 @@
+{
+  "name": "hyperv-clean-room",
+  "version": "0.1.0",
+  "description": "Automate safe Windows Hyper-V clean-room provisioning, package lifecycle tests, and evidence collection.",
+  "author": {
+    "name": "rogue-shadowdancer"
+  },
+  "homepage": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin",
+  "repository": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin",
+  "license": "UNLICENSED",
+  "keywords": [
+    "hyper-v",
+    "windows",
+    "clean-room",
+    "testing",
+    "automation"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Hyper-V Clean Room",
+    "shortDescription": "Safe Windows VM lifecycle and package-test automation.",
+    "longDescription": "Plan, execute, and audit Windows Hyper-V clean-room test environments through typed MCP tools with explicit mutation gates.",
+    "developerName": "rogue-shadowdancer",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Inspect this Hyper-V host without making changes.",
+      "Plan a clean Windows VM and show every proposed mutation.",
+      "Validate a clean-room test profile and evidence package."
+    ]
+  }
+}

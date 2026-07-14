@@ -1,0 +1,12 @@
+.artifacts/
+.state/
+evidence/
+plans/
+credentials/
+*.clixml
+*.vhd
+*.vhdx
+*.iso
+*.log
+Thumbs.db
+Desktop.ini

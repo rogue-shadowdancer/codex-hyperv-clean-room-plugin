@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "hyperv-clean-room": {
+      "command": "powershell.exe",
+      "args": [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "./mcp/server.ps1"
+      ],
+      "cwd": "."
+    }
+  }
+}

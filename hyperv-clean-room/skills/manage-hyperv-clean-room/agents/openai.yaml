@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage Hyper-V Clean Room"
+  short_description: "Plan and operate safe Windows Hyper-V clean-room tests"
+  default_prompt: "Use $manage-hyperv-clean-room to inspect this Hyper-V host and plan a clean-room test without making changes."

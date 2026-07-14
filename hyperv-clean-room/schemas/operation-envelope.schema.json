@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/schemas/operation-envelope.schema.json",
+  "title": "Hyper-V clean-room operation envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "ok",
+    "operationId",
+    "changed",
+    "data",
+    "warnings",
+    "evidencePath"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "ok": { "type": "boolean" },
+    "operationId": { "type": "string", "format": "uuid" },
+    "changed": { "type": "boolean" },
+    "data": { "type": "object" },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 1000 }
+    },
+    "evidencePath": { "type": ["string", "null"] },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "message": { "type": "string", "maxLength": 2000 },
+        "details": { "type": "object" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "ok": { "const": false } } },
+      "then": { "required": ["error"] },
+      "else": { "not": { "required": ["error"] } }
+    }
+  ]
+}
