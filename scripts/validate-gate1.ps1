@@ -78,8 +78,8 @@ $schemaFiles = @(
     Get-ChildItem -LiteralPath (Join-Path $pluginRoot 'schemas') `
         -Filter '*.schema.json' -File
 )
-Assert-True ($schemaFiles.Count -eq 4) `
-    'Gate 1 must contain exactly four public schemas.'
+Assert-True ($schemaFiles.Count -eq 5) `
+    'Gate 1 must contain exactly five public schemas.'
 foreach ($schema in $schemaFiles) {
     $parsed = Read-Json $schema.FullName
     Assert-True ($parsed.'$schema' -eq 'https://json-schema.org/draft/2020-12/schema') `

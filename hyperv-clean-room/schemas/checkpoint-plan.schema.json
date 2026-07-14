@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/schemas/checkpoint-plan.schema.json",
+  "title": "Hyper-V clean-room checkpoint plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "planKind",
+    "planId",
+    "createdAt",
+    "expiresAt",
+    "hostFingerprint",
+    "vmId",
+    "vmName",
+    "ownershipId",
+    "vmFingerprint",
+    "checkpointName",
+    "checkpointInventoryFingerprint"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "planKind": { "enum": ["checkpointCreate", "checkpointRestore"] },
+    "planId": { "type": "string", "format": "uuid" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "hostFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "vmId": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "vmName": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "ownershipId": { "type": "string", "format": "uuid" },
+    "vmFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "checkpointName": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "checkpointInventoryFingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "checkpointNameAbsent": { "const": true },
+    "checkpointId": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "checkpointFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "currentStateFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "confirmationToken": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{32,256}$"
+    }
+  },
+  "oneOf": [
+    {
+      "properties": { "planKind": { "const": "checkpointCreate" } },
+      "required": ["checkpointNameAbsent"],
+      "not": {
+        "anyOf": [
+          { "required": ["checkpointId"] },
+          { "required": ["checkpointFingerprint"] },
+          { "required": ["currentStateFingerprint"] },
+          { "required": ["confirmationToken"] }
+        ]
+      }
+    },
+    {
+      "properties": { "planKind": { "const": "checkpointRestore" } },
+      "required": [
+        "checkpointId",
+        "checkpointFingerprint",
+        "currentStateFingerprint",
+        "confirmationToken"
+      ],
+      "not": { "required": ["checkpointNameAbsent"] }
+    }
+  ]
+}

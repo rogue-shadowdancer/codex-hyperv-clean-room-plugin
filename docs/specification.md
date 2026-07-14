@@ -70,11 +70,14 @@ Treat disagreement, missing markers, renamed resources, or a VM ID mismatch as
 `OWNERSHIP_UNVERIFIED`. Read-only inspection may continue, but all mutations
 must stop.
 
-Plans live for 15 minutes. A plan records normalized inputs, ISO SHA-256,
-selected switch ID, target-volume identity and free space, relevant resource
-absence, host fingerprint, creation time, expiry, and a random plan ID. Applying
-a plan rechecks every recorded precondition. Plans are single-use; success or
-the first apply attempt consumes them.
+Plans live for 15 minutes. A VM-creation plan records normalized ISO, VM, and
+VHDX paths; ISO identity; selected switch identity; target-volume identity and
+free space; relevant resource absence; host fingerprint; creation time; expiry;
+and a random plan ID. A checkpoint plan records the VM and ownership identity,
+VM and checkpoint-inventory fingerprints, intended checkpoint name, and the
+operation-specific preconditions. Applying any plan rechecks every recorded
+precondition. Plans are single-use; success or the first apply attempt consumes
+them.
 
 Do not automatically remove partial resources after a failed mutation. Return
 their exact managed identity and a recovery warning, while leaving destructive
@@ -115,7 +118,10 @@ cleanup outside the public tool surface.
 
 - Input: `evidencePath`.
 - Validate schema, operation identity, artifact hash shape, result status,
-  automatic/manual separation, and overall-status derivation.
+  automatic/manual separation, and overall-status derivation. Recompute the
+  overall status instead of trusting the serialized value, require matching
+  source and guest artifact SHA-256 values, and reject a passed result whose VM
+  ownership or ordinary-user token invariants are false.
 
 ### Guarded VM mutation tools
 
@@ -135,23 +141,35 @@ cleanup outside the public tool surface.
 - Mark ownership only after the VM identity is known. Report partial state
   without deleting it if a later step fails.
 
-`create_checkpoint`
+`plan_checkpoint_create`
 
 - Inputs: `vmName` and `checkpointName`.
-- Require verified ownership and a unique checkpoint name. Record checkpoint
-  ID, parent, VM configuration fingerprint, and creation time.
+- Require verified ownership and a unique checkpoint name. Return a
+  `checkpointCreate` plan conforming to `checkpoint-plan.schema.json`, bound to
+  VM ID, ownership ID, VM fingerprint, checkpoint-inventory fingerprint, and
+  checkpoint-name absence. Make no mutation.
+
+`apply_checkpoint_create`
+
+- Input: `planId` only.
+- Revalidate the full creation plan, consume it on the first apply attempt, and
+  create exactly the named checkpoint. Record checkpoint ID, parent, VM
+  configuration fingerprint, and creation time.
 
 `plan_checkpoint_restore`
 
 - Inputs: `vmName` and `checkpointName`.
-- Require verified ownership. Report the current state that will be discarded
-  and return a single-use random confirmation token bound to the plan.
+- Require verified ownership. Return a `checkpointRestore` plan conforming to
+  `checkpoint-plan.schema.json`, report the current state that will be
+  discarded, and return a single-use random confirmation token bound to the
+  plan. Persist only a hash of the confirmation token in server state.
 
 `apply_checkpoint_restore`
 
 - Inputs: `planId`, `checkpointName`, and `confirmationToken`.
-- Require exact values and unchanged VM/checkpoint fingerprints. Consume the
-  token on the first apply attempt.
+- Require exact values and unchanged VM, ownership, checkpoint-inventory,
+  current-state, and target-checkpoint fingerprints. Consume the plan and token
+  on the first apply attempt.
 
 ### Guest and test tools
 
@@ -190,6 +208,24 @@ cleanup outside the public tool surface.
 - Require an existing local directory outside Windows, Program Files, plugin
   installation, credentials, and Hyper-V storage roots. Write UTF-8 JSON and a
   SHA-256 inventory. Never include a credential or full environment dump.
+
+`record_manual_attestation`
+
+- Inputs: `operationId`, `assertionId`, `status`, `method`, `summary`, and
+  optional `evidenceReferences`.
+- Allow status `passed`, `failed`, or `unsupported`; leaving an assertion
+  unrecorded preserves `notPerformed`.
+- Allow method `visualInspection`, `interactiveExercise`, `externalTool`, or
+  `declaredUnsupported`. Require `declaredUnsupported` when status is
+  `unsupported`, and reject it for passed/failed observations.
+- Bind the assertion to the immutable operation/profile/assertion identity.
+  Record the current Windows identity and server timestamp; callers cannot
+  override either field.
+- Accept only evidence-directory-relative references with a SHA-256. Reject
+  absolute paths, traversal, reparse escapes, missing files, and hash mismatch.
+- Write the attestation into operation state for `collect_evidence` to merge.
+  Never modify an automatic assertion and never let `run_test_profile` produce
+  a passed manual assertion.
 
 Credential setup is intentionally not an MCP tool. Run the interactive
 `Initialize-GuestCredential.ps1`, prompt separately for the orchestration
@@ -251,13 +287,21 @@ manual assertions in different arrays. Each assertion has one of:
 - `notPerformed`
 - `unsupported`
 
+Automatic assertions carry machine-collected evidence. A manual assertion with
+status `notPerformed` has `attestation: null`. A manual assertion with status
+`passed`, `failed`, or `unsupported` has an attestation containing the bound
+operation/profile/assertion identity, observer, observed timestamp, method,
+summary, and verified evidence references.
+
 Overall status is `failed` if any required assertion failed, `incomplete` if a
 required assertion is not performed or unsupported, and `passed` only when all
 required assertions passed. Optional assertions cannot upgrade the overall
-status. A tool must never infer that a GUI-visible outcome passed from process
-exit alone. Ordinary-user lifecycle evidence must identify a non-administrator,
-non-elevated test identity with medium integrity, and must record matching
-source and guest artifact SHA-256 values.
+status. `validate_evidence` recomputes this value. A tool must never infer that
+a GUI-visible outcome passed from process exit alone. Passed ordinary-user
+lifecycle evidence must identify verified VM ownership, a non-administrator,
+non-elevated test identity with medium integrity, and matching source and guest
+artifact SHA-256 values. Failed or incomplete evidence may preserve elevated or
+administrator token facts so the failure remains auditable.
 
 ## Versioning
 

@@ -71,11 +71,11 @@
     },
     "automaticAssertions": {
       "type": "array",
-      "items": { "$ref": "#/$defs/assertion" }
+      "items": { "$ref": "#/$defs/automaticAssertion" }
     },
     "manualAssertions": {
       "type": "array",
-      "items": { "$ref": "#/$defs/assertion" }
+      "items": { "$ref": "#/$defs/manualAssertion" }
     },
     "overallStatus": { "enum": ["passed", "failed", "incomplete"] },
     "warnings": {
@@ -83,11 +83,33 @@
       "items": { "type": "string", "maxLength": 1000 }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "overallStatus": { "const": "passed" } },
+        "required": ["overallStatus"]
+      },
+      "then": {
+        "properties": {
+          "vm": {
+            "properties": { "ownershipVerified": { "const": true } }
+          },
+          "guest": {
+            "properties": {
+              "isAdministrator": { "const": false },
+              "isElevated": { "const": false },
+              "tokenIntegrity": { "const": "medium" }
+            }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
-    "assertion": {
+    "automaticAssertion": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "required", "status", "summary"],
+      "required": ["id", "required", "status", "summary", "evidence"],
       "properties": {
         "id": { "type": "string" },
         "required": { "type": "boolean" },
@@ -96,6 +118,117 @@
         },
         "summary": { "type": "string", "maxLength": 2000 },
         "evidence": { "type": ["object", "null"] }
+      }
+    },
+    "manualAssertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "required", "description", "status", "attestation"],
+      "properties": {
+        "id": { "type": "string" },
+        "required": { "type": "boolean" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "status": {
+          "enum": ["passed", "failed", "notPerformed", "unsupported"]
+        },
+        "attestation": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/attestation" }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "status": { "const": "notPerformed" },
+            "attestation": { "type": "null" }
+          }
+        },
+        {
+          "properties": {
+            "status": { "enum": ["passed", "failed"] },
+            "attestation": {
+              "allOf": [
+                { "$ref": "#/$defs/attestation" },
+                {
+                  "properties": {
+                    "method": {
+                      "enum": [
+                        "visualInspection",
+                        "interactiveExercise",
+                        "externalTool"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "status": { "const": "unsupported" },
+            "attestation": {
+              "allOf": [
+                { "$ref": "#/$defs/attestation" },
+                {
+                  "properties": {
+                    "method": { "const": "declaredUnsupported" }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operationId",
+        "profileId",
+        "assertionId",
+        "observer",
+        "observedAt",
+        "method",
+        "summary",
+        "evidenceReferences"
+      ],
+      "properties": {
+        "operationId": { "type": "string", "format": "uuid" },
+        "profileId": { "type": "string", "minLength": 1 },
+        "assertionId": { "type": "string", "minLength": 1 },
+        "observer": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "observedAt": { "type": "string", "format": "date-time" },
+        "method": {
+          "enum": [
+            "visualInspection",
+            "interactiveExercise",
+            "externalTool",
+            "declaredUnsupported"
+          ]
+        },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "evidenceReferences": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceReference" }
+        }
+      }
+    },
+    "evidenceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^(?![A-Za-z]:)(?![\\\\/])(?!.*\\.\\.[\\\\/]).+$"
+        },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
       }
     }
   }

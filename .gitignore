@@ -8,5 +8,7 @@ credentials/
 *.vhdx
 *.iso
 *.log
+__pycache__/
+*.py[cod]
 Thumbs.db
 Desktop.ini

@@ -7,9 +7,10 @@ clean-room evidence.
 ## Current status
 
 Gate 1 is complete: the plugin manifest, MCP launch configuration, companion
-skill, public contracts, schemas, and validation scaffold are frozen. The MCP
-server deliberately fails closed until Gate 2 implements and tests the runtime.
-Do not install this commit as a working automation tool.
+skill, public contracts, schemas, and validation scaffold are frozen and have
+passed independent read-only review. The MCP server deliberately fails closed
+until Gate 2 implements and tests the runtime. Do not install this commit as a
+working automation tool.
 
 The design keeps the automation API independent from the companion skill. MCP
 clients can call the typed tools directly; the skill only supplies optional

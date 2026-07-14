@@ -13,11 +13,14 @@ from this skill when an equivalent tool is available.
 1. Call `inspect_host` before proposing any VM operation.
 2. Validate a test profile before staging an artifact or starting a test.
 3. Use `plan_vm_create` before `apply_vm_create`.
-4. Use `plan_checkpoint_restore` before `apply_checkpoint_restore`; require the
-   exact checkpoint name and confirmation token returned by the plan.
+4. Use `plan_checkpoint_create` before `apply_checkpoint_create`. Use
+   `plan_checkpoint_restore` before `apply_checkpoint_restore`; require the
+   exact checkpoint name and confirmation token returned by the restore plan.
 5. Inspect the guest baseline before claiming a clean environment.
 6. Collect and validate evidence after a test run.
-7. Report automatic assertions, manual assertions, unsupported checks, and
+7. Record a manual result only through `record_manual_attestation`; never infer
+   a visual or interactive result from process state.
+8. Report automatic assertions, manual assertions, unsupported checks, and
    unperformed checks separately.
 
 ## Safety rules

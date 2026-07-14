@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "operationId": "55555555-5555-4555-8555-555555555555",
+  "createdAt": "2026-07-14T11:00:00Z",
+  "profileId": "sample-package",
+  "baselineType": "stock-clean",
+  "vm": {
+    "id": "vm-1",
+    "name": "clean-win11",
+    "checkpointName": "00-stock-clean",
+    "ownershipVerified": true
+  },
+  "guest": {
+    "windowsBuild": "22631",
+    "architecture": "x64",
+    "userName": "test-user",
+    "isAdministrator": false,
+    "isElevated": false,
+    "tokenIntegrity": "medium"
+  },
+  "artifact": {
+    "fileName": "Sample_0.1.0_x64-setup.exe",
+    "size": 1024,
+    "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "automaticAssertions": [],
+  "manualAssertions": [
+    {
+      "id": "dpi-150",
+      "required": true,
+      "description": "Inspect the UI at 150 percent DPI.",
+      "status": "passed",
+      "attestation": {
+        "operationId": "55555555-5555-4555-8555-555555555555",
+        "profileId": "sample-package",
+        "assertionId": "dpi-150",
+        "observer": "HOST\\operator",
+        "observedAt": "2026-07-14T11:05:00Z",
+        "method": "visualInspection",
+        "summary": "The UI was readable.",
+        "evidenceReferences": [
+          {
+            "path": "C:\\Temp\\dpi.png",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ]
+      }
+    }
+  ],
+  "overallStatus": "passed",
+  "warnings": []
+}

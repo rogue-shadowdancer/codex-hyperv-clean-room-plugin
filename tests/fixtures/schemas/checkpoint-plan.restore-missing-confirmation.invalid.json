@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "planKind": "checkpointRestore",
+  "planId": "44444444-4444-4444-8444-444444444444",
+  "createdAt": "2026-07-14T10:00:00Z",
+  "expiresAt": "2026-07-14T10:15:00Z",
+  "hostFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "vmId": "vm-1",
+  "vmName": "clean-win11",
+  "ownershipId": "33333333-3333-4333-8333-333333333333",
+  "vmFingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "checkpointName": "00-stock-clean",
+  "checkpointInventoryFingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "checkpointId": "checkpoint-1",
+  "checkpointFingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "currentStateFingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+}
