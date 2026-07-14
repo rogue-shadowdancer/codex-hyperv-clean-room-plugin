@@ -107,13 +107,21 @@ foreach ($name in @('HCR_MOCK_ADAPTER_PATH')) {
 
 $process = New-Object Diagnostics.Process
 $process.StartInfo = $startInfo
-Assert-InstalledCopy $process.Start() 'Installed MCP server process did not start.'
-$stdoutTask = $process.StandardOutput.ReadToEndAsync()
-$stderrTask = $process.StandardError.ReadToEndAsync()
-foreach ($request in $requests) {
-    $process.StandardInput.WriteLine(($request | ConvertTo-Json -Depth 20 -Compress))
+$stdinEncoding = New-Object Text.UTF8Encoding($false)
+$originalConsoleInputEncoding = [Console]::InputEncoding
+try {
+    [Console]::InputEncoding = $stdinEncoding
+    Assert-InstalledCopy $process.Start() 'Installed MCP server process did not start.'
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    foreach ($request in $requests) {
+        $process.StandardInput.WriteLine(($request | ConvertTo-Json -Depth 20 -Compress))
+    }
+    $process.StandardInput.Close()
 }
-$process.StandardInput.Close()
+finally {
+    [Console]::InputEncoding = $originalConsoleInputEncoding
+}
 if (-not $process.WaitForExit(60000)) {
     try { $process.Kill() } catch {}
     throw 'Installed MCP server did not exit within 60 seconds.'

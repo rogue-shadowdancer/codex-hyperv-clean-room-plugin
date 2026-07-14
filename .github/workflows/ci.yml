@@ -8,16 +8,27 @@ permissions:
   contents: read
 
 jobs:
-  gate2-runtime:
+  gate5-publication:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Prepare pinned ABI-isolated test Python
         shell: powershell
         run: ./scripts/prepare-test-python.ps1 -PythonCommand python
-      - name: Validate complete Gate 2 baseline
+      - name: Validate release documentation
         shell: powershell
-        run: ./scripts/validate-gate2.ps1
+        run: ./scripts/validate-docs.ps1
+      - name: Validate publication-hygiene policy regressions
+        shell: powershell
+        run: python -S ./tests/publication_hygiene_policy_tests.py
+      - name: Validate publication-sensitive source and history
+        shell: powershell
+        run: python -S ./tests/publication_hygiene_tests.py
+      - name: Validate CI-safe Gate 4 baseline
+        shell: powershell
+        run: ./scripts/validate-gate4-ci.ps1

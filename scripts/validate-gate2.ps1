@@ -3,7 +3,8 @@ param(
     [string]$MarketplacePath,
     [string]$PythonCommand,
     [string[]]$PythonArguments = @(),
-    [string]$PythonDependencyPath
+    [string]$PythonDependencyPath,
+    [switch]$SkipRealHostSmoke
 )
 
 Set-StrictMode -Version Latest
@@ -158,7 +159,9 @@ print(json.dumps({
         -MarketplacePath $MarketplacePath
     $null = & (Join-Path $repoRoot 'tests\gate1-contract.tests.ps1')
     $null = & (Join-Path $repoRoot 'tests\gate2-runtime.tests.ps1')
-    $null = & (Join-Path $repoRoot 'tests\gate2-real-readonly.tests.ps1')
+    if (-not $SkipRealHostSmoke) {
+        $null = & (Join-Path $repoRoot 'tests\gate2-real-readonly.tests.ps1')
+    }
     $null = & (Join-Path $PSScriptRoot 'validate-docs.ps1')
     Invoke-Gate2Python (Join-Path $repoRoot 'tests\schema_contract_tests.py')
     Invoke-Gate2Python (Join-Path $repoRoot 'tests\runtime_artifact_schema_tests.py')
@@ -169,12 +172,20 @@ finally {
     $env:PYTHONNOUSERSITE = $oldNoUserSite
 }
 
+$realHostOperations = @()
+if (-not $SkipRealHostSmoke) {
+    $realHostOperations = @(
+        'inspect_host',
+        'plan_vm_create missing-ISO rejection'
+    )
+}
+
 [ordered]@{
     ok = $true
     gate = 2
     marketplacePath = [IO.Path]::GetFullPath($MarketplacePath)
     python = $pythonExecutable
     isolatedDependencies = -not [string]::IsNullOrWhiteSpace($PythonDependencyPath)
-    realHostOperations = @('inspect_host', 'plan_vm_create missing-ISO rejection')
+    realHostOperations = $realHostOperations
     realHyperVMutations = 0
 } | ConvertTo-Json -Compress

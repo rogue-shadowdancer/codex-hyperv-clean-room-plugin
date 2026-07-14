@@ -2,10 +2,11 @@
 
 ## English
 
-Gate 4 adds an owned personal-plugin install and cachebuster-reinstall workflow
-for the pre-release v1 MCP runtime under Windows PowerShell 5.1. Final
-acceptance also requires the clean commit/reinstall state recorded in
-`TASK_HANDOFF.md`. The inherited Gate 2 suite still uses mock adapters, parser
+Gate 5 prepares the source-validated Gate 4 personal installation baseline for
+private publication. It adds a release process, changelog, full-history
+sensitive-state scan, and a CI-safe Gate 4 path with zero personal install,
+marketplace, installed-copy, real-host, guest, or Hyper-V mutation operations.
+The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.
 The production guest adapter contains fixed administrator-supervised
@@ -21,6 +22,10 @@ Read in this order:
   fields.
 - [Installation maintenance](maintenance.md) defines the cachebuster reinstall
   loop, drift handling, and safe recovery.
+- [Private release process](release-process.md) defines publication hygiene,
+  CI coverage, private remote creation, Actions, and remote acceptance.
+- [Changelog](../CHANGELOG.md) records the pre-release source milestones and
+  the explicit clean-machine boundary.
 
 1. [Architecture](architecture.md) — components, trust boundaries, state, and
    production guest flow.
@@ -54,9 +59,10 @@ PowerShell 5.1 based.
 
 ## 简体中文
 
-Gate 4 为首次发布前的 v1 MCP runtime 增加带 ownership marker 的 personal plugin
-安装与 cachebuster 重装流程；最终验收还要求 `TASK_HANDOFF.md` 记录 clean
-commit/reinstall 状态。继承的 Gate 2 测试仍在 Windows PowerShell 5.1 下使用 mock
+Gate 5 把经过 source validation 的 Gate 4 personal install baseline 准备为 private
+publication candidate，并新增 release process、changelog、完整 history sensitive-state
+扫描，以及 personal install、marketplace、installed-copy、real-host、guest 与 Hyper-V
+mutation 全部为零的 CI-safe Gate 4 路径。继承的 Gate 2 测试仍在 Windows PowerShell 5.1 下使用 mock
 adapter、parser、production-adapter static seam、严格文档
 检查和有界真实 host 只读 smoke。Production guest adapter 已包含固定的 administrator-supervised
 PowerShell Direct、standard-user execution、operation-scoped staging/PID identity、
@@ -68,6 +74,9 @@ PowerShell Direct、standard-user execution、operation-scoped staging/PID ident
 - [Plugin installation](installation.md)：source validation、ownership、personal
   marketplace、installed-copy 验收与状态字段。
 - [Installation maintenance](maintenance.md)：cachebuster 重装、drift 与安全恢复。
+- [Private release process](release-process.md)：publication hygiene、CI、private remote、
+  Actions 与 remote acceptance。
+- [Changelog](../CHANGELOG.md)：pre-release source milestones 与 clean-machine boundary。
 
 1. [Architecture](architecture.md)：组件、trust boundary、状态与 production guest
    flow。

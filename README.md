@@ -6,7 +6,7 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: Gate 4 personal installation workflow
+### Status: Gate 5 private publication candidate
 
 Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,
 profile, evidence, plan, and credential contracts. The baseline remains plugin
@@ -19,8 +19,13 @@ entry managed only through `plugin-creator`, and one cachebuster reinstall.
 Installed-copy acceptance starts the MCP server only from that installed path,
 discovers exactly 16 tools, passes read-only `inspect_host`, rejects a missing
 ISO before mutation, and reports zero real Hyper-V mutations.
-Final Gate 4 acceptance additionally requires the plugin payload to match the
-committed `HEAD` and the post-commit reinstall state recorded in
+
+Gate 5 adds release documentation, a full-history sensitive-state scan, and a
+CI-safe Gate 4 path that performs no personal installation, marketplace
+mutation, installed-copy call, real-host operation, guest operation, or
+Hyper-V mutation. This candidate is prepared for private publication only; it
+does not claim that a GitHub remote, tag, or Release already exists. Current
+publication state and final acceptance evidence belong in
 [TASK_HANDOFF.md](TASK_HANDOFF.md).
 
 JSON-RPC transport, common envelopes, persistent ownership and atomic plan
@@ -50,13 +55,15 @@ The frozen safety model includes:
 Read the [documentation center](docs/README.md),
 [installation guide](docs/installation.md),
 [installation maintenance guide](docs/maintenance.md),
+[private release process](docs/release-process.md),
 [architecture](docs/architecture.md), [operations guide](docs/operations.md),
 [evidence model](docs/evidence.md), [security design](docs/security.md),
 [troubleshooting guide](docs/troubleshooting.md), authoritative
 [specification](docs/specification.md), Simplified Chinese
 [profile authoring guide](docs/profile-authoring.md), and the single complete
 [minimal profile example](examples/minimal-test-profile.json). Gate results and
-the next entry point are in [TASK_HANDOFF.md](TASK_HANDOFF.md).
+the next entry point are in [TASK_HANDOFF.md](TASK_HANDOFF.md); source milestones
+are recorded in the [changelog](CHANGELOG.md).
 
 Development and CI use Python for Draft 2020-12 schema checks and repository
 quality validation only. The production runtime uses Windows PowerShell 5.1
@@ -80,6 +87,14 @@ For the complete installed-copy Gate 4 validation:
 .\scripts\validate-gate4.ps1
 ```
 
+For the non-machine-specific CI-safe Gate 4 path and the publication scan:
+
+```powershell
+& (Get-Command python).Source -S .\tests\publication_hygiene_policy_tests.py
+& (Get-Command python).Source -S .\tests\publication_hygiene_tests.py
+.\scripts\validate-gate4-ci.ps1
+```
+
 This does not claim clean-machine, live guest, credential, package, VM, or
 checkpoint success.
 
@@ -88,7 +103,7 @@ checkpoint success.
 `hyperv-clean-room` 是一个仅面向 Windows 的 Codex plugin 设计，用于受保护的
 Hyper-V VM 操作、声明式 current-user package lifecycle 测试和结构化 evidence。
 
-### 状态：Gate 4 personal 安装流程
+### 状态：Gate 5 private publication candidate
 
 Gate 2 已依据冻结的 v1 cleanup、profile、evidence、plan 和 credential 合同实现
 PowerShell 5.1 MCP runtime。基线仍为 plugin base version `0.1.0` 与
@@ -102,6 +117,12 @@ personal marketplace entry，并完成一次 cachebuster 重装演练。installe
 不存在 ISO 的 mutation 前拒绝，以及真实 Hyper-V mutation 为零。
 Gate 4 的最终验收还要求 plugin payload 与已提交的 `HEAD` 一致，并以
 [TASK_HANDOFF.md](TASK_HANDOFF.md)记录 post-commit 重装状态。
+
+Gate 5 新增 release 文档、完整 Git history sensitive-state 扫描，以及不执行 personal
+install、marketplace mutation、installed-copy call、real-host operation、guest operation
+或 Hyper-V mutation 的 CI-safe Gate 4 路径。当前内容只是 private publication candidate；
+不声称 GitHub remote、tag 或 Release 已经存在。实际 publication 与最终验收状态记录在
+[TASK_HANDOFF.md](TASK_HANDOFF.md)。
 
 JSON-RPC transport、common envelope、持久 ownership 与原子 plan guard、原生
 profile/evidence validation、mock-backed guest/test flow、evidence export 和交互式
@@ -125,13 +146,15 @@ worker 以 standard test user 身份执行闭合的声明式 step，并把 stagi
 
 请从[文档中心](docs/README.md)开始，并参考
 [installation](docs/installation.md)、[maintenance](docs/maintenance.md)、
+[private release process](docs/release-process.md)、
 [architecture](docs/architecture.md)、[operations guide](docs/operations.md)、
 [evidence model](docs/evidence.md)、[security design](docs/security.md)、
 [troubleshooting guide](docs/troubleshooting.md)、权威
 [specification](docs/specification.md)、简体中文
 [profile 编写指南](docs/profile-authoring.md)和唯一完整的
 [最小 profile 示例](examples/minimal-test-profile.json)。Gate 结果和下一入口位于
-[TASK_HANDOFF.md](TASK_HANDOFF.md)。
+[TASK_HANDOFF.md](TASK_HANDOFF.md)，source milestone 记录在
+[changelog](CHANGELOG.md)。
 
 Python 只用于开发和 CI 的 Draft 2020-12 schema 检查与 repository quality
 验证；production runtime 使用 Windows PowerShell 5.1，且不依赖 Python。先准备
@@ -149,6 +172,14 @@ pinned、ABI-isolated 开发依赖，再使用无参数命令完成 Gate 2 检�
 
 ```powershell
 .\scripts\validate-gate4.ps1
+```
+
+CI-safe Gate 4 路径与 publication 扫描命令为：
+
+```powershell
+& (Get-Command python).Source -S .\tests\publication_hygiene_policy_tests.py
+& (Get-Command python).Source -S .\tests\publication_hygiene_tests.py
+.\scripts\validate-gate4-ci.ps1
 ```
 
 该结果不代表 clean-machine、live guest、credential、package、VM 或 checkpoint 已通过。

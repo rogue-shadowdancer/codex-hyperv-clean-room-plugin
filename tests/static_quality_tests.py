@@ -191,11 +191,13 @@ def main() -> int:
         )
 
     required_documents = {
+        REPO_ROOT / "CHANGELOG.md",
         REPO_ROOT / "SECURITY.md",
         REPO_ROOT / "docs" / "architecture.md",
         REPO_ROOT / "docs" / "installation.md",
         REPO_ROOT / "docs" / "maintenance.md",
         REPO_ROOT / "docs" / "operations.md",
+        REPO_ROOT / "docs" / "release-process.md",
         REPO_ROOT / "docs" / "evidence.md",
         REPO_ROOT / "docs" / "security.md",
         REPO_ROOT / "docs" / "troubleshooting.md",
@@ -207,6 +209,34 @@ def main() -> int:
     )
     if missing_documents:
         raise AssertionError(f"required Gate documents are missing: {missing_documents}")
+
+    ci_source = decoded[REPO_ROOT / ".github" / "workflows" / "ci.yml"]
+    for required_ci_seam in (
+        "fetch-depth: 0",
+        "validate-docs.ps1",
+        "publication_hygiene_policy_tests.py",
+        "publication_hygiene_tests.py",
+        "validate-gate4-ci.ps1",
+    ):
+        if required_ci_seam not in ci_source:
+            raise AssertionError(
+                f"CI publication validation is missing: {required_ci_seam}"
+            )
+
+    gate4_ci_source = decoded[REPO_ROOT / "scripts" / "validate-gate4-ci.ps1"]
+    for required_gate4_ci_seam in (
+        "-SkipRealHostSmoke",
+        "validate-install-source.ps1",
+        "gate4-installation.tests.ps1",
+        "personalInstallOperations = 0",
+        "marketplaceMutations = 0",
+        "realHostOperations = 0",
+        "realHyperVMutations = 0",
+    ):
+        if required_gate4_ci_seam not in gate4_ci_source:
+            raise AssertionError(
+                f"CI-safe Gate 4 validation is missing: {required_gate4_ci_seam}"
+            )
 
     requirements = read_utf8(REPO_ROOT / "requirements-dev.txt").splitlines()
     expected_requirements = {

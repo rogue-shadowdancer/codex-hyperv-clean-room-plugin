@@ -20,6 +20,8 @@ $inventory = Get-HcrSourceInventory `
     sourceCommit = $inventory.sourceCommit
     cachebuster = $inventory.cachebuster
     fileCount = $inventory.fileCount
+    schemaCount = @(Get-ChildItem -LiteralPath (Join-Path $sourceRoot 'schemas') `
+        -File -Filter '*.json').Count
     totalBytes = $inventory.totalBytes
     reparsePoints = 0
     untrackedPayloadFiles = 0
