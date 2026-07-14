@@ -300,6 +300,13 @@ def main() -> int:
             )
     if "[IO.FileMode]::CreateNew" not in adapter_source:
         raise AssertionError("guest control files are not created atomically")
+    initializer_source = decoded[
+        REPO_ROOT / "hyperv-clean-room" / "mcp" / "Initialize-GuestCredential.ps1"
+    ]
+    if "$acl.SetOwner($currentSid)" not in initializer_source:
+        raise AssertionError(
+            "credential ACL publication does not set current-user ownership explicitly"
+        )
     for result_channel_seam in (
         "CreateProcessWithLogonW",
         "CreateSuspended",

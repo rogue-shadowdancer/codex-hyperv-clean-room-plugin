@@ -1384,6 +1384,14 @@ Assert-Equal $initializerFunctions.Count 2 `
 foreach ($functionAst in $initializerFunctions) {
     Invoke-Expression $functionAst.Extent.Text
 }
+$setCredentialAclFunction = @($initializerFunctions | Where-Object {
+    $_.Name -eq 'Set-HcrPrivateCredentialAcl'
+})
+Assert-Equal $setCredentialAclFunction.Count 1 `
+    'Credential ACL installation function is missing or duplicated.'
+Assert-True ($setCredentialAclFunction[0].Extent.Text -match
+    '\$acl\.SetOwner\(\$currentSid\)') `
+    'Credential ACL installation does not explicitly assign current-user ownership.'
 $credentialAclProbe = Join-Path $testRoot 'credential-acl-probe'
 [void](New-Item -ItemType Directory -Path $credentialAclProbe)
 Set-HcrPrivateCredentialAcl $credentialAclProbe

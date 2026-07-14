@@ -142,6 +142,7 @@ function Set-HcrPrivateCredentialAcl {
     $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
     $acl = New-Object Security.AccessControl.DirectorySecurity
     $acl.SetAccessRuleProtection($true, $false)
+    $acl.SetOwner($currentSid)
     foreach ($sidValue in @(
         $currentSid.Value,
         'S-1-5-18',
