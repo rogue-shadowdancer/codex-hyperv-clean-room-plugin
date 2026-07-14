@@ -2,9 +2,11 @@
 
 Status: Gate 2 mock-validated runtime baseline. The PowerShell 5.1 MCP entry
 point, all 16 tool surfaces, state and ownership guards, validators, evidence
-flow, and credential initializer are implemented. Gate 2 performs no real
-Hyper-V mutation. The real guest execution adapter remains fail-closed pending
-an explicitly authorized clean-machine gate.
+flow, credential initializer, and fixed production PowerShell Direct guest
+adapter are implemented. Gate 2 performs no real guest operation or Hyper-V
+mutation. Production guest behavior is validated only through mock execution,
+parser checks, and static closed-dispatch seams; it is not clean-machine
+validated.
 
 ## Purpose and boundary
 
@@ -25,10 +27,19 @@ VHDX, checkpoint, or host file.
   PowerShell module. It must not depend on Python. Python and the Draft 2020-12
   `jsonschema` validator are development and CI dependencies only.
 - Use JSON-RPC MCP over stdio. Read and write one UTF-8 JSON message per line.
-- Reserve stdout for protocol messages. Send bounded diagnostics to stderr.
+- Reserve stdout for protocol messages. Suppress warning, verbose, debug,
+  information, and progress streams at the server boundary through both
+  preferences and explicit per-request stream redirection. Send only bounded
+  diagnostics to stderr.
 - Support exactly these MCP protocol versions: `2024-11-05`, `2025-03-26`,
   `2025-06-18`, and `2025-11-25`. Negotiate a mutually supported value and
   never announce a version newer than the request or outside this set.
+- Require omitted or object-shaped method `params` and reject scalar, null, or
+  array forms. Initialize params contain only required, typed
+  `protocolVersion`, `capabilities`, and `clientInfo` fields; `clientInfo`
+  requires non-empty string `name` and `version`. `ping`, `tools/list`, and
+  `notifications/initialized` accept only omitted or empty params. Tool-call
+  params contain only `name` and optional object-shaped `arguments`.
 - Return every tool result as a JSON string in the MCP text content block.
 - Set the MCP `isError` flag when the envelope has `ok: false`.
 - Never serialize a PowerShell error record or stack trace into a response.
@@ -82,6 +93,11 @@ VHDX paths; ISO identity; selected switch identity; target-volume identity,
 fingerprint; creation time; expiry; and a random plan ID. A checkpoint plan
 records the VM and ownership identity, VM and checkpoint-inventory
 fingerprints, intended checkpoint name, and operation-specific preconditions.
+Target-volume identity is a non-empty stable `Get-Volume.UniqueId`; a drive
+letter is never an identity fallback. Immediately before VM mutation, reopen
+the recorded VM root as the same normalized local non-reparse directory and
+recompute and compare the derived VM and VHDX paths. The production adapter
+repeats those path and volume bindings at its mutation boundary.
 
 For an existing, unconsumed plan, the first apply call whose input is
 well-formed for that apply tool atomically consumes the plan before checking a
@@ -95,7 +111,10 @@ current free space need not equal the earlier `availableBytes` snapshot.
 
 Do not automatically remove partial resources after a failed mutation. Return
 their exact managed identity and a recovery warning, while leaving destructive
-cleanup outside the public tool surface.
+cleanup outside the public tool surface. A failure before the host mutation
+boundary reports `changed: false`. After entry, a confirmed effect or one that
+cannot safely be excluded reports `changed: true`, with bounded partial
+identity and `confirmed` or `indeterminate` effect state in error details.
 
 ## Tool contract
 
@@ -105,7 +124,7 @@ is public.
 
 ### Read-only tools
 
-`inspect_host`
+#### `inspect_host`
 
 - Inputs: optional `vmRoot`, `minimumFreeSpaceGb`, and `vmName`.
 - Report Windows edition/build/architecture, Hyper-V command availability,
@@ -113,32 +132,33 @@ is public.
   switches, and relevant name/path conflicts.
 - Do not enable Windows features or enumerate secrets.
 
-`list_vms`
+#### `list_vms`
 
 - Input: `managedOnly`, default `true`.
 - Return managed VM summaries by default. When explicitly false, return only
   names, IDs, state, generation, and ownership status for other VMs.
 
-`inspect_vm`
+#### `inspect_vm`
 
 - Input: `vmName`.
 - Report generation, firmware security, vTPM, CPU, memory, disk, switch, state,
   checkpoints, and ownership verification without changing the VM.
 
-`validate_test_profile`
+#### `validate_test_profile`
 
 - Input: `profilePath`.
 - Validate schema plus semantic constraints: local file, no reparse escape, no
   command/script fields, allowed step types, bounded timeouts, application
   references, safe guest-relative paths, and unique IDs.
 
-`validate_evidence`
+#### `validate_evidence`
 
 - Input: `evidencePath`.
 - Validate schema, operation identity, artifact hash shape, result status,
   automatic/manual separation, and overall-status derivation. Recompute the
   overall status instead of trusting the serialized value, require matching
-  source and guest artifact SHA-256 values, and reject a passed result whose VM
+  source and guest artifact SHA-256 values for passed evidence, and reject a
+  passed result whose VM
   ownership or ordinary-user token invariants are false.
 - Validate `cleanupTriggered` against immutable operation trigger state. Bind
   `cleanupResults` one-to-one and in order to the operation, profile,
@@ -148,7 +168,7 @@ is public.
 
 ### Guarded VM mutation tools
 
-`plan_vm_create`
+#### `plan_vm_create`
 
 - Required inputs: `name`, `isoPath`, `vmRoot`, `switchName`.
 - Optional inputs: `processorCount`, `startupMemoryGb`, `maximumMemoryGb`, and
@@ -157,7 +177,7 @@ is public.
   dynamic memory, 100 GiB dynamic VHDX, Secure Boot, and vTPM.
 - Return a plan conforming to `vm-plan.schema.json`; make no mutation.
 
-`apply_vm_create`
+#### `apply_vm_create`
 
 - Input: `planId` only.
 - Atomically consume an existing plan on the first well-formed apply call,
@@ -166,7 +186,7 @@ is public.
 - Mark ownership only after the VM identity is known. Report partial state
   without deleting it if a later step fails.
 
-`plan_checkpoint_create`
+#### `plan_checkpoint_create`
 
 - Inputs: `vmName` and `checkpointName`.
 - Require verified ownership and a unique checkpoint name. Return a
@@ -174,7 +194,7 @@ is public.
   VM ID, ownership ID, VM fingerprint, checkpoint-inventory fingerprint, and
   checkpoint-name absence. Make no mutation.
 
-`apply_checkpoint_create`
+#### `apply_checkpoint_create`
 
 - Input: `planId` only.
 - Atomically consume an existing creation plan before validating name or drift,
@@ -182,28 +202,33 @@ is public.
   Record checkpoint ID, parent, VM configuration fingerprint, and creation
   time.
 
-`plan_checkpoint_restore`
+#### `plan_checkpoint_restore`
 
 - Inputs: `vmName` and `checkpointName`.
-- Require verified ownership. Return a `checkpointRestore` plan conforming to
+- Require verified ownership and require the managed VM to be `Off`. Return a
+  `checkpointRestore` plan conforming to
   `checkpoint-plan.schema.json`, report the current state that will be
   discarded, and return a single-use random confirmation token bound to the
   plan. Plaintext may appear exactly once, only in this tool's successful plan
   response. Persist only its hash in server state and redact it from errors,
   diagnostics, logs, and evidence.
 
-`apply_checkpoint_restore`
+#### `apply_checkpoint_restore`
 
 - Inputs: `planId`, `checkpointName`, and `confirmationToken`.
 - For an existing plan and well-formed input, atomically consume the plan before
   checking the checkpoint name, token, or drift. Wrong values consume it.
-  Restore only when the values are exact and the VM, ownership,
-  checkpoint-inventory, current-state, and target-checkpoint fingerprints are
-  unchanged.
+  Restore only when the values are exact, the VM remains `Off`, and the VM,
+  ownership, checkpoint-inventory, current-state including offline VHDX
+  identity, and target-checkpoint ID/name/fingerprint are unchanged. The
+  production adapter must repeat these checks against a fresh live snapshot at
+  the mutation boundary and restore only the exact rebound snapshot object.
+  Planning and apply must fail closed when attached-disk enumeration, ordinary
+  VHDX file metadata, or Hyper-V VHD identifier and size facts are unavailable.
 
 ### Guest and test tools
 
-`inspect_guest`
+#### `inspect_guest`
 
 - Inputs: `vmName` and `credentialProfile`.
 - Use the profile's orchestration administrator for PowerShell Direct, then
@@ -212,7 +237,7 @@ is public.
   profile path, DPI, installed products, WebView2, forbidden developer
   commands, user/system PATH summaries, and configured product traces.
 
-`stage_artifact`
+#### `stage_artifact`
 
 - Inputs: `vmName`, `credentialProfile`, `sourcePath`, and
   `guestDestination`.
@@ -222,7 +247,7 @@ is public.
   workflow tool. Its result is scoped to its own operation and is never
   implicitly reused by a later `run_test_profile` operation.
 
-`run_test_profile`
+#### `run_test_profile`
 
 - Inputs: `vmName`, `credentialProfile`, `profilePath`, and `artifactPath`.
 - `artifactPath` is a host-local ordinary file. Reject directories, reparse
@@ -243,7 +268,7 @@ is public.
   section. Preserve VM state and collect failure evidence; cleanup is not VM
   rollback.
 
-`collect_evidence`
+#### `collect_evidence`
 
 - Inputs: `operationId` and `outputDirectory`.
 - Require an existing local directory outside Windows, Program Files, plugin
@@ -251,8 +276,17 @@ is public.
   SHA-256 inventory. Export from the operation's server-controlled evidence
   staging root; never treat a caller path as the live staging root. Never
   include a credential or full environment dump.
+- Hold the operation lock while re-resolving and rehashing every manual
+  reference. Reject mutable control-document self-reference. For every exported
+  file, require the pre-copy source, post-copy source, destination, claimed, and
+  inventory hashes to agree. Reject a staged root `inventory.json`; parse and
+  revalidate the exact copied `evidence.json` against immutable operation state
+  before publishing the generated inventory. Reopen the final serialized
+  `inventory.json`, require its exact operation/file membership, and recheck
+  every final file's size and SHA-256 from those parsed inventory claims before
+  reporting success.
 
-`record_manual_attestation`
+#### `record_manual_attestation`
 
 - Inputs: `operationId`, `assertionId`, `status`, `method`, `summary`, and
   optional `evidenceReferences`.
@@ -269,6 +303,8 @@ is public.
 - Resolve every reference inside the operation's server-controlled evidence
   staging root. Write the attestation into operation state for
   `collect_evidence` to merge and export.
+  Reject `evidence.json`, `inventory.json`, and other mutable control documents
+  as self-referential evidence.
   Never modify an automatic assertion and never let `run_test_profile` produce
   a passed manual assertion.
 
@@ -283,6 +319,50 @@ same-user/same-machine DPAPI `Export-Clixml`. Gate 2 implements this script and
 tests its parameter and prompt boundary without collecting credentials. MCP
 arguments carry only the validated profile name. Do not log either username
 unless it is required in final guest identity evidence.
+
+The initializer must require the administrator SID and high/system integrity,
+require the distinct test SID to have no Administrators SID and exact medium
+integrity, build both DPAPI files plus metadata in one private pending
+directory, read-validate every component, and publish the profile by one
+exact-destination same-volume `[IO.Directory]::Move`. It must then reopen the
+final directory and verify its protected ACL, exact three-file membership,
+sizes, credential objects, and metadata. It must never merge into or overwrite
+an existing or concurrently created profile or expose a partial bundle under
+the requested name.
+
+For every production guest operation context, revalidate the live PowerShell
+Direct administrator SID and role against profile metadata. For every worker
+invocation, revalidate the test-user SID; lifecycle and cleanup modes also
+require a non-administrator, non-elevated, exact-medium token.
+
+The fixed worker receives administrator-created, create-new input bound to an
+operation, invocation, mode, and SHA-256. It returns at most one MiB of JSON only
+over redirected stdout; it accepts no result-file path. The supervisor accepts
+the result only when all bindings and the process exit code agree. Guest
+workspace directories must disable inheritance, apply an explicit ACL, and
+read back administrator ownership, exactly one full-control grant for the live
+administrator, `SYSTEM`, and local Administrators, and an operation-only
+read/execute test-SID grant with no write capability. Every grant must use the
+canonical container/object inheritance flags and no propagation flag. New
+plugin ancestors must receive that protected descriptor atomically; existing
+owners and ACLs are rebound to it. Create the worker suspended,
+assign it to a Windows job object, then resume it and recompute the remaining
+deadline.
+Terminate on timeout, a late or unbound launch result, or unexpected descendant
+survival; verified containment requires root exit and zero active job
+processes. A declared `launchApplication` child may intentionally outlive that
+worker invocation only after it is suspended and its PID, creation time, path,
+job membership, and identity are rebound while it is the only active job
+process before the deadline. It is then resumed. It remains stoppable only
+through its recorded operation-scoped identity. Revalidation, termination, and
+termination wait must use the same retained process handle.
+
+PowerShell Direct session and copy calls use remoting open, operation, and
+cancel timeouts plus one end-to-end deadline, checked between calls. They are
+not processes in the worker job object; therefore the job-object hard-kill
+guarantee does not cover a synchronous remoting call that outlives its bound.
+Such a transport failure is indeterminate and must never be reported as a
+verified clean stop.
 
 PowerShell Direct does not by itself prove an interactive desktop result.
 Silent install/uninstall and process/module assertions may be automated through
@@ -304,6 +384,12 @@ records both the source and guest SHA-256 values. The ordinary `steps` array
 must contain exactly one `stageArtifact`, and it must be the first step. The
 runner performs that stage for the current test operation; a prior
 `stage_artifact` operation never satisfies it.
+
+When staging cannot produce a verified guest copy, schema v1 records
+`guestSha256: null`; when a copy is readable but mismatched, it records the
+observed hash. Either form requires a failed stage assertion and prevents a
+passed overall result. Existing successful evidence remains unchanged and
+requires equal source and guest hashes plus a passed stage assertion.
 
 Allowed ordinary step types are:
 
@@ -453,15 +539,21 @@ four frozen versions, closed tool-input schemas, JSON-string text results, the
 common envelope, and MCP `isError` projection.
 
 The runtime implements a test-mode-only mock adapter and a default Hyper-V
-adapter boundary. Host, VM, and checkpoint paths have guarded real-adapter
-implementations, but Gate 2 does not execute them against a real host. Real
-guest inspection, artifact transfer, and declarative execution remain
-fail-closed with `GUEST_ADAPTER_UNVALIDATED` until a separately authorized
-clean-machine gate completes their implementation and validation. Mock mode
-requires both `HCR_ADAPTER_MODE=mock` and `HCR_TEST_MODE=1`; the installed MCP
-configuration supplies neither.
+adapter. Host, VM, checkpoint, guest inspection, artifact transfer, and
+declarative execution have production implementations. Production guest work
+uses the DPAPI credential bundle, opens PowerShell Direct only as the
+orchestration administrator, transfers and hash-verifies a plugin-owned fixed
+worker, then runs its closed dispatcher as the enrolled standard user. Guest
+staging, worker I/O, sentinels, and stoppable process identities are bound to
+the current operation. Package/install/uninstall/application behavior has
+fixed mappings and exposes no command, script, shell, URL, download, raw
+uninstall-string, or caller-selected argument surface.
 
-Gate 2 proves, under Windows PowerShell 5.1 and mock adapters only:
+Gate 2 does not execute any production guest method or Hyper-V mutation. Mock
+mode requires both `HCR_ADAPTER_MODE=mock` and `HCR_TEST_MODE=1`; the installed
+MCP configuration supplies neither.
+
+Under Windows PowerShell 5.1, mock execution proves:
 
 - all 16 tools are discoverable and callable through MCP;
 - malformed apply input does not consume a plan, while the first well-formed
@@ -475,7 +567,22 @@ Gate 2 proves, under Windows PowerShell 5.1 and mock adapters only:
 - the credential initializer accepts only the two frozen parameters, prompts
   twice, validates distinct roles, and uses two DPAPI `Export-Clixml` writes.
 
+Parser and static source checks separately establish that production guest
+source has a closed worker mode/step dispatcher,
+  administrator-only supervision, standard-user token enforcement, worker and
+  artifact dual-hash checks, operation-scoped staging/PIDs, constrained
+  uninstall discovery, and bounded cleanup. Those checks do not execute or
+  clean-machine-validate the production guest path.
+
+Separately, the bounded production-adapter host smoke executes only
+`inspect_host` and a `plan_vm_create` request that rejects a nonexistent ISO
+before mutation. It reports zero real Hyper-V mutations and zero real guest
+operations. This read-only host probe is not a mock-adapter guarantee and does
+not validate any production guest behavior.
+
 This gate does not prove plugin installation, marketplace/cache runtime
 discovery, a real VM or checkpoint mutation, PowerShell Direct guest behavior,
 package execution on Windows, credential persistence with live accounts, or
-clean-machine evidence. Those claims remain prohibited until the next gate.
+clean-machine evidence. Those claims require separate future authorization and
+validation. The next project gate is Birdsgone profile/acceptance documentation
+only and carries no authorization for real-adapter or real-VM validation.

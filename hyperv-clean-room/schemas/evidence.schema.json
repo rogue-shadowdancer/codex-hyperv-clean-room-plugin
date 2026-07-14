@@ -68,7 +68,7 @@
         "fileName": { "type": "string" },
         "size": { "type": "integer", "minimum": 0 },
         "sourceSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "guestSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        "guestSha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" }
       }
     },
     "automaticAssertions": {

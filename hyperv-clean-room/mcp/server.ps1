@@ -3,6 +3,11 @@ param()
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$WarningPreference = 'SilentlyContinue'
+$InformationPreference = 'SilentlyContinue'
+$VerbosePreference = 'SilentlyContinue'
+$DebugPreference = 'SilentlyContinue'
+$ProgressPreference = 'SilentlyContinue'
 $script:HcrInitialized = $false
 
 $runtimeFiles = @(
@@ -54,6 +59,67 @@ function New-HcrJsonRpcError {
     }
 }
 
+function Test-HcrJsonRpcId {
+    param([AllowNull()][object]$Id)
+
+    if ($null -eq $Id) { return $true }
+    if ($Id -is [string]) { return $true }
+    if ($Id -is [bool]) { return $false }
+    return $Id -is [byte] -or $Id -is [sbyte] -or
+        $Id -is [int16] -or $Id -is [uint16] -or
+        $Id -is [int32] -or $Id -is [uint32] -or
+        $Id -is [int64] -or $Id -is [uint64] -or
+        $Id -is [single] -or $Id -is [double] -or $Id -is [decimal]
+}
+
+function Test-HcrClosedParameterObject {
+    param(
+        [AllowNull()][object]$Value,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [string[]]$Allowed,
+        [AllowEmptyCollection()]
+        [string[]]$Required = @()
+    )
+
+    if (-not (Test-HcrObjectLike $Value)) { return $false }
+    foreach ($name in (Get-HcrPropertyNames $Value)) {
+        if ($Allowed -notcontains $name) { return $false }
+    }
+    foreach ($name in $Required) {
+        if (-not (Test-HcrProperty $Value $name)) { return $false }
+    }
+    return $true
+}
+
+function Test-HcrInitializeParameters {
+    param([AllowNull()][object]$Value)
+
+    if (-not (Test-HcrClosedParameterObject `
+            $Value `
+            @('protocolVersion', 'capabilities', 'clientInfo') `
+            @('protocolVersion', 'capabilities', 'clientInfo'))) {
+        return $false
+    }
+    $protocolVersion = Get-HcrPropertyValue $Value 'protocolVersion'
+    $capabilities = Get-HcrPropertyValue $Value 'capabilities'
+    $clientInfo = Get-HcrPropertyValue $Value 'clientInfo'
+    if ($protocolVersion -isnot [string] -or
+        [string]::IsNullOrWhiteSpace([string]$protocolVersion) -or
+        -not (Test-HcrObjectLike $capabilities) -or
+        -not (Test-HcrObjectLike $clientInfo)) {
+        return $false
+    }
+    foreach ($field in @('name', 'version')) {
+        $fieldValue = Get-HcrPropertyValue $clientInfo $field
+        if ($fieldValue -isnot [string] -or
+            [string]::IsNullOrWhiteSpace([string]$fieldValue)) {
+            return $false
+        }
+    }
+    return $true
+}
+
 function Get-HcrNegotiatedProtocolVersion {
     param([Parameter(Mandatory = $true)][string]$Requested)
 
@@ -93,20 +159,34 @@ while ($true) {
         Write-HcrJsonRpcMessage (New-HcrJsonRpcError $null -32600 'Batch requests are not supported')
         continue
     }
+    if (-not (Test-HcrObjectLike $request)) {
+        Write-HcrJsonRpcMessage (New-HcrJsonRpcError $null -32600 'Invalid Request')
+        continue
+    }
     $hasId = Test-HcrProperty $request 'id'
     $id = Get-HcrPropertyValue $request 'id'
+    if ($hasId -and -not (Test-HcrJsonRpcId $id)) {
+        Write-HcrJsonRpcMessage (New-HcrJsonRpcError $null -32600 'Invalid Request')
+        continue
+    }
     if ((Get-HcrPropertyValue $request 'jsonrpc') -ne '2.0' -or
         (Get-HcrPropertyValue $request 'method') -isnot [string]) {
-        if ($hasId) {
-            Write-HcrJsonRpcMessage (New-HcrJsonRpcError $id -32600 'Invalid Request')
-        }
+        Write-HcrJsonRpcMessage (New-HcrJsonRpcError $(if ($hasId) { $id } else { $null }) -32600 'Invalid Request')
         continue
     }
     $method = [string](Get-HcrPropertyValue $request 'method')
     $parameters = Get-HcrPropertyValue $request 'params' ([pscustomobject]@{})
+    if (-not (Test-HcrObjectLike $parameters)) {
+        if ($hasId) {
+            Write-HcrJsonRpcMessage (New-HcrJsonRpcError $id -32602 'Invalid method parameters')
+        }
+        continue
+    }
 
     if (-not $hasId) {
-        if ($method -eq 'notifications/initialized' -and $initializeResponded) {
+        if ($method -eq 'notifications/initialized' -and
+            $initializeResponded -and
+            (Test-HcrClosedParameterObject -Value $parameters -Allowed @())) {
             $clientInitialized = $true
         }
         # Other notifications are intentionally ignored without protocol output.
@@ -120,7 +200,7 @@ while ($true) {
                     Write-HcrJsonRpcMessage (New-HcrJsonRpcError $id -32600 'Initialize may be called only once')
                     continue
                 }
-                if (-not (Test-HcrObjectLike $parameters)) {
+                if (-not (Test-HcrInitializeParameters $parameters)) {
                     Write-HcrJsonRpcMessage (New-HcrJsonRpcError $id -32602 'Invalid initialize parameters')
                     continue
                 }
@@ -148,12 +228,20 @@ while ($true) {
                 continue
             }
             'ping' {
+                if (-not (Test-HcrClosedParameterObject -Value $parameters -Allowed @())) {
+                    Write-HcrJsonRpcMessage (New-HcrJsonRpcError $id -32602 'Invalid ping parameters')
+                    continue
+                }
                 Write-HcrJsonRpcMessage ([pscustomobject][ordered]@{
                     jsonrpc = '2.0'; id = $id; result = [pscustomobject]@{}
                 })
                 continue
             }
             'tools/list' {
+                if (-not (Test-HcrClosedParameterObject -Value $parameters -Allowed @())) {
+                    Write-HcrJsonRpcMessage (New-HcrJsonRpcError $id -32602 'Invalid tools-list parameters')
+                    continue
+                }
                 if (-not $clientInitialized) {
                     Write-HcrJsonRpcMessage (New-HcrJsonRpcError $id -32002 'Client initialization is incomplete')
                     continue
@@ -170,14 +258,20 @@ while ($true) {
                     Write-HcrJsonRpcMessage (New-HcrJsonRpcError $id -32002 'Client initialization is incomplete')
                     continue
                 }
-                if (-not (Test-HcrObjectLike $parameters) -or
-                    (Get-HcrPropertyValue $parameters 'name') -isnot [string]) {
+                if (-not (Test-HcrClosedParameterObject `
+                        $parameters `
+                        @('name', 'arguments') `
+                        @('name')) -or
+                    (Get-HcrPropertyValue $parameters 'name') -isnot [string] -or
+                    ((Test-HcrProperty $parameters 'arguments') -and
+                        -not (Test-HcrObjectLike (Get-HcrPropertyValue $parameters 'arguments')))) {
                     Write-HcrJsonRpcMessage (New-HcrJsonRpcError $id -32602 'Invalid tool-call parameters')
                     continue
                 }
                 $toolName = [string](Get-HcrPropertyValue $parameters 'name')
                 $toolArguments = Get-HcrPropertyValue $parameters 'arguments' ([pscustomobject]@{})
-                $envelope = Invoke-HcrToolCall $toolName $toolArguments
+                $envelope = Invoke-HcrToolCall $toolName $toolArguments `
+                    3>$null 4>$null 5>$null 6>$null
                 Write-HcrJsonRpcMessage ([pscustomobject][ordered]@{
                     jsonrpc = '2.0'
                     id = $id

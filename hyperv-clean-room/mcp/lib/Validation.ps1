@@ -792,15 +792,14 @@ function Test-HcrEvidenceDocument {
         if (-not (Test-HcrInteger $size) -or [int64]$size -lt 0) {
             Add-HcrValidationError $errors '$.artifact.size is invalid.'
         }
-        foreach ($field in @('sourceSha256', 'guestSha256')) {
-            $hash = Get-HcrPropertyValue $artifact $field
-            if ($hash -isnot [string] -or $hash -notmatch '^[a-f0-9]{64}$') {
-                Add-HcrValidationError $errors "$.artifact.$field is invalid."
-            }
+        $sourceHash = Get-HcrPropertyValue $artifact 'sourceSha256'
+        if ($sourceHash -isnot [string] -or $sourceHash -notmatch '^[a-f0-9]{64}$') {
+            Add-HcrValidationError $errors '$.artifact.sourceSha256 is invalid.'
         }
-        if ((Get-HcrPropertyValue $artifact 'sourceSha256') -ne
-            (Get-HcrPropertyValue $artifact 'guestSha256')) {
-            Add-HcrValidationError $errors '$.artifact source and guest SHA-256 values do not match.'
+        $guestHash = Get-HcrPropertyValue $artifact 'guestSha256'
+        if ($null -ne $guestHash -and
+            ($guestHash -isnot [string] -or $guestHash -notmatch '^[a-f0-9]{64}$')) {
+            Add-HcrValidationError $errors '$.artifact.guestSha256 is invalid.'
         }
     }
 
@@ -838,6 +837,11 @@ function Test-HcrEvidenceDocument {
     }
 
     if ($null -ne $OperationRecord) {
+        $expectedEvidenceDigest = [string](Get-HcrPropertyValue $OperationRecord 'evidenceSha256')
+        if ($expectedEvidenceDigest -notmatch '^[a-f0-9]{64}$' -or
+            (Get-HcrEvidenceDocumentDigest $Evidence) -ne $expectedEvidenceDigest) {
+            Add-HcrValidationError $errors 'Evidence content does not match immutable operation state.'
+        }
         if ((Get-HcrPropertyValue $Evidence 'baselineType') -ne
             (Get-HcrPropertyValue $OperationRecord 'baselineType')) {
             Add-HcrValidationError $errors '$.baselineType does not match immutable operation state.'
@@ -884,6 +888,30 @@ function Test-HcrEvidenceDocument {
                     (Get-HcrPropertyValue $expected 'required')) {
                 Add-HcrValidationError $errors `
                     "$.automaticAssertions[$index] does not match immutable order and identity."
+            }
+        }
+        $stageIndexes = @(for ($index = 0; $index -lt $expectedAutomatic.Count; $index++) {
+            if ([string](Get-HcrPropertyValue $expectedAutomatic[$index] 'type') -eq 'stageArtifact') {
+                $index
+            }
+        })
+        if ($stageIndexes.Count -ne 1 -or
+            $stageIndexes[0] -ge $assertionCollections.automaticAssertions.Count) {
+            Add-HcrValidationError $errors 'Immutable stageArtifact assertion identity is unavailable.'
+        }
+        else {
+            $stageStatus = [string](Get-HcrPropertyValue `
+                $assertionCollections.automaticAssertions[$stageIndexes[0]] `
+                'status')
+            $sourceHash = Get-HcrPropertyValue $artifact 'sourceSha256'
+            $guestHash = Get-HcrPropertyValue $artifact 'guestSha256'
+            $hashesVerified = $sourceHash -is [string] -and
+                $guestHash -is [string] -and
+                $sourceHash -eq $guestHash
+            if (($hashesVerified -and $stageStatus -ne 'passed') -or
+                (-not $hashesVerified -and $stageStatus -ne 'failed')) {
+                Add-HcrValidationError $errors `
+                    'Artifact hashes require a passed matching stageArtifact assertion or a failed null/mismatched stageArtifact assertion.'
             }
         }
         $expectedManual = @((Get-HcrPropertyValue $OperationRecord 'manualAssertions' @()))
@@ -985,6 +1013,10 @@ function Test-HcrEvidenceDocument {
             (Get-HcrPropertyValue $guest 'isElevated') -ne $false -or
             (Get-HcrPropertyValue $guest 'tokenIntegrity') -ne 'medium') {
             Add-HcrValidationError $errors 'Passed evidence violates ownership or ordinary-user token invariants.'
+        }
+        if ((Get-HcrPropertyValue $artifact 'sourceSha256') -ne
+            (Get-HcrPropertyValue $artifact 'guestSha256')) {
+            Add-HcrValidationError $errors 'Passed evidence requires matching source and guest artifact SHA-256 values.'
         }
     }
     return [pscustomobject][ordered]@{

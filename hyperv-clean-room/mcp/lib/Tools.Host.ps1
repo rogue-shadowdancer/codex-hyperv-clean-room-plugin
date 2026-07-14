@@ -121,9 +121,15 @@ function Get-HcrOwnershipStatus {
 }
 
 function Get-HcrRequiredOwnedVm {
-    param([Parameter(Mandatory = $true)][string]$VmName)
+    param(
+        [Parameter(Mandatory = $true)][string]$VmName,
+        [switch]$RequireOfflineDiskIdentity
+    )
 
-    $vm = Invoke-HcrAdapter 'GetVm' ([pscustomobject]@{ name = $VmName })
+    $vm = Invoke-HcrAdapter 'GetVm' ([pscustomobject]@{
+        name = $VmName
+        requireOfflineDiskIdentity = [bool]$RequireOfflineDiskIdentity
+    })
     if ($null -eq $vm) {
         Throw-HcrError 'VM_NOT_FOUND' 'The requested VM does not exist.'
     }
@@ -134,6 +140,18 @@ function Get-HcrRequiredOwnedVm {
     return [pscustomobject][ordered]@{
         vm = $vm
         ownership = $ownership.record
+    }
+}
+
+function Get-HcrOwnedVmDispatchIdentity {
+    param([Parameter(Mandatory = $true)][object]$OwnedVm)
+
+    return [pscustomobject][ordered]@{
+        expectedVmId = [string](Get-HcrPropertyValue $OwnedVm.vm 'id')
+        expectedVmName = [string](Get-HcrPropertyValue $OwnedVm.vm 'name')
+        expectedOwnershipId = [string](Get-HcrPropertyValue $OwnedVm.ownership 'ownershipId')
+        expectedVmPath = [string](Get-HcrPropertyValue $OwnedVm.vm 'vmPath')
+        expectedVhdxPath = [string](Get-HcrPropertyValue $OwnedVm.vm 'vhdxPath')
     }
 }
 
@@ -348,6 +366,10 @@ function Invoke-HcrPlanVmCreate {
     if (Test-Path -LiteralPath $vmPath) { Throw-HcrError 'VM_PATH_EXISTS' 'The planned VM path already exists.' }
     if (Test-Path -LiteralPath $vhdxPath) { Throw-HcrError 'VHDX_PATH_EXISTS' 'The planned VHDX path already exists.' }
     $volume = Invoke-HcrAdapter 'GetTargetVolume' ([pscustomobject]@{ path = $vmRootItem.FullName })
+    $volumeUniqueId = [string](Get-HcrPropertyValue $volume 'uniqueId')
+    if ([string]::IsNullOrWhiteSpace($volumeUniqueId)) {
+        Throw-HcrError 'TARGET_VOLUME_IDENTITY_UNAVAILABLE' 'The target volume has no stable UniqueId.'
+    }
     $requiredBytes = ([int64]$diskSizeGb * 1GB) + 2GB
     if ([int64](Get-HcrPropertyValue $volume 'availableBytes') -lt $requiredBytes) {
         Throw-HcrError 'INSUFFICIENT_SPACE' 'The target volume lacks the conservative required capacity.'
@@ -372,7 +394,7 @@ function Invoke-HcrPlanVmCreate {
         vmPath = $vmPath
         vhdxPath = $vhdxPath
         targetVolume = [pscustomobject][ordered]@{
-            uniqueId = [string](Get-HcrPropertyValue $volume 'uniqueId')
+            uniqueId = $volumeUniqueId
             root = [string](Get-HcrPropertyValue $volume 'root')
             fileSystem = [string](Get-HcrPropertyValue $volume 'fileSystem')
             availableBytes = [int64](Get-HcrPropertyValue $volume 'availableBytes')
@@ -401,6 +423,35 @@ function Invoke-HcrPlanVmCreate {
     }
 }
 
+function Get-HcrRevalidatedVmCreatePaths {
+    param([Parameter(Mandatory = $true)][object]$Plan)
+
+    $plannedRoot = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Plan 'vmRoot'))
+    $rootItem = Assert-HcrLocalDirectory $plannedRoot 'PLAN_DRIFT'
+    $currentRoot = Get-HcrNormalizedPath $rootItem.FullName
+    if (-not [string]::Equals($currentRoot, $plannedRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        Throw-HcrError 'PLAN_DRIFT' 'The VM root changed after planning.'
+    }
+    $name = [string](Get-HcrPropertyValue $Plan 'name')
+    $vmPath = Get-HcrNormalizedPath (Join-Path $currentRoot $name)
+    $vhdxPath = Get-HcrNormalizedPath (Join-Path $vmPath "$name.vhdx")
+    if (-not [string]::Equals(
+            $vmPath,
+            (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Plan 'vmPath'))),
+            [StringComparison]::OrdinalIgnoreCase) -or
+        -not [string]::Equals(
+            $vhdxPath,
+            (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Plan 'vhdxPath'))),
+            [StringComparison]::OrdinalIgnoreCase)) {
+        Throw-HcrError 'PLAN_DRIFT' 'The derived VM or VHDX path changed after planning.'
+    }
+    return [pscustomobject][ordered]@{
+        vmRoot = $currentRoot
+        vmPath = $vmPath
+        vhdxPath = $vhdxPath
+    }
+}
+
 function Assert-HcrVmCreatePlanDriftFree {
     param([Parameter(Mandatory = $true)][object]$Plan)
 
@@ -422,15 +473,19 @@ function Assert-HcrVmCreatePlanDriftFree {
     if ($null -ne (Invoke-HcrAdapter 'GetVm' ([pscustomobject]@{ name = [string](Get-HcrPropertyValue $Plan 'name') }))) {
         Throw-HcrError 'PLAN_DRIFT' 'The planned VM name is no longer absent.'
     }
+    $paths = Get-HcrRevalidatedVmCreatePaths $Plan
     foreach ($field in @('vmPath', 'vhdxPath')) {
-        if (Test-Path -LiteralPath ([string](Get-HcrPropertyValue $Plan $field))) {
+        if (Test-Path -LiteralPath ([string](Get-HcrPropertyValue $paths $field))) {
             Throw-HcrError 'PLAN_DRIFT' "The planned $field is no longer absent."
         }
     }
-    $volume = Invoke-HcrAdapter 'GetTargetVolume' ([pscustomobject]@{ path = [string](Get-HcrPropertyValue $Plan 'vmRoot') })
+    $volume = Invoke-HcrAdapter 'GetTargetVolume' ([pscustomobject]@{ path = [string]$paths.vmRoot })
     $plannedVolume = Get-HcrPropertyValue $Plan 'targetVolume'
-    if ([string](Get-HcrPropertyValue $volume 'uniqueId') -ne
-        [string](Get-HcrPropertyValue $plannedVolume 'uniqueId') -or
+    $currentUniqueId = [string](Get-HcrPropertyValue $volume 'uniqueId')
+    $plannedUniqueId = [string](Get-HcrPropertyValue $plannedVolume 'uniqueId')
+    if ([string]::IsNullOrWhiteSpace($currentUniqueId) -or
+        [string]::IsNullOrWhiteSpace($plannedUniqueId) -or
+        $currentUniqueId -ne $plannedUniqueId -or
         [string](Get-HcrPropertyValue $volume 'root') -ne
         [string](Get-HcrPropertyValue $plannedVolume 'root') -or
         [string](Get-HcrPropertyValue $volume 'fileSystem') -ne
@@ -441,6 +496,11 @@ function Assert-HcrVmCreatePlanDriftFree {
         [int64](Get-HcrPropertyValue $plannedVolume 'requiredBytes')) {
         Throw-HcrError 'PLAN_DRIFT' 'The target volume no longer has the required capacity.'
     }
+    $rebound = Copy-HcrObject $Plan
+    $rebound.vmRoot = [string]$paths.vmRoot
+    $rebound.vmPath = [string]$paths.vmPath
+    $rebound.vhdxPath = [string]$paths.vhdxPath
+    return $rebound
 }
 
 function Invoke-HcrApplyVmCreate {
@@ -451,45 +511,70 @@ function Invoke-HcrApplyVmCreate {
 
     $record = Consume-HcrPlanRecord ([string](Get-HcrPropertyValue $Arguments 'planId'))
     $plan = Assert-HcrPlanUsable $record 'vmCreate'
-    Assert-HcrVmCreatePlanDriftFree $plan
+    $plan = Assert-HcrVmCreatePlanDriftFree $plan
     $ownershipId = [Guid]::NewGuid().ToString()
-    $vm = Invoke-HcrAdapter 'CreateVm' ([pscustomobject][ordered]@{
-        plan = $plan
-        ownershipId = $ownershipId
-    })
-    if ($null -eq $vm -or [string]::IsNullOrWhiteSpace([string](Get-HcrPropertyValue $vm 'id'))) {
-        Throw-HcrError 'VM_CREATE_FAILED' 'The adapter did not return the created VM identity.'
-    }
-    $expectedMarker = "hyperv-clean-room/v1:$ownershipId"
-    if ([string](Get-HcrPropertyValue $vm 'notes') -ne $expectedMarker) {
-        Throw-HcrError 'VM_CREATE_FAILED' 'The created VM does not carry the ownership marker.' ([ordered]@{
-            vmId = [string](Get-HcrPropertyValue $vm 'id')
-            vmName = [string](Get-HcrPropertyValue $vm 'name')
-        })
-    }
-    $ownership = [pscustomobject][ordered]@{
-        schemaVersion = 1
-        vmId = [string](Get-HcrPropertyValue $vm 'id')
-        vmName = [string](Get-HcrPropertyValue $vm 'name')
-        vmRoot = [string](Get-HcrPropertyValue $plan 'vmRoot')
-        vmPath = [string](Get-HcrPropertyValue $plan 'vmPath')
-        vhdxPath = [string](Get-HcrPropertyValue $plan 'vhdxPath')
-        creationOperationId = $OperationId
-        ownershipId = $ownershipId
-        createdAt = Get-HcrUtcTimestamp
-        checkpoints = @()
-    }
-    Save-HcrOwnershipRecord $ownership
-    return [pscustomobject][ordered]@{
-        changed = $true
-        data = [pscustomobject][ordered]@{
-            vmId = [string](Get-HcrPropertyValue $vm 'id')
-            vmName = [string](Get-HcrPropertyValue $vm 'name')
+    $vm = $null
+    $adapterReturned = $false
+    try {
+        $vm = Invoke-HcrAdapter 'CreateVm' ([pscustomobject][ordered]@{
+            plan = $plan
             ownershipId = $ownershipId
+        })
+        $adapterReturned = $true
+        if ($null -eq $vm -or [string]::IsNullOrWhiteSpace([string](Get-HcrPropertyValue $vm 'id'))) {
+            Throw-HcrError 'VM_CREATE_FAILED' 'The adapter did not return the created VM identity.'
+        }
+        $expectedMarker = "hyperv-clean-room/v1:$ownershipId"
+        if ([string](Get-HcrPropertyValue $vm 'notes') -ne $expectedMarker) {
+            Throw-HcrError 'VM_CREATE_FAILED' 'The created VM does not carry the ownership marker.'
+        }
+        $ownership = [pscustomobject][ordered]@{
+            schemaVersion = 1
+            vmId = [string](Get-HcrPropertyValue $vm 'id')
+            vmName = [string](Get-HcrPropertyValue $vm 'name')
+            vmRoot = [string](Get-HcrPropertyValue $plan 'vmRoot')
             vmPath = [string](Get-HcrPropertyValue $plan 'vmPath')
             vhdxPath = [string](Get-HcrPropertyValue $plan 'vhdxPath')
+            creationOperationId = $OperationId
+            ownershipId = $ownershipId
+            createdAt = Get-HcrUtcTimestamp
+            checkpoints = @()
         }
-        warnings = @()
+        Save-HcrOwnershipRecord $ownership
+        return [pscustomobject][ordered]@{
+            changed = $true
+            data = [pscustomobject][ordered]@{
+                vmId = [string](Get-HcrPropertyValue $vm 'id')
+                vmName = [string](Get-HcrPropertyValue $vm 'name')
+                ownershipId = $ownershipId
+                vmPath = [string](Get-HcrPropertyValue $plan 'vmPath')
+                vhdxPath = [string](Get-HcrPropertyValue $plan 'vhdxPath')
+            }
+            warnings = @()
+        }
+    }
+    catch {
+        $failure = Get-HcrExceptionData $_.Exception
+        if ($null -ne $failure.details -and
+            [bool](Get-HcrPropertyValue $failure.details 'mutationEntered' $false)) {
+            throw
+        }
+        if (-not $adapterReturned) { throw }
+        $vmId = if ($null -eq $vm) { $null } else { [string](Get-HcrPropertyValue $vm 'id') }
+        $effectState = if ([string]::IsNullOrWhiteSpace($vmId)) { 'indeterminate' } else { 'confirmed' }
+        Throw-HcrPartialMutationError `
+            'VM_CREATE_FAILED' `
+            'VM creation completed or may have completed, but final ownership publication failed.' `
+            $effectState `
+            ([pscustomobject][ordered]@{
+                resourceType = 'vm'
+                vmId = $vmId
+                vmName = [string](Get-HcrPropertyValue $plan 'name')
+                ownershipId = $ownershipId
+                vmPath = [string](Get-HcrPropertyValue $plan 'vmPath')
+                vhdxPath = [string](Get-HcrPropertyValue $plan 'vhdxPath')
+            }) `
+            'A VM or VHDX may have been created. Inspect only the exact partial identity in error.details; automatic cleanup was not attempted.'
     }
 }
 
@@ -554,13 +639,18 @@ function Invoke-HcrPlanCheckpointCreate {
 }
 
 function Assert-HcrCheckpointPlanCommonDriftFree {
-    param([Parameter(Mandatory = $true)][object]$Plan)
+    param(
+        [Parameter(Mandatory = $true)][object]$Plan,
+        [switch]$RequireOfflineDiskIdentity
+    )
 
     $hostSnapshot = Invoke-HcrAdapter 'GetHostSnapshot'
     if ((Get-HcrHostFingerprint $hostSnapshot) -ne [string](Get-HcrPropertyValue $Plan 'hostFingerprint')) {
         Throw-HcrError 'PLAN_DRIFT' 'The host fingerprint changed after checkpoint planning.'
     }
-    $owned = Get-HcrRequiredOwnedVm ([string](Get-HcrPropertyValue $Plan 'vmName'))
+    $owned = Get-HcrRequiredOwnedVm `
+        ([string](Get-HcrPropertyValue $Plan 'vmName')) `
+        -RequireOfflineDiskIdentity:$RequireOfflineDiskIdentity
     if ([string](Get-HcrPropertyValue $owned.vm 'id') -ne [string](Get-HcrPropertyValue $Plan 'vmId') -or
         [string](Get-HcrPropertyValue $owned.ownership 'ownershipId') -ne [string](Get-HcrPropertyValue $Plan 'ownershipId') -or
         (Get-HcrVmFingerprint $owned.vm) -ne [string](Get-HcrPropertyValue $Plan 'vmFingerprint') -or
@@ -582,28 +672,68 @@ function Invoke-HcrApplyCheckpointCreate {
     if ($null -ne (Get-HcrCheckpointByName $owned.vm ([string](Get-HcrPropertyValue $plan 'checkpointName')))) {
         Throw-HcrError 'PLAN_DRIFT' 'The planned checkpoint name is no longer absent.'
     }
-    $checkpoint = Invoke-HcrAdapter 'CreateCheckpoint' ([pscustomobject][ordered]@{
-        vmName = [string](Get-HcrPropertyValue $plan 'vmName')
-        checkpointName = [string](Get-HcrPropertyValue $plan 'checkpointName')
-    })
-    $entry = [pscustomobject][ordered]@{
-        id = [string](Get-HcrPropertyValue $checkpoint 'id')
-        name = [string](Get-HcrPropertyValue $checkpoint 'name')
-        parentId = Get-HcrPropertyValue $checkpoint 'parentId'
-        configurationFingerprint = [string](Get-HcrPropertyValue $checkpoint 'configurationFingerprint')
-        createdAt = [string](Get-HcrPropertyValue $checkpoint 'createdAt')
-        creationOperationId = $OperationId
-    }
-    $owned.ownership.checkpoints = @(@((Get-HcrPropertyValue $owned.ownership 'checkpoints' @())) + $entry)
-    Save-HcrOwnershipRecord $owned.ownership
-    return [pscustomobject][ordered]@{
-        changed = $true
-        data = [pscustomobject][ordered]@{
-            vmId = [string](Get-HcrPropertyValue $plan 'vmId')
+    $checkpoint = $null
+    $adapterReturned = $false
+    try {
+        $checkpoint = Invoke-HcrAdapter 'CreateCheckpoint' ([pscustomobject][ordered]@{
             vmName = [string](Get-HcrPropertyValue $plan 'vmName')
-            checkpoint = $entry
+            checkpointName = [string](Get-HcrPropertyValue $plan 'checkpointName')
+            expectedVmId = [string](Get-HcrPropertyValue $owned.vm 'id')
+            expectedVmName = [string](Get-HcrPropertyValue $owned.vm 'name')
+            expectedOwnershipId = [string](Get-HcrPropertyValue $owned.ownership 'ownershipId')
+            expectedVmPath = [string](Get-HcrPropertyValue $owned.vm 'vmPath')
+            expectedVhdxPath = [string](Get-HcrPropertyValue $owned.vm 'vhdxPath')
+        })
+        $adapterReturned = $true
+        if ($null -eq $checkpoint -or
+            [string]::IsNullOrWhiteSpace([string](Get-HcrPropertyValue $checkpoint 'id')) -or
+            [string](Get-HcrPropertyValue $checkpoint 'name') -ne
+                [string](Get-HcrPropertyValue $plan 'checkpointName')) {
+            Throw-HcrError 'CHECKPOINT_CREATE_FAILED' 'The adapter did not return the exact created checkpoint identity.'
         }
-        warnings = @()
+        $entry = [pscustomobject][ordered]@{
+            id = [string](Get-HcrPropertyValue $checkpoint 'id')
+            name = [string](Get-HcrPropertyValue $checkpoint 'name')
+            parentId = Get-HcrPropertyValue $checkpoint 'parentId'
+            configurationFingerprint = [string](Get-HcrPropertyValue $checkpoint 'configurationFingerprint')
+            createdAt = [string](Get-HcrPropertyValue $checkpoint 'createdAt')
+            creationOperationId = $OperationId
+        }
+        $owned.ownership.checkpoints = @(@((Get-HcrPropertyValue $owned.ownership 'checkpoints' @())) + $entry)
+        Save-HcrOwnershipRecord $owned.ownership
+        return [pscustomobject][ordered]@{
+            changed = $true
+            data = [pscustomobject][ordered]@{
+                vmId = [string](Get-HcrPropertyValue $plan 'vmId')
+                vmName = [string](Get-HcrPropertyValue $plan 'vmName')
+                checkpoint = $entry
+            }
+            warnings = @()
+        }
+    }
+    catch {
+        $failure = Get-HcrExceptionData $_.Exception
+        if ($null -ne $failure.details -and
+            [bool](Get-HcrPropertyValue $failure.details 'mutationEntered' $false)) {
+            throw
+        }
+        if (-not $adapterReturned) { throw }
+        $checkpointId = if ($null -eq $checkpoint) { $null } else {
+            [string](Get-HcrPropertyValue $checkpoint 'id')
+        }
+        $effectState = if ([string]::IsNullOrWhiteSpace($checkpointId)) { 'indeterminate' } else { 'confirmed' }
+        Throw-HcrPartialMutationError `
+            'CHECKPOINT_CREATE_FAILED' `
+            'Checkpoint creation completed or may have completed, but final ownership publication failed.' `
+            $effectState `
+            ([pscustomobject][ordered]@{
+                resourceType = 'checkpoint'
+                vmId = [string](Get-HcrPropertyValue $plan 'vmId')
+                vmName = [string](Get-HcrPropertyValue $plan 'vmName')
+                checkpointId = $checkpointId
+                checkpointName = [string](Get-HcrPropertyValue $plan 'checkpointName')
+            }) `
+            'The exact checkpoint may have been created. Inspect the bound VM and checkpoint identity; automatic cleanup was not attempted.'
     }
 }
 
@@ -612,7 +742,12 @@ function Invoke-HcrPlanCheckpointRestore {
 
     $checkpointName = [string](Get-HcrPropertyValue $Arguments 'checkpointName')
     Assert-HcrVmName $checkpointName
-    $owned = Get-HcrRequiredOwnedVm ([string](Get-HcrPropertyValue $Arguments 'vmName'))
+    $owned = Get-HcrRequiredOwnedVm `
+        ([string](Get-HcrPropertyValue $Arguments 'vmName')) `
+        -RequireOfflineDiskIdentity
+    if ([string](Get-HcrPropertyValue $owned.vm 'state') -ne 'Off') {
+        Throw-HcrError 'VM_STATE_UNSUPPORTED' 'Checkpoint restore planning requires the managed VM to be Off.'
+    }
     $checkpoint = Get-HcrCheckpointByName $owned.vm $checkpointName
     if ($null -eq $checkpoint) {
         Throw-HcrError 'CHECKPOINT_NOT_FOUND' 'The requested checkpoint does not exist.'
@@ -669,7 +804,12 @@ function Invoke-HcrApplyCheckpointRestore {
         -not (Test-HcrFixedTimeTextEqual $providedHash $storedHash)) {
         Throw-HcrError 'CONFIRMATION_MISMATCH' 'The restore confirmation token is invalid.'
     }
-    $owned = Assert-HcrCheckpointPlanCommonDriftFree $plan
+    $owned = Assert-HcrCheckpointPlanCommonDriftFree `
+        $plan `
+        -RequireOfflineDiskIdentity
+    if ([string](Get-HcrPropertyValue $owned.vm 'state') -ne 'Off') {
+        Throw-HcrError 'PLAN_DRIFT' 'The VM must remain Off for checkpoint restore.'
+    }
     if ((Get-HcrCurrentStateFingerprint $owned.vm) -ne
         [string](Get-HcrPropertyValue $plan 'currentStateFingerprint')) {
         Throw-HcrError 'PLAN_DRIFT' 'The VM current state changed after restore planning.'
@@ -680,19 +820,59 @@ function Invoke-HcrApplyCheckpointRestore {
         (Get-HcrCheckpointFingerprint $checkpoint) -ne [string](Get-HcrPropertyValue $plan 'checkpointFingerprint')) {
         Throw-HcrError 'PLAN_DRIFT' 'The target checkpoint changed after restore planning.'
     }
-    $result = Invoke-HcrAdapter 'RestoreCheckpoint' ([pscustomobject][ordered]@{
-        vmName = [string](Get-HcrPropertyValue $plan 'vmName')
-        checkpointName = [string](Get-HcrPropertyValue $plan 'checkpointName')
-    })
-    return [pscustomobject][ordered]@{
-        changed = $true
-        data = [pscustomobject][ordered]@{
-            vmId = [string](Get-HcrPropertyValue $plan 'vmId')
+    $result = $null
+    $adapterReturned = $false
+    try {
+        $result = Invoke-HcrAdapter 'RestoreCheckpoint' ([pscustomobject][ordered]@{
             vmName = [string](Get-HcrPropertyValue $plan 'vmName')
-            checkpointId = [string](Get-HcrPropertyValue $result 'checkpointId')
             checkpointName = [string](Get-HcrPropertyValue $plan 'checkpointName')
-            restoredAt = [string](Get-HcrPropertyValue $result 'restoredAt')
+            expectedVmId = [string](Get-HcrPropertyValue $owned.vm 'id')
+            expectedVmName = [string](Get-HcrPropertyValue $owned.vm 'name')
+            expectedOwnershipId = [string](Get-HcrPropertyValue $owned.ownership 'ownershipId')
+            expectedVmPath = [string](Get-HcrPropertyValue $owned.vm 'vmPath')
+            expectedVhdxPath = [string](Get-HcrPropertyValue $owned.vm 'vhdxPath')
+            expectedVmState = 'Off'
+            expectedCurrentStateFingerprint = [string](Get-HcrPropertyValue $plan 'currentStateFingerprint')
+            expectedCheckpointInventoryFingerprint = [string](Get-HcrPropertyValue $plan 'checkpointInventoryFingerprint')
+            expectedCheckpointId = [string](Get-HcrPropertyValue $plan 'checkpointId')
+            expectedCheckpointFingerprint = [string](Get-HcrPropertyValue $plan 'checkpointFingerprint')
+        })
+        $adapterReturned = $true
+        if ([string](Get-HcrPropertyValue $result 'checkpointId') -ne
+                [string](Get-HcrPropertyValue $plan 'checkpointId') -or
+            [string]::IsNullOrWhiteSpace([string](Get-HcrPropertyValue $result 'restoredAt'))) {
+            Throw-HcrError 'CHECKPOINT_RESTORE_FAILED' 'The adapter did not return the exact restored checkpoint identity.'
         }
-        warnings = @('Checkpoint restore discards the VM state identified by the consumed plan.')
+        return [pscustomobject][ordered]@{
+            changed = $true
+            data = [pscustomobject][ordered]@{
+                vmId = [string](Get-HcrPropertyValue $plan 'vmId')
+                vmName = [string](Get-HcrPropertyValue $plan 'vmName')
+                checkpointId = [string](Get-HcrPropertyValue $result 'checkpointId')
+                checkpointName = [string](Get-HcrPropertyValue $plan 'checkpointName')
+                restoredAt = [string](Get-HcrPropertyValue $result 'restoredAt')
+            }
+            warnings = @('Checkpoint restore discards the VM state identified by the consumed plan.')
+        }
     }
+    catch {
+        $failure = Get-HcrExceptionData $_.Exception
+        if ($null -ne $failure.details -and
+            [bool](Get-HcrPropertyValue $failure.details 'mutationEntered' $false)) {
+            throw
+        }
+        if (-not $adapterReturned) { throw }
+        Throw-HcrPartialMutationError `
+            'CHECKPOINT_RESTORE_FAILED' `
+            'Checkpoint restore completed, but its final result identity could not be verified.' `
+            'confirmed' `
+            ([pscustomobject][ordered]@{
+                resourceType = 'checkpointRestore'
+                vmId = [string](Get-HcrPropertyValue $plan 'vmId')
+                vmName = [string](Get-HcrPropertyValue $plan 'vmName')
+                checkpointId = [string](Get-HcrPropertyValue $plan 'checkpointId')
+                checkpointName = [string](Get-HcrPropertyValue $plan 'checkpointName')
+            }) `
+            'The exact checkpoint restore may have taken effect. Inspect the bound VM and checkpoint identity before further mutation; no automatic recovery was attempted.'
+        }
 }

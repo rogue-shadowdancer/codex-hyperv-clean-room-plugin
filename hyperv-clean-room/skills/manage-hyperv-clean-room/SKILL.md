@@ -8,9 +8,11 @@ description: Safely plan, operate, audit, and troubleshoot Windows Hyper-V clean
 Use the plugin's MCP tools as the authority. Do not reconstruct Hyper-V commands
 from this skill when an equivalent tool is available.
 
-Gate 2 implements the MCP surface and validates it with mock adapters. Real
-guest execution still fails closed until a separately authorized clean-machine
-gate. Do not turn mock results into claims about a real Hyper-V host.
+Gate 2 implements the MCP surface and the fixed production guest adapter, then
+validates them with mock adapters, parsers, and static closed-dispatch seams.
+It does not validate a real guest, credential profile, transfer, package, VM,
+or checkpoint mutation. Do not turn implementation or mock results into claims
+about a real Hyper-V host.
 
 ## Required workflow
 
@@ -23,6 +25,8 @@ gate. Do not turn mock results into claims about a real Hyper-V host.
 4. Use `plan_checkpoint_create` before `apply_checkpoint_create`. Use
    `plan_checkpoint_restore` before `apply_checkpoint_restore`; require the
    exact checkpoint name and confirmation token returned by the restore plan.
+   The managed VM must be `Off` at planning and remain `Off` at apply; the
+   plugin does not stop it automatically.
    Never repeat or record that token: plaintext is returned once, only by a
    successful restore plan, and the first well-formed apply attempt consumes
    the plan even when a supplied value or drift check is wrong.
@@ -38,6 +42,9 @@ gate. Do not turn mock results into claims about a real Hyper-V host.
 9. Report automatic assertions, manual assertions, cleanup results, unsupported
    checks, and unperformed checks separately. Cleanup never changes the
    required-assertion derivation of `overallStatus`.
+10. Before any production guest transfer or lifecycle call, require explicit
+    authorization naming the VM, credential profile, artifact, profile, and
+    intended mutation. Gate 2 validation itself authorizes no such call.
 
 ## Safety rules
 
@@ -46,12 +53,26 @@ gate. Do not turn mock results into claims about a real Hyper-V host.
 - Never submit a password or serialized credential through an MCP tool. Use the
   interactive credential initializer with only `-ProfileName` and
   `-VmName`. Its two `Get-Credential` prompts and PowerShell Direct checks must
-  prove different SIDs, an administrator orchestration role, and a standard
-  non-administrator test role before DPAPI persistence. Then refer only to the
-  profile name.
+  prove different SIDs, a high/system administrator orchestration role, and an
+  exact-medium non-administrator test role before DPAPI persistence. The two
+  DPAPI files and metadata are read-validated and atomically published as one
+  new profile. Then refer only to the profile name.
 - Require package lifecycle evidence to identify the standard test user and a
   non-elevated token; an administrator PowerShell Direct session is not proof
   of an ordinary-user install.
+- The production adapter may execute only the plugin-owned fixed worker. It
+  hash-verifies that worker, revalidates both credential roles, binds results to
+  redirected stdout and the invocation/input hash, protects guest workspaces
+  with explicit non-inheriting ACLs, creates the worker suspended and assigns
+  it to a Windows job before resume, and uses operation-scoped staging and
+  retained-handle process identities. Timeout containment must verify zero
+  active processes; a surviving launch child is suspended and accepted only
+  when its full identity is rebound as the job's sole active process before the
+  deadline, using a synchronizable retained handle and failing closed on a
+  liveness-query error. The adapter maps the declared
+  NSIS/MSI/application/assertion/cleanup types to fixed behavior.
+  Never substitute an arbitrary command, script, shell, URL, download, raw
+  uninstall string, or caller-selected argument list.
 - Do not modify a VM unless the plugin reports it as plugin-managed.
 - Do not turn `notPerformed` or `unsupported` into `passed`.
 - Cleanup begins only after execution starts and a required assertion, action,

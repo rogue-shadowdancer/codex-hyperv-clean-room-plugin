@@ -24,13 +24,36 @@ function Get-HcrCredentialRoot {
     return Get-HcrNormalizedPath (Join-Path $env:APPDATA 'Codex\hyperv-clean-room\credentials')
 }
 
+function Initialize-HcrLocalDirectoryPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string]$ErrorCode = 'INVALID_STATE_ROOT'
+    )
+
+    $normalized = Assert-HcrNoReparsePath $Path $ErrorCode -AllowMissing
+    $volumeRoot = [IO.Path]::GetPathRoot($normalized)
+    $relative = $normalized.Substring($volumeRoot.Length).TrimStart('\', '/')
+    $current = $volumeRoot
+    foreach ($segment in @($relative -split '[\\/]')) {
+        if ([string]::IsNullOrWhiteSpace($segment)) { continue }
+        $current = Join-Path $current $segment
+        if (-not (Test-Path -LiteralPath $current)) {
+            try { [void](New-Item -ItemType Directory -Path $current -ErrorAction Stop) }
+            catch {
+                if (-not (Test-Path -LiteralPath $current -PathType Container)) { throw }
+            }
+        }
+        [void](Assert-HcrLocalDirectory $current $ErrorCode)
+    }
+    return $normalized
+}
+
 function Initialize-HcrStateStore {
     $root = Get-HcrStateRoot
+    [void](Initialize-HcrLocalDirectoryPath $root)
     foreach ($relative in @('plans', 'operations', 'ownership', 'evidence-staging', 'locks')) {
         $path = Join-Path $root $relative
-        if (-not (Test-Path -LiteralPath $path -PathType Container)) {
-            [void](New-Item -ItemType Directory -Path $path -Force)
-        }
+        [void](Initialize-HcrLocalDirectoryPath $path)
     }
     $script:HcrStateRoot = $root
     return $root
@@ -55,8 +78,9 @@ function Write-HcrJsonFile {
     )
 
     $parent = Split-Path -Parent $Path
-    if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
-        [void](New-Item -ItemType Directory -Path $parent -Force)
+    [void](Initialize-HcrLocalDirectoryPath $parent 'STATE_INTEGRITY_ERROR')
+    if (Test-Path -LiteralPath $Path) {
+        [void](Assert-HcrNoReparsePath $Path 'STATE_INTEGRITY_ERROR')
     }
     $json = (ConvertTo-HcrJson $Value 100) + "`n"
     $temporary = "$Path.$([Guid]::NewGuid().ToString('N')).tmp"
@@ -92,10 +116,7 @@ function Read-HcrJsonFile {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         Throw-HcrError $MissingCode 'The requested state record does not exist.'
     }
-    $item = Get-Item -LiteralPath $Path -Force
-    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-        Throw-HcrError 'STATE_INTEGRITY_ERROR' 'A state record is a reparse point.'
-    }
+    $item = Assert-HcrRegularLocalFile $Path 'STATE_INTEGRITY_ERROR'
     if ($item.Length -gt 16MB) {
         Throw-HcrError 'STATE_INTEGRITY_ERROR' 'A state record exceeds the size limit.'
     }

@@ -225,6 +225,12 @@ function Get-HcrSha256Text {
     }
 }
 
+function Get-HcrEvidenceDocumentDigest {
+    param([Parameter(Mandatory = $true)][object]$Evidence)
+
+    return Get-HcrSha256Text (ConvertTo-HcrJson $Evidence 100)
+}
+
 function Get-HcrSha256File {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -276,6 +282,29 @@ function Throw-HcrError {
         $exception.Data['HcrDetailsJson'] = ConvertTo-HcrJson $Details 20
     }
     throw $exception
+}
+
+function Throw-HcrPartialMutationError {
+    param(
+        [Parameter(Mandatory = $true)][string]$Code,
+        [Parameter(Mandatory = $true)][string]$Message,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('confirmed', 'indeterminate')]
+        [string]$EffectState,
+        [Parameter(Mandatory = $true)][object]$PartialIdentity,
+        [Parameter(Mandatory = $true)][string]$RecoveryWarning
+    )
+
+    if (-not (Test-HcrObjectLike $PartialIdentity) -or
+        [string]::IsNullOrWhiteSpace($RecoveryWarning)) {
+        Throw-HcrError 'INTERNAL_ERROR' 'Partial mutation reporting could not be bounded safely.'
+    }
+    Throw-HcrError $Code $Message ([pscustomobject][ordered]@{
+        mutationEntered = $true
+        effectState = $EffectState
+        partialIdentity = Copy-HcrObject $PartialIdentity
+        recoveryWarning = $RecoveryWarning
+    })
 }
 
 function Get-HcrExceptionData {
@@ -383,7 +412,8 @@ function Test-HcrSafeRelativePath {
         return $false
     }
     foreach ($segment in ($path -split '[\\/]')) {
-        if ($segment -eq '..' -or $segment -eq '') {
+        if ([string]::IsNullOrWhiteSpace($segment) -or
+            $segment -eq '..' -or $segment -eq '.') {
             return $false
         }
     }
@@ -420,6 +450,48 @@ function Test-HcrLocalAbsolutePath {
     }
 }
 
+function Assert-HcrNoReparsePath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string]$ErrorCode = 'INVALID_PATH',
+        [switch]$AllowMissing
+    )
+
+    if (-not (Test-HcrLocalAbsolutePath $Path)) {
+        Throw-HcrError $ErrorCode 'The path must be local and absolute.'
+    }
+    $normalized = Get-HcrNormalizedPath $Path
+    $volumeRoot = [IO.Path]::GetPathRoot($normalized)
+    if ([string]::IsNullOrWhiteSpace($volumeRoot)) {
+        Throw-HcrError $ErrorCode 'The local path volume could not be resolved.'
+    }
+    $rootItem = Get-Item -LiteralPath $volumeRoot -Force -ErrorAction SilentlyContinue
+    if ($null -eq $rootItem -or -not $rootItem.PSIsContainer -or
+        ($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        Throw-HcrError $ErrorCode 'The local path volume root is unavailable or redirected.'
+    }
+    $relative = $normalized.Substring($volumeRoot.Length).TrimStart('\', '/')
+    $current = $volumeRoot
+    $segments = @(if (-not [string]::IsNullOrWhiteSpace($relative)) {
+        $relative -split '[\\/]'
+    })
+    for ($index = 0; $index -lt $segments.Count; $index++) {
+        $current = Join-Path $current $segments[$index]
+        if (-not (Test-Path -LiteralPath $current)) {
+            if ($AllowMissing) { break }
+            Throw-HcrError $ErrorCode 'A local path component does not exist.'
+        }
+        $item = Get-Item -LiteralPath $current -Force -ErrorAction Stop
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            Throw-HcrError $ErrorCode 'A reparse point exists in the supplied path.'
+        }
+        if ($index -lt ($segments.Count - 1) -and -not $item.PSIsContainer) {
+            Throw-HcrError $ErrorCode 'A non-directory component exists in the supplied path.'
+        }
+    }
+    return $normalized
+}
+
 function Assert-HcrRegularLocalFile {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -433,6 +505,7 @@ function Assert-HcrRegularLocalFile {
     if (-not (Test-Path -LiteralPath $normalized -PathType Leaf)) {
         Throw-HcrError $ErrorCode 'The file does not exist.'
     }
+    [void](Assert-HcrNoReparsePath $normalized $ErrorCode)
     $item = Get-Item -LiteralPath $normalized -Force
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         Throw-HcrError $ErrorCode 'Reparse-point files are not accepted.'
@@ -453,6 +526,7 @@ function Assert-HcrLocalDirectory {
     if (-not (Test-Path -LiteralPath $normalized -PathType Container)) {
         Throw-HcrError $ErrorCode 'The directory does not exist.'
     }
+    [void](Assert-HcrNoReparsePath $normalized $ErrorCode)
     $item = Get-Item -LiteralPath $normalized -Force
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         Throw-HcrError $ErrorCode 'Reparse-point directories are not accepted.'
@@ -469,6 +543,36 @@ function Test-HcrPathWithin {
     $candidateFull = (Get-HcrNormalizedPath $Candidate) + [IO.Path]::DirectorySeparatorChar
     $rootFull = (Get-HcrNormalizedPath $Root) + [IO.Path]::DirectorySeparatorChar
     return $candidateFull.StartsWith($rootFull, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Publish-HcrCredentialDirectory {
+    param(
+        [Parameter(Mandatory = $true)][string]$PendingDirectory,
+        [Parameter(Mandatory = $true)][string]$ProfileDirectory,
+        [Parameter(Mandatory = $true)][string]$CredentialRoot
+    )
+
+    $root = (Assert-HcrLocalDirectory $CredentialRoot 'CREDENTIAL_ROOT_INVALID').FullName
+    $pending = (Assert-HcrLocalDirectory $PendingDirectory 'CREDENTIAL_PROFILE_INVALID').FullName
+    $profile = Get-HcrNormalizedPath $ProfileDirectory
+    if (-not (Test-HcrPathWithin $pending $root) -or
+        -not (Test-HcrPathWithin $profile $root) -or
+        (Split-Path -Leaf $pending) -notmatch '^\.pending-[a-f0-9]{32}$' -or
+        [IO.Path]::GetPathRoot($pending) -ne [IO.Path]::GetPathRoot($profile)) {
+        Throw-HcrError 'CREDENTIAL_PROFILE_INVALID' 'The pending credential bundle is outside its exact publication boundary.'
+    }
+    try {
+        # Directory.Move has exact-destination create-new semantics. Unlike
+        # Move-Item, it never treats a raced-in destination as a container.
+        [IO.Directory]::Move($pending, $profile)
+    }
+    catch [IO.IOException] {
+        if (Test-Path -LiteralPath $profile) {
+            Throw-HcrError 'CREDENTIAL_PROFILE_EXISTS' 'A credential profile with this name already exists.'
+        }
+        throw
+    }
+    return $profile
 }
 
 function Write-HcrDiagnostic {

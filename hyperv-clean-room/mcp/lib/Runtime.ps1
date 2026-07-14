@@ -39,8 +39,8 @@ function Invoke-HcrToolCall {
             'apply_checkpoint_create' { Invoke-HcrApplyCheckpointCreate $argumentsValue $operationId; break }
             'plan_checkpoint_restore' { Invoke-HcrPlanCheckpointRestore $argumentsValue; break }
             'apply_checkpoint_restore' { Invoke-HcrApplyCheckpointRestore $argumentsValue; break }
-            'inspect_guest' { Invoke-HcrInspectGuest $argumentsValue; break }
-            'stage_artifact' { Invoke-HcrStageArtifact $argumentsValue; break }
+            'inspect_guest' { Invoke-HcrInspectGuest $argumentsValue $operationId; break }
+            'stage_artifact' { Invoke-HcrStageArtifact $argumentsValue $operationId; break }
             'run_test_profile' { Invoke-HcrRunTestProfile $argumentsValue $operationId; break }
             'collect_evidence' { Invoke-HcrCollectEvidence $argumentsValue; break }
             'record_manual_attestation' { Invoke-HcrRecordManualAttestation $argumentsValue; break }
@@ -64,16 +64,25 @@ function Invoke-HcrToolCall {
     catch {
         $failure = Get-HcrExceptionData $_.Exception
         $changed = $false
-        if ($failure.code -eq 'VM_CREATE_FAILED' -and $null -ne $failure.details -and
-            -not [string]::IsNullOrWhiteSpace([string](Get-HcrPropertyValue $failure.details 'vmId'))) {
-            $changed = $true
+        $warnings = @()
+        if ($null -ne $failure.details -and
+            [bool](Get-HcrPropertyValue $failure.details 'mutationEntered' $false)) {
+            $effectState = [string](Get-HcrPropertyValue $failure.details 'effectState')
+            if ($effectState -eq 'confirmed' -or $effectState -eq 'indeterminate') {
+                $changed = $true
+                $recoveryWarning = [string](Get-HcrPropertyValue $failure.details 'recoveryWarning')
+                if ([string]::IsNullOrWhiteSpace($recoveryWarning)) {
+                    $recoveryWarning = 'A host mutation may have taken effect; inspect the bounded partial identity before any further mutation.'
+                }
+                $warnings = @($recoveryWarning)
+            }
         }
         return New-HcrEnvelope `
             $false `
             $operationId `
             $changed `
             ([pscustomobject]@{}) `
-            @() `
+            $warnings `
             $null `
             $failure
     }

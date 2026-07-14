@@ -26,6 +26,13 @@
   },
   "automaticAssertions": [
     {
+      "id": "stage-artifact",
+      "required": true,
+      "status": "passed",
+      "summary": "The operation artifact hashes matched.",
+      "evidence": {}
+    },
+    {
       "id": "assert-installed-file",
       "required": true,
       "status": "passed",

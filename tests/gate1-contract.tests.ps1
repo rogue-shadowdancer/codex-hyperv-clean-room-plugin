@@ -91,7 +91,7 @@ foreach ($tool in $requiredTools) {
     }
 }
 $declaredToolHeadings = @(
-    [regex]::Matches($specification, '(?m)^`([a-z][a-z0-9_]*)`$') |
+    [regex]::Matches($specification, '(?m)^####\s+`([a-z][a-z0-9_]*)`$') |
         ForEach-Object { $_.Groups[1].Value }
 )
 Assert-SetEqual $declaredToolHeadings $requiredTools `

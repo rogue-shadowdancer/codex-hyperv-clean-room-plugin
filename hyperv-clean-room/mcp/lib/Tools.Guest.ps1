@@ -1,5 +1,8 @@
 function Invoke-HcrInspectGuest {
-    param([Parameter(Mandatory = $true)][object]$Arguments)
+    param(
+        [Parameter(Mandatory = $true)][object]$Arguments,
+        [Parameter(Mandatory = $true)][string]$OperationId
+    )
 
     $vmName = [string](Get-HcrPropertyValue $Arguments 'vmName')
     $owned = Get-HcrRequiredOwnedVm $vmName
@@ -10,9 +13,16 @@ function Invoke-HcrInspectGuest {
     $guest = Invoke-HcrAdapter 'InspectGuest' ([pscustomobject][ordered]@{
         vmName = $vmName
         profileName = [string](Get-HcrPropertyValue $Arguments 'credentialProfile')
+        operationId = $OperationId
+        expectedVmId = [string](Get-HcrPropertyValue $owned.vm 'id')
+        expectedVmName = [string](Get-HcrPropertyValue $owned.vm 'name')
+        expectedOwnershipId = [string](Get-HcrPropertyValue $owned.ownership 'ownershipId')
+        expectedVmPath = [string](Get-HcrPropertyValue $owned.vm 'vmPath')
+        expectedVhdxPath = [string](Get-HcrPropertyValue $owned.vm 'vhdxPath')
+        timeoutSeconds = 60
     })
     return [pscustomobject][ordered]@{
-        changed = $false
+        changed = $true
         data = [pscustomobject][ordered]@{
             vmId = [string](Get-HcrPropertyValue $owned.vm 'id')
             vmName = $vmName
@@ -24,10 +34,13 @@ function Invoke-HcrInspectGuest {
 }
 
 function Invoke-HcrStageArtifact {
-    param([Parameter(Mandatory = $true)][object]$Arguments)
+    param(
+        [Parameter(Mandatory = $true)][object]$Arguments,
+        [Parameter(Mandatory = $true)][string]$OperationId
+    )
 
     $vmName = [string](Get-HcrPropertyValue $Arguments 'vmName')
-    [void](Get-HcrRequiredOwnedVm $vmName)
+    $owned = Get-HcrRequiredOwnedVm $vmName
     [void](Invoke-HcrAdapter 'ResolveCredentialProfile' ([pscustomobject][ordered]@{
         vmName = $vmName
         profileName = [string](Get-HcrPropertyValue $Arguments 'credentialProfile')
@@ -41,10 +54,17 @@ function Invoke-HcrStageArtifact {
     $staged = Invoke-HcrAdapter 'StageArtifact' ([pscustomobject][ordered]@{
         vmName = $vmName
         profileName = [string](Get-HcrPropertyValue $Arguments 'credentialProfile')
+        operationId = $OperationId
         sourcePath = $source.FullName
         sourceSha256 = $sourceHash
         size = [int64]$source.Length
         guestDestination = $destination
+        expectedVmId = [string](Get-HcrPropertyValue $owned.vm 'id')
+        expectedVmName = [string](Get-HcrPropertyValue $owned.vm 'name')
+        expectedOwnershipId = [string](Get-HcrPropertyValue $owned.ownership 'ownershipId')
+        expectedVmPath = [string](Get-HcrPropertyValue $owned.vm 'vmPath')
+        expectedVhdxPath = [string](Get-HcrPropertyValue $owned.vm 'vhdxPath')
+        timeoutSeconds = 300
     })
     $guestHash = [string](Get-HcrPropertyValue $staged 'guestSha256')
     if ($guestHash -ne $sourceHash) {
@@ -60,7 +80,7 @@ function Invoke-HcrStageArtifact {
             size = [int64]$source.Length
             sourceSha256 = $sourceHash
             guestSha256 = $guestHash
-            guestDestination = $destination
+            guestDestination = [string](Get-HcrPropertyValue $staged 'guestDestination')
         }
         warnings = @('This staging result is scoped to this operation and is not reused by run_test_profile.')
     }
@@ -93,11 +113,25 @@ function New-HcrAutomaticAssertion {
 function Get-HcrGuestEvidenceProjection {
     param([Parameter(Mandatory = $true)][object]$Guest)
 
+    $enabledAdministrator = [bool](Get-HcrPropertyValue $Guest 'isAdministrator' $true)
+    $hasAdministratorsSid = if (Test-HcrProperty $Guest 'hasAdministratorsSid') {
+        [bool](Get-HcrPropertyValue $Guest 'hasAdministratorsSid' $true)
+    }
+    else { $enabledAdministrator }
+    $architecture = switch ([string](Get-HcrPropertyValue $Guest 'architecture')) {
+        'AMD64' { 'x64' }
+        'x64' { 'x64' }
+        default {
+            Throw-HcrError 'GUEST_ARCHITECTURE_UNSUPPORTED' 'The clean-room profile requires an x64 Windows guest.'
+        }
+    }
     return [pscustomobject][ordered]@{
         windowsBuild = [string](Get-HcrPropertyValue $Guest 'windowsBuild')
-        architecture = [string](Get-HcrPropertyValue $Guest 'architecture')
+        architecture = $architecture
         userName = [string](Get-HcrPropertyValue $Guest 'userName')
-        isAdministrator = [bool](Get-HcrPropertyValue $Guest 'isAdministrator' $true)
+        isAdministrator = [bool](
+            $enabledAdministrator -or $hasAdministratorsSid
+        )
         isElevated = [bool](Get-HcrPropertyValue $Guest 'isElevated' $true)
         tokenIntegrity = [string](Get-HcrPropertyValue $Guest 'tokenIntegrity' 'high')
         profilePathContainsNonAscii = [bool](Get-HcrPropertyValue $Guest 'profilePathContainsNonAscii' $false)
@@ -119,7 +153,13 @@ function Invoke-HcrProfileStepSafely {
             step = $Step
             applications = $Context.applications
             artifact = $Context.artifact
-            launchedProcesses = @($Context.launchedProcesses | ForEach-Object { $_ })
+        launchedProcesses = @($Context.launchedProcesses | ForEach-Object { $_ })
+        expectedVmId = $Context.expectedVmId
+        expectedVmName = $Context.expectedVmName
+        expectedOwnershipId = $Context.expectedOwnershipId
+        expectedVmPath = $Context.expectedVmPath
+        expectedVhdxPath = $Context.expectedVhdxPath
+        timeoutSeconds = [int](Get-HcrPropertyValue $Step 'timeoutSeconds')
         })
         $started.Stop()
         if ([bool](Get-HcrPropertyValue $result 'timedOut' $false) -or
@@ -165,6 +205,16 @@ function New-HcrUnperformedCleanupResults {
     })
 }
 
+function Get-HcrBoundedCleanupTimeout {
+    param(
+        [Parameter(Mandatory = $true)][int]$DeclaredSeconds,
+        [Parameter(Mandatory = $true)][int]$RemainingSeconds
+    )
+
+    if ($DeclaredSeconds -lt 1 -or $RemainingSeconds -lt 1) { return 0 }
+    return [int][Math]::Min($DeclaredSeconds, $RemainingSeconds)
+}
+
 function Invoke-HcrCleanupSteps {
     param(
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$CleanupSteps,
@@ -173,10 +223,14 @@ function Invoke-HcrCleanupSteps {
 
     $results = New-Object System.Collections.Generic.List[object]
     $budget = [Diagnostics.Stopwatch]::StartNew()
+    $cleanupDeadlineUtc = [DateTimeOffset]::UtcNow.AddSeconds(300)
     foreach ($step in $CleanupSteps) {
         $stepId = [string](Get-HcrPropertyValue $step 'id')
         $stepType = [string](Get-HcrPropertyValue $step 'type')
-        if ($budget.Elapsed.TotalSeconds -ge 300) {
+        $remainingSeconds = [int][Math]::Floor(
+            ($cleanupDeadlineUtc - [DateTimeOffset]::UtcNow).TotalSeconds
+        )
+        if ($remainingSeconds -lt 1) {
             $results.Add([pscustomobject][ordered]@{
                 operationId = $Context.operationId
                 profileId = $Context.profileId
@@ -188,6 +242,11 @@ function Invoke-HcrCleanupSteps {
             })
             continue
         }
+        $effectiveStep = Copy-HcrObject $step
+        $effectiveTimeout = Get-HcrBoundedCleanupTimeout `
+            -DeclaredSeconds ([int](Get-HcrPropertyValue $step 'timeoutSeconds')) `
+            -RemainingSeconds $remainingSeconds
+        $effectiveStep.timeoutSeconds = $effectiveTimeout
         $launchedProcess = $null
         if ($stepType -eq 'stopApplication') {
             $application = [string](Get-HcrPropertyValue $step 'application')
@@ -214,16 +273,24 @@ function Invoke-HcrCleanupSteps {
                 vmName = $Context.vmName
                 profileName = $Context.profileName
                 operationId = $Context.operationId
-                step = $step
+                step = $effectiveStep
                 applications = $Context.applications
                 launchedProcess = $launchedProcess
+                expectedVmId = $Context.expectedVmId
+                expectedVmName = $Context.expectedVmName
+                expectedOwnershipId = $Context.expectedOwnershipId
+                expectedVmPath = $Context.expectedVmPath
+                expectedVhdxPath = $Context.expectedVhdxPath
+                timeoutSeconds = $effectiveTimeout
+                deadlineUtc = $cleanupDeadlineUtc.ToString('o')
             })
             $timer.Stop()
             $status = [string](Get-HcrPropertyValue $result 'status' 'failed')
             $summary = [string](Get-HcrPropertyValue $result 'summary' 'Cleanup adapter returned no summary.')
             $machineEvidence = Get-HcrPropertyValue $result 'evidence'
             if ([bool](Get-HcrPropertyValue $result 'timedOut' $false) -or
-                $timer.Elapsed.TotalSeconds -gt [double](Get-HcrPropertyValue $step 'timeoutSeconds')) {
+                $timer.Elapsed.TotalSeconds -gt [double]$effectiveTimeout -or
+                [DateTimeOffset]::UtcNow -gt $cleanupDeadlineUtc) {
                 $status = 'failed'
                 $summary = 'The cleanup step exceeded its declared timeout.'
                 $machineEvidence = [pscustomobject]@{ timedOut = $true }
@@ -303,6 +370,13 @@ function Invoke-HcrRunTestProfile {
     $guestRaw = Invoke-HcrAdapter 'InspectGuest' ([pscustomobject][ordered]@{
         vmName = $vmName
         profileName = $profileName
+        operationId = $OperationId
+        expectedVmId = [string](Get-HcrPropertyValue $owned.vm 'id')
+        expectedVmName = [string](Get-HcrPropertyValue $owned.vm 'name')
+        expectedOwnershipId = [string](Get-HcrPropertyValue $owned.ownership 'ownershipId')
+        expectedVmPath = [string](Get-HcrPropertyValue $owned.vm 'vmPath')
+        expectedVhdxPath = [string](Get-HcrPropertyValue $owned.vm 'vhdxPath')
+        timeoutSeconds = 60
     })
     $guest = Get-HcrGuestEvidenceProjection $guestRaw
 
@@ -366,6 +440,7 @@ function Invoke-HcrRunTestProfile {
         ownershipVerified = $true
         evidenceRoot = $evidenceRoot
         evidenceFile = $null
+        evidenceSha256 = $null
         launchedProcesses = @()
         manualAttestations = @()
         exportedEvidencePath = $null
@@ -375,7 +450,7 @@ function Invoke-HcrRunTestProfile {
 
     $automatic = New-Object System.Collections.Generic.List[object]
     $launched = New-Object System.Collections.Generic.List[object]
-    $guestDestination = "operations\$OperationId\$($artifactItem.Name)"
+    $guestDestination = $artifactItem.Name
     $staged = $null
     try {
         $staged = Invoke-HcrAdapter 'StageArtifact' ([pscustomobject][ordered]@{
@@ -386,7 +461,14 @@ function Invoke-HcrRunTestProfile {
             sourceSha256 = $sourceHash
             size = [int64]$artifactItem.Length
             guestDestination = $guestDestination
+            expectedVmId = [string](Get-HcrPropertyValue $owned.vm 'id')
+            expectedVmName = [string](Get-HcrPropertyValue $owned.vm 'name')
+            expectedOwnershipId = [string](Get-HcrPropertyValue $owned.ownership 'ownershipId')
+            expectedVmPath = [string](Get-HcrPropertyValue $owned.vm 'vmPath')
+            expectedVhdxPath = [string](Get-HcrPropertyValue $owned.vm 'vhdxPath')
+            timeoutSeconds = [int](Get-HcrPropertyValue $steps[0] 'timeoutSeconds')
         })
+        $guestDestination = [string](Get-HcrPropertyValue $staged 'guestDestination')
         $guestHash = [string](Get-HcrPropertyValue $staged 'guestSha256')
         $stageStatus = if ($guestHash -eq $sourceHash) { 'passed' } else { 'failed' }
         $stageSummary = if ($stageStatus -eq 'passed') { 'Artifact staged and both SHA-256 values match.' } else { 'Artifact staging hash mismatch.' }
@@ -399,7 +481,7 @@ function Invoke-HcrRunTestProfile {
     }
     catch {
         $failure = Get-HcrExceptionData $_.Exception
-        $guestHash = ('0' * 64)
+        $guestHash = $null
         $automatic.Add((New-HcrAutomaticAssertion `
             ([string](Get-HcrPropertyValue $steps[0] 'id')) `
             $true `
@@ -408,21 +490,19 @@ function Invoke-HcrRunTestProfile {
             ([pscustomobject]@{ errorCode = $failure.code })))
     }
     $cleanupTriggered = $automatic[0].status -eq 'failed'
-    if (-not $cleanupTriggered) {
-        $tokenOk = -not $guest.isAdministrator -and -not $guest.isElevated -and
-            $guest.tokenIntegrity -eq 'medium'
-        $automatic.Add((New-HcrAutomaticAssertion `
-            'runtime-ordinary-user-token' `
-            $true `
-            $(if ($tokenOk) { 'passed' } else { 'failed' }) `
-            $(if ($tokenOk) { 'Standard test-user token invariants passed.' } else { 'The test identity is elevated, administrative, or not medium integrity.' }) `
-            ([pscustomobject]@{
-                isAdministrator = $guest.isAdministrator
-                isElevated = $guest.isElevated
-                tokenIntegrity = $guest.tokenIntegrity
-            })))
-        if (-not $tokenOk) { $cleanupTriggered = $true }
-    }
+    $tokenOk = -not $guest.isAdministrator -and -not $guest.isElevated -and
+        $guest.tokenIntegrity -eq 'medium'
+    $automatic.Add((New-HcrAutomaticAssertion `
+        'runtime-ordinary-user-token' `
+        $true `
+        $(if ($tokenOk) { 'passed' } else { 'failed' }) `
+        $(if ($tokenOk) { 'Standard test-user token invariants passed.' } else { 'The test identity is elevated, administrative, or not medium integrity.' }) `
+        ([pscustomobject]@{
+            isAdministrator = $guest.isAdministrator
+            isElevated = $guest.isElevated
+            tokenIntegrity = $guest.tokenIntegrity
+        })))
+    if (-not $tokenOk) { $cleanupTriggered = $true }
 
     $context = [pscustomobject][ordered]@{
         vmName = $vmName
@@ -437,6 +517,11 @@ function Invoke-HcrRunTestProfile {
             guestSha256 = $guestHash
         }
         launchedProcesses = $launched
+        expectedVmId = [string](Get-HcrPropertyValue $owned.vm 'id')
+        expectedVmName = [string](Get-HcrPropertyValue $owned.vm 'name')
+        expectedOwnershipId = [string](Get-HcrPropertyValue $owned.ownership 'ownershipId')
+        expectedVmPath = [string](Get-HcrPropertyValue $owned.vm 'vmPath')
+        expectedVhdxPath = [string](Get-HcrPropertyValue $owned.vm 'vhdxPath')
     }
     for ($index = 1; $index -lt $steps.Count; $index++) {
         $step = $steps[$index]
@@ -466,7 +551,12 @@ function Invoke-HcrRunTestProfile {
             (Test-HcrProperty $result 'process')) {
             $launched.Add((Copy-HcrObject (Get-HcrPropertyValue $result 'process')))
         }
-        if ($status -eq 'failed' -and ($required -or $script:HcrActionStepTypes -contains $stepType)) {
+        $failureKind = [string](Get-HcrPropertyValue $result 'failureKind')
+        if ($status -eq 'failed' -and (
+            $required -or
+            $script:HcrActionStepTypes -contains $stepType -or
+            @('timeout', 'adapter') -contains $failureKind
+        )) {
             $cleanupTriggered = $true
         }
     }
@@ -482,6 +572,11 @@ function Invoke-HcrRunTestProfile {
         profileName = $profileName
         applications = @((Get-HcrPropertyValue $profile 'applications'))
         launchedProcesses = $launched
+        expectedVmId = [string](Get-HcrPropertyValue $owned.vm 'id')
+        expectedVmName = [string](Get-HcrPropertyValue $owned.vm 'name')
+        expectedOwnershipId = [string](Get-HcrPropertyValue $owned.ownership 'ownershipId')
+        expectedVmPath = [string](Get-HcrPropertyValue $owned.vm 'vmPath')
+        expectedVhdxPath = [string](Get-HcrPropertyValue $owned.vm 'vhdxPath')
     }
     $cleanupResults = if ($cleanupTriggered) {
         Invoke-HcrCleanupSteps $cleanupSteps $cleanupContext
@@ -530,6 +625,7 @@ function Invoke-HcrRunTestProfile {
         warnings = $evidenceWarnings
     }
     [void](Write-HcrOperationEvidence $operation $evidence)
+    $operation.evidenceSha256 = Get-HcrEvidenceDocumentDigest $evidence
     Save-HcrOperationRecord $operation
     return [pscustomobject][ordered]@{
         changed = $true
@@ -572,6 +668,11 @@ function Resolve-HcrEvidenceReferences {
             $expectedHash -notmatch '^[a-f0-9]{64}$') {
             Throw-HcrError 'EVIDENCE_REFERENCE_INVALID' 'A manual evidence reference is invalid.'
         }
+        $canonicalRelative = $relative.Replace('\', '/')
+        if ($canonicalRelative.Equals('evidence.json', [StringComparison]::OrdinalIgnoreCase) -or
+            $canonicalRelative.Equals('inventory.json', [StringComparison]::OrdinalIgnoreCase)) {
+            Throw-HcrError 'EVIDENCE_REFERENCE_INVALID' 'Mutable evidence control documents cannot be manual evidence references.'
+        }
         $candidate = Get-HcrNormalizedPath (Join-Path $EvidenceRoot $relative)
         if (-not (Test-HcrPathWithin $candidate $EvidenceRoot)) {
             Throw-HcrError 'EVIDENCE_REFERENCE_INVALID' 'A manual evidence reference escapes the staging root.'
@@ -582,7 +683,7 @@ function Resolve-HcrEvidenceReferences {
             Throw-HcrError 'EVIDENCE_REFERENCE_HASH_MISMATCH' 'A manual evidence reference hash does not match.'
         }
         $verified.Add([pscustomobject][ordered]@{
-            path = $relative.Replace('\', '/')
+            path = $canonicalRelative
             sha256 = $actualHash
         })
     }
@@ -611,6 +712,12 @@ function Invoke-HcrRecordManualAttestation {
             Throw-HcrError 'EVIDENCE_NOT_READY' 'The operation evidence is not ready.'
         }
         $evidence = Read-HcrJsonFile $evidencePath 'EVIDENCE_NOT_READY'
+        $existingValidation = Test-HcrEvidenceDocument $evidence $operation
+        if (-not $existingValidation.valid) {
+            Throw-HcrError 'EVIDENCE_INVALID' 'The existing operation evidence was modified or is invalid.' ([ordered]@{
+                errors = @($existingValidation.errors)
+            })
+        }
         $assertionId = [string](Get-HcrPropertyValue $Arguments 'assertionId')
         $matches = @(@((Get-HcrPropertyValue $evidence 'manualAssertions' @())) |
             Where-Object { [string](Get-HcrPropertyValue $_ 'id') -eq $assertionId })
@@ -640,6 +747,7 @@ function Invoke-HcrRecordManualAttestation {
             @((Get-HcrPropertyValue $evidence 'automaticAssertions')) `
             @((Get-HcrPropertyValue $evidence 'manualAssertions'))
         $operation.manualAttestations = @(@((Get-HcrPropertyValue $operation 'manualAttestations' @())) + $attestation)
+        $operation.evidenceSha256 = Get-HcrEvidenceDocumentDigest $evidence
         $validation = Test-HcrEvidenceDocument $evidence $operation
         if (-not $validation.valid) {
             Throw-HcrError 'EVIDENCE_INVALID' 'The attestation would make operation evidence invalid.' ([ordered]@{
@@ -695,78 +803,251 @@ function Invoke-HcrCollectEvidence {
     param([Parameter(Mandatory = $true)][object]$Arguments)
 
     $operationId = [string](Get-HcrPropertyValue $Arguments 'operationId')
-    $operation = Get-HcrOperationRecord $operationId
-    if ((Get-HcrPropertyValue $operation 'operationType') -ne 'runTestProfile') {
-        Throw-HcrError 'OPERATION_TYPE_MISMATCH' 'Only test-profile operations have collectible evidence.'
-    }
     $outputItem = Assert-HcrLocalDirectory ([string](Get-HcrPropertyValue $Arguments 'outputDirectory')) 'INVALID_EVIDENCE_OUTPUT'
     if (Test-HcrEvidenceOutputForbidden $outputItem.FullName) {
         Throw-HcrError 'EVIDENCE_OUTPUT_FORBIDDEN' 'The output directory is inside a protected or managed root.'
     }
-    $sourceRoot = [string](Get-HcrPropertyValue $operation 'evidenceRoot')
-    $evidencePath = [string](Get-HcrPropertyValue $operation 'evidenceFile')
-    if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container) -or
-        -not (Test-Path -LiteralPath $evidencePath -PathType Leaf)) {
-        Throw-HcrError 'EVIDENCE_NOT_READY' 'The operation evidence staging root is unavailable.'
-    }
-    $evidence = Read-HcrJsonFile $evidencePath 'EVIDENCE_NOT_READY'
-    $validation = Test-HcrEvidenceDocument $evidence $operation
-    if (-not $validation.valid) {
-        Throw-HcrError 'EVIDENCE_INVALID' 'The staged evidence failed validation and was not exported.' ([ordered]@{
-            errors = @($validation.errors)
-        })
-    }
-    foreach ($item in @(Get-ChildItem -LiteralPath $sourceRoot -Force -Recurse)) {
-        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-            Throw-HcrError 'EVIDENCE_STAGING_INVALID' 'The evidence staging root contains a reparse point.'
+    $outputDirectory = $outputItem.FullName
+    $holder = [pscustomobject]@{ result = $null }
+    [void](Update-HcrOperationRecord $operationId {
+        param($operation)
+
+        if ((Get-HcrPropertyValue $operation 'operationType') -ne 'runTestProfile') {
+            Throw-HcrError 'OPERATION_TYPE_MISMATCH' 'Only test-profile operations have collectible evidence.'
         }
-    }
-    $targetRoot = Get-HcrNormalizedPath (Join-Path $outputItem.FullName "hyperv-clean-room-$operationId")
-    if (Test-Path -LiteralPath $targetRoot) {
-        Throw-HcrError 'EVIDENCE_OUTPUT_EXISTS' 'The operation evidence output directory already exists.'
-    }
-    [void](New-Item -ItemType Directory -Path $targetRoot)
-    $inventoryFiles = New-Object System.Collections.Generic.List[object]
-    foreach ($file in @(Get-ChildItem -LiteralPath $sourceRoot -Force -Recurse -File | Sort-Object FullName)) {
-        $relative = $file.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
-        if (-not (Test-HcrSafeRelativePath $relative)) {
-            Throw-HcrError 'EVIDENCE_STAGING_INVALID' 'The evidence staging root contains an unsafe relative path.'
+        $lockedOutput = Assert-HcrLocalDirectory $outputDirectory 'INVALID_EVIDENCE_OUTPUT'
+        if (Test-HcrEvidenceOutputForbidden $lockedOutput.FullName) {
+            Throw-HcrError 'EVIDENCE_OUTPUT_FORBIDDEN' 'The output directory changed into a protected or managed root.'
         }
-        $destination = Get-HcrNormalizedPath (Join-Path $targetRoot $relative)
-        if (-not (Test-HcrPathWithin $destination $targetRoot)) {
-            Throw-HcrError 'EVIDENCE_STAGING_INVALID' 'An evidence file escapes the export root.'
+        $sourceRoot = [string](Get-HcrPropertyValue $operation 'evidenceRoot')
+        $evidencePath = [string](Get-HcrPropertyValue $operation 'evidenceFile')
+        if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container) -or
+            -not (Test-Path -LiteralPath $evidencePath -PathType Leaf)) {
+            Throw-HcrError 'EVIDENCE_NOT_READY' 'The operation evidence staging root is unavailable.'
         }
-        $destinationParent = Split-Path -Parent $destination
-        if (-not (Test-Path -LiteralPath $destinationParent -PathType Container)) {
-            [void](New-Item -ItemType Directory -Path $destinationParent -Force)
+        [void](Assert-HcrLocalDirectory $sourceRoot 'EVIDENCE_STAGING_INVALID')
+        $evidence = Read-HcrJsonFile $evidencePath 'EVIDENCE_NOT_READY'
+        $validation = Test-HcrEvidenceDocument $evidence $operation
+        if (-not $validation.valid) {
+            Throw-HcrError 'EVIDENCE_INVALID' 'The staged evidence failed validation and was not exported.' ([ordered]@{
+                errors = @($validation.errors)
+            })
         }
-        Copy-Item -LiteralPath $file.FullName -Destination $destination -ErrorAction Stop
-        $inventoryFiles.Add([pscustomobject][ordered]@{
-            path = $relative.Replace('\', '/')
-            size = [int64]$file.Length
-            sha256 = Get-HcrSha256File $destination
-        })
-    }
-    $inventory = [pscustomobject][ordered]@{
-        schemaVersion = 1
-        operationId = $operationId
-        createdAt = Get-HcrUtcTimestamp
-        files = @($inventoryFiles | ForEach-Object { $_ })
-    }
-    Write-HcrJsonFile (Join-Path $targetRoot 'inventory.json') $inventory
-    $exportedEvidencePath = Join-Path $targetRoot 'evidence.json'
-    $operation | Add-Member -NotePropertyName exportedEvidencePath -NotePropertyValue $exportedEvidencePath -Force
-    $operation | Add-Member -NotePropertyName exportedAt -NotePropertyValue (Get-HcrUtcTimestamp) -Force
-    Save-HcrOperationRecord $operation
-    return [pscustomobject][ordered]@{
-        changed = $true
-        data = [pscustomobject][ordered]@{
-            testOperationId = $operationId
-            outputDirectory = $targetRoot
-            inventoryPath = Join-Path $targetRoot 'inventory.json'
-            fileCount = $inventoryFiles.Count
+        if ($env:HCR_TEST_MODE -eq '1') {
+            $testHook = Get-Variable `
+                -Name HcrEvidenceExportAfterValidationTestHook `
+                -Scope Global `
+                -ValueOnly `
+                -ErrorAction SilentlyContinue
+            if ($testHook -is [scriptblock]) {
+                & $testHook $sourceRoot $evidencePath
+            }
         }
-        warnings = @()
-        evidencePath = $exportedEvidencePath
-    }
+        foreach ($item in @(Get-ChildItem -LiteralPath $sourceRoot -Force -Recurse)) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                Throw-HcrError 'EVIDENCE_STAGING_INVALID' 'The evidence staging root contains a reparse point.'
+            }
+        }
+
+        # Rebind all attestation claims while the operation record is locked.
+        $claimedHashes = @{}
+        foreach ($assertion in @((Get-HcrPropertyValue $evidence 'manualAssertions' @()))) {
+            $attestation = Get-HcrPropertyValue $assertion 'attestation'
+            if ($null -eq $attestation) { continue }
+            $verified = @(Resolve-HcrEvidenceReferences `
+                @((Get-HcrPropertyValue $attestation 'evidenceReferences' @())) `
+                $sourceRoot)
+            foreach ($reference in $verified) {
+                $relative = [string](Get-HcrPropertyValue $reference 'path')
+                $hash = [string](Get-HcrPropertyValue $reference 'sha256')
+                if ($claimedHashes.ContainsKey($relative) -and $claimedHashes[$relative] -ne $hash) {
+                    Throw-HcrError 'EVIDENCE_REFERENCE_HASH_MISMATCH' 'Duplicate manual evidence claims disagree.'
+                }
+                $claimedHashes[$relative] = $hash
+            }
+        }
+
+        $sourceFiles = New-Object System.Collections.Generic.List[object]
+        foreach ($file in @(Get-ChildItem -LiteralPath $sourceRoot -Force -Recurse -File | Sort-Object FullName)) {
+            $relative = $file.FullName.Substring($sourceRoot.Length).TrimStart('\', '/').Replace('\', '/')
+            if (-not (Test-HcrSafeRelativePath $relative)) {
+                Throw-HcrError 'EVIDENCE_STAGING_INVALID' 'The evidence staging root contains an unsafe relative path.'
+            }
+            if ($relative.Equals('inventory.json', [StringComparison]::OrdinalIgnoreCase)) {
+                Throw-HcrError 'EVIDENCE_STAGING_INVALID' 'The generated inventory name is reserved in the evidence staging root.'
+            }
+            $regular = Assert-HcrRegularLocalFile $file.FullName 'EVIDENCE_STAGING_INVALID'
+            $sourceHash = Get-HcrSha256File $regular.FullName
+            if ($claimedHashes.ContainsKey($relative) -and $claimedHashes[$relative] -ne $sourceHash) {
+                Throw-HcrError 'EVIDENCE_REFERENCE_HASH_MISMATCH' 'A manual evidence reference changed before export.'
+            }
+            $sourceFiles.Add([pscustomobject][ordered]@{
+                path = $regular.FullName
+                relative = $relative
+                size = [int64]$regular.Length
+                sha256 = $sourceHash
+            })
+        }
+        foreach ($claimedPath in @($claimedHashes.Keys)) {
+            if (@($sourceFiles | Where-Object { $_.relative -eq $claimedPath }).Count -ne 1) {
+                Throw-HcrError 'EVIDENCE_REFERENCE_INVALID' 'A claimed manual evidence file is not uniquely exportable.'
+            }
+        }
+
+        $targetRoot = Get-HcrNormalizedPath (Join-Path $lockedOutput.FullName "hyperv-clean-room-$operationId")
+        if (Test-Path -LiteralPath $targetRoot) {
+            Throw-HcrError 'EVIDENCE_OUTPUT_EXISTS' 'The operation evidence output directory already exists.'
+        }
+        [void](New-Item -ItemType Directory -Path $targetRoot)
+        [void](Assert-HcrLocalDirectory $targetRoot 'INVALID_EVIDENCE_OUTPUT')
+        $inventoryFiles = New-Object System.Collections.Generic.List[object]
+        foreach ($source in $sourceFiles) {
+            $destination = Get-HcrNormalizedPath (Join-Path $targetRoot $source.relative)
+            if (-not (Test-HcrPathWithin $destination $targetRoot)) {
+                Throw-HcrError 'EVIDENCE_STAGING_INVALID' 'An evidence file escapes the export root.'
+            }
+            $destinationParent = Split-Path -Parent $destination
+            [void](Initialize-HcrLocalDirectoryPath $destinationParent 'INVALID_EVIDENCE_OUTPUT')
+            $beforeHash = Get-HcrSha256File `
+                (Assert-HcrRegularLocalFile $source.path 'EVIDENCE_STAGING_INVALID').FullName
+            if ($beforeHash -ne $source.sha256) {
+                Throw-HcrError 'EVIDENCE_REFERENCE_HASH_MISMATCH' 'An evidence source changed before copy.'
+            }
+            Copy-Item -LiteralPath $source.path -Destination $destination -ErrorAction Stop
+            $afterHash = Get-HcrSha256File `
+                (Assert-HcrRegularLocalFile $source.path 'EVIDENCE_STAGING_INVALID').FullName
+            $copied = Assert-HcrRegularLocalFile $destination 'EVIDENCE_STAGING_INVALID'
+            $copiedHash = Get-HcrSha256File $copied.FullName
+            if ($beforeHash -ne $afterHash -or
+                $beforeHash -ne $copiedHash -or
+                ($claimedHashes.ContainsKey($source.relative) -and
+                    $claimedHashes[$source.relative] -ne $copiedHash)) {
+                Throw-HcrError 'EVIDENCE_REFERENCE_HASH_MISMATCH' 'Source, copied, and claimed evidence hashes do not agree.'
+            }
+            $inventoryFiles.Add([pscustomobject][ordered]@{
+                path = $source.relative
+                size = [int64]$copied.Length
+                sha256 = $copiedHash
+            })
+        }
+        $copiedEvidencePath = Join-Path $targetRoot 'evidence.json'
+        $copiedEvidence = Read-HcrJsonFile $copiedEvidencePath 'EVIDENCE_STAGING_INVALID'
+        $copiedValidation = Test-HcrEvidenceDocument $copiedEvidence $operation
+        if (-not $copiedValidation.valid) {
+            Throw-HcrError 'EVIDENCE_INVALID' 'The exact copied evidence bytes do not match immutable operation state.' ([ordered]@{
+                errors = @($copiedValidation.errors)
+            })
+        }
+        foreach ($entry in $inventoryFiles) {
+            $inventoryTarget = Assert-HcrRegularLocalFile `
+                (Join-Path $targetRoot ([string]$entry.path)) `
+                'EVIDENCE_STAGING_INVALID'
+            if ((Get-HcrSha256File $inventoryTarget.FullName) -ne [string]$entry.sha256) {
+                Throw-HcrError 'EVIDENCE_REFERENCE_HASH_MISMATCH' 'The evidence inventory does not match the copied bytes.'
+            }
+        }
+        $inventory = [pscustomobject][ordered]@{
+            schemaVersion = 1
+            operationId = $operationId
+            createdAt = Get-HcrUtcTimestamp
+            files = @($inventoryFiles | ForEach-Object { $_ })
+        }
+        $inventoryPath = Join-Path $targetRoot 'inventory.json'
+        Write-HcrJsonFile $inventoryPath $inventory
+        if ($env:HCR_TEST_MODE -eq '1') {
+            $inventoryHook = Get-Variable `
+                -Name HcrEvidenceExportAfterInventoryWriteTestHook `
+                -Scope Global `
+                -ValueOnly `
+                -ErrorAction SilentlyContinue
+            if ($inventoryHook -is [scriptblock]) {
+                & $inventoryHook $inventoryPath $targetRoot
+            }
+        }
+
+        # The serialized inventory is the exported verifier contract. Reopen
+        # those exact bytes, bind every entry back to the generated in-memory
+        # inventory, then verify the final copied files from the parsed claims.
+        $publishedInventoryFile = Assert-HcrRegularLocalFile `
+            $inventoryPath `
+            'EVIDENCE_STAGING_INVALID'
+        $publishedInventory = Read-HcrJsonFile `
+            $publishedInventoryFile.FullName `
+            'EVIDENCE_STAGING_INVALID'
+        $inventoryPropertyNames = @(Get-HcrPropertyNames $publishedInventory)
+        if ($inventoryPropertyNames.Count -ne 4 -or
+            @('schemaVersion', 'operationId', 'createdAt', 'files' | Where-Object {
+                $inventoryPropertyNames -notcontains $_
+            }).Count -ne 0 -or
+            [int](Get-HcrPropertyValue $publishedInventory 'schemaVersion' 0) -ne 1 -or
+            [string](Get-HcrPropertyValue $publishedInventory 'operationId') -ne $operationId -or
+            [string]::IsNullOrWhiteSpace([string](Get-HcrPropertyValue $publishedInventory 'createdAt'))) {
+            Throw-HcrError 'EVIDENCE_INVENTORY_INVALID' 'The published evidence inventory header is invalid.'
+        }
+        $publishedEntries = @((Get-HcrPropertyValue $publishedInventory 'files' @()))
+        if ($publishedEntries.Count -ne $inventoryFiles.Count) {
+            Throw-HcrError 'EVIDENCE_INVENTORY_INVALID' 'The published evidence inventory membership changed.'
+        }
+        for ($index = 0; $index -lt $inventoryFiles.Count; $index++) {
+            $expectedEntry = $inventoryFiles[$index]
+            $publishedEntry = $publishedEntries[$index]
+            $entryPropertyNames = @(Get-HcrPropertyNames $publishedEntry)
+            if ($entryPropertyNames.Count -ne 3 -or
+                @('path', 'size', 'sha256' | Where-Object {
+                    $entryPropertyNames -notcontains $_
+                }).Count -ne 0 -or
+                [string](Get-HcrPropertyValue $publishedEntry 'path') -ne
+                    [string](Get-HcrPropertyValue $expectedEntry 'path') -or
+                [int64](Get-HcrPropertyValue $publishedEntry 'size' -1) -ne
+                    [int64](Get-HcrPropertyValue $expectedEntry 'size') -or
+                [string](Get-HcrPropertyValue $publishedEntry 'sha256') -ne
+                    [string](Get-HcrPropertyValue $expectedEntry 'sha256')) {
+                Throw-HcrError 'EVIDENCE_INVENTORY_INVALID' 'A published evidence inventory entry changed.'
+            }
+            $publishedTarget = Assert-HcrRegularLocalFile `
+                (Join-Path $targetRoot ([string](Get-HcrPropertyValue $publishedEntry 'path'))) `
+                'EVIDENCE_STAGING_INVALID'
+            if ([int64]$publishedTarget.Length -ne
+                    [int64](Get-HcrPropertyValue $publishedEntry 'size') -or
+                (Get-HcrSha256File $publishedTarget.FullName) -ne
+                    [string](Get-HcrPropertyValue $publishedEntry 'sha256')) {
+                Throw-HcrError 'EVIDENCE_REFERENCE_HASH_MISMATCH' 'The final copied evidence bytes do not match the published inventory.'
+            }
+        }
+        foreach ($publishedItem in @(Get-ChildItem -LiteralPath $targetRoot -Force -Recurse)) {
+            if (($publishedItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                Throw-HcrError 'EVIDENCE_STAGING_INVALID' 'The final evidence bundle contains a reparse point.'
+            }
+        }
+        $expectedPublishedPaths = @($publishedEntries | ForEach-Object {
+            [string](Get-HcrPropertyValue $_ 'path')
+        }) + @('inventory.json')
+        $actualPublishedPaths = @(Get-ChildItem -LiteralPath $targetRoot -Force -Recurse -File |
+            ForEach-Object {
+                $_.FullName.Substring($targetRoot.Length).TrimStart('\', '/').Replace('\', '/')
+            })
+        if ($actualPublishedPaths.Count -ne $expectedPublishedPaths.Count -or
+            @($actualPublishedPaths | Where-Object {
+                $expectedPublishedPaths -notcontains $_
+            }).Count -ne 0) {
+            Throw-HcrError 'EVIDENCE_INVENTORY_INVALID' 'The final evidence bundle does not match the published inventory.'
+        }
+        $inventoryPath = $publishedInventoryFile.FullName
+        $exportedEvidencePath = Join-Path $targetRoot 'evidence.json'
+        $operation | Add-Member -NotePropertyName exportedEvidencePath -NotePropertyValue $exportedEvidencePath -Force
+        $operation | Add-Member -NotePropertyName exportedAt -NotePropertyValue (Get-HcrUtcTimestamp) -Force
+        $holder.result = [pscustomobject][ordered]@{
+            changed = $true
+            data = [pscustomobject][ordered]@{
+                testOperationId = $operationId
+                outputDirectory = $targetRoot
+                inventoryPath = $inventoryPath
+                fileCount = $inventoryFiles.Count
+            }
+            warnings = @()
+            evidencePath = $exportedEvidencePath
+        }
+        return $operation
+    })
+    return $holder.result
 }

@@ -117,7 +117,7 @@ function Get-HcrToolDefinitions {
         (New-HcrInputSchema @{
             vmName = $vmName
             credentialProfile = $profileName
-        } @('vmName', 'credentialProfile')) $true))
+        } @('vmName', 'credentialProfile')) $false))
     $tools.Add((New-HcrToolDefinition 'stage_artifact' `
         'Copy one host-local regular file to the managed guest staging root and verify both hashes.' `
         (New-HcrInputSchema @{

@@ -220,8 +220,44 @@ def validate_evidence_semantics(
         )
 
     artifact = evidence.get("artifact", {})
-    if artifact.get("sourceSha256") != artifact.get("guestSha256"):
-        errors.append("source and guest artifact SHA-256 values differ")
+    source_hash = artifact.get("sourceSha256")
+    guest_hash = artifact.get("guestSha256")
+    hashes_verified = (
+        isinstance(source_hash, str)
+        and isinstance(guest_hash, str)
+        and source_hash == guest_hash
+    )
+    stage_assertion: dict[str, Any] | None = None
+    # Bind both directions whenever a profile is available: matching hashes
+    # require a passed stage result, while null or mismatched guest facts
+    # require a failed stage result. Legacy schema-only fixtures whose profile
+    # is not present can still validate matching hashes without synthetic
+    # operation state, but never unverified hashes.
+    if profile is not None:
+        stage_steps = [
+            step for step in profile.get("steps", []) if step.get("type") == "stageArtifact"
+        ]
+        if len(stage_steps) == 1:
+            stage_matches = [
+                assertion
+                for assertion in evidence.get("automaticAssertions", [])
+                if assertion.get("id") == stage_steps[0].get("id")
+            ]
+            if len(stage_matches) == 1:
+                stage_assertion = stage_matches[0]
+            else:
+                errors.append("stageArtifact assertion identity is not uniquely bound")
+        else:
+            errors.append("bound profile lacks one stageArtifact identity")
+    elif not hashes_verified:
+        errors.append("unverified artifact hashes lack a bound stageArtifact identity")
+    if stage_assertion is not None:
+        expected_stage_status = "passed" if hashes_verified else "failed"
+        if stage_assertion.get("status") != expected_stage_status:
+            errors.append(
+                "artifact hashes require stageArtifact status "
+                f"{expected_stage_status!r}"
+            )
 
     operation_id = evidence.get("operationId")
     profile_id = evidence.get("profileId")
