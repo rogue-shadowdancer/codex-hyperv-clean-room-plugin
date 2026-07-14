@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "operationId": "55555555-5555-4555-8555-555555555555",
-  "createdAt": "2026-07-14T11:00:00Z",
+  "operationId": "99999999-9999-4999-8999-999999999999",
+  "createdAt": "2026-07-14T13:30:00Z",
   "profileId": "sample-package",
   "baselineType": "stock-clean",
   "vm": {
@@ -13,30 +13,21 @@
   "guest": {
     "windowsBuild": "22631",
     "architecture": "x64",
-    "userName": "administrator",
-    "isAdministrator": true,
-    "isElevated": true,
-    "tokenIntegrity": "high",
-    "profilePathContainsNonAscii": false
+    "userName": "test-user",
+    "isAdministrator": false,
+    "isElevated": false,
+    "tokenIntegrity": "medium"
   },
   "artifact": {
-    "fileName": "Sample_0.1.0_x64-setup.exe",
+    "fileName": "Sample-0.1.0-x64.exe",
     "size": 1024,
     "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "guestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   },
-  "automaticAssertions": [
-    {
-      "id": "ordinary-user",
-      "required": true,
-      "status": "failed",
-      "summary": "The test process was elevated.",
-      "evidence": {}
-    }
-  ],
+  "automaticAssertions": [],
   "manualAssertions": [],
   "cleanupTriggered": true,
   "cleanupResults": [],
-  "overallStatus": "failed",
+  "overallStatus": "passed",
   "warnings": []
 }

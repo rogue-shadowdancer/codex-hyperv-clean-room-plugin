@@ -42,8 +42,8 @@ $mcp = Read-Json $mcpPath
 
 Assert-True ($manifest.name -eq 'hyperv-clean-room') `
     'Plugin name must be hyperv-clean-room.'
-Assert-True ($manifest.version -match '^0\.1\.0(?:\+codex\.[0-9A-Za-z.-]+)?$') `
-    'Gate 1 plugin version must be 0.1.0 with at most one Codex cachebuster.'
+Assert-True ($manifest.version -eq '0.1.0') `
+    'Gate 1.1 plugin version must remain exactly 0.1.0.'
 Assert-True ($manifest.author.name -eq 'rogue-shadowdancer') `
     'Unexpected plugin author.'
 Assert-True ($manifest.license -eq 'UNLICENSED') `
@@ -79,13 +79,20 @@ $schemaFiles = @(
         -Filter '*.schema.json' -File
 )
 Assert-True ($schemaFiles.Count -eq 5) `
-    'Gate 1 must contain exactly five public schemas.'
+    'Gate 1.1 must contain exactly five public schemas.'
+$productionPythonFiles = @(
+    Get-ChildItem -LiteralPath $pluginRoot -Recurse -Filter '*.py' -File
+)
+Assert-True ($productionPythonFiles.Count -eq 0) `
+    'The production plugin must not depend on Python.'
 foreach ($schema in $schemaFiles) {
     $parsed = Read-Json $schema.FullName
     Assert-True ($parsed.'$schema' -eq 'https://json-schema.org/draft/2020-12/schema') `
         "Unexpected JSON Schema dialect: $($schema.Name)"
     Assert-True ([bool]$parsed.'$id') `
         "Schema is missing an id: $($schema.Name)"
+    Assert-True ($parsed.properties.schemaVersion.const -eq 1) `
+        "Public schema does not freeze schemaVersion 1: $($schema.Name)"
 }
 
 Assert-True (Test-Path -LiteralPath $skillPath -PathType Leaf) `
@@ -98,7 +105,8 @@ Assert-True ($skillText -match 'Use the plugin''s MCP tools as the authority') `
 
 $sourceFiles = @(
     Get-ChildItem -LiteralPath $repoRoot -Recurse -File | Where-Object {
-        $_.FullName -notmatch '[\\/]\.git[\\/]'
+        $_.FullName -notmatch '[\\/]\.git[\\/]' -and
+        $_.FullName -notmatch '[\\/]\.artifacts[\\/]'
     }
 )
 $todoToken = '[' + 'TODO:'
@@ -107,6 +115,13 @@ $placeholderHits = @(
 )
 Assert-True ($placeholderHits.Count -eq 0) `
     'Scaffold TODO placeholders remain.'
+$tbdHits = @(
+    $sourceFiles |
+        Where-Object { $_.Extension -eq '.md' } |
+        Select-String -Pattern '\bTBD\b' -CaseSensitive -ErrorAction Stop
+)
+Assert-True ($tbdHits.Count -eq 0) `
+    'Documentation contains a TBD placeholder.'
 
 $powerShellFiles = @(
     $sourceFiles | Where-Object { $_.Extension -eq '.ps1' }
@@ -147,10 +162,11 @@ Assert-True ($entry.category -eq 'Developer Tools') `
 
 [ordered]@{
     ok = $true
-    gate = 1
+    gate = '1.1'
     plugin = $manifest.name
     version = $manifest.version
     schemas = $schemaFiles.Count
+    productionPythonFiles = $productionPythonFiles.Count
     powerShellFiles = $powerShellFiles.Count
     marketplaceEntry = $entry.name
     mutationsPerformed = $false

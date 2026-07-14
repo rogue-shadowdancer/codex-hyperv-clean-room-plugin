@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "cleanup-total-timeout",
+  "platform": "windows-x64",
+  "baselineType": "stock-clean",
+  "artifact": { "fileNamePattern": "Sample-*.exe", "architecture": "x64" },
+  "applications": [
+    {
+      "id": "sample-app",
+      "installerType": "nsis",
+      "installMode": "currentUser",
+      "executableRelativePath": "AppData\\Local\\Sample\\Sample.exe",
+      "uninstallerDiscovery": "hkcuUninstall"
+    }
+  ],
+  "steps": [
+    { "id": "stage-artifact", "type": "stageArtifact", "timeoutSeconds": 30 }
+  ],
+  "cleanupSteps": [
+    { "id": "cleanup-wait-one", "type": "wait", "timeoutSeconds": 101 },
+    { "id": "cleanup-wait-two", "type": "wait", "timeoutSeconds": 101 },
+    { "id": "cleanup-wait-three", "type": "wait", "timeoutSeconds": 101 }
+  ],
+  "manualAssertions": []
+}

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "operationId": "55555555-5555-4555-8555-555555555555",
-  "createdAt": "2026-07-14T11:00:00Z",
-  "profileId": "sample-package",
+  "operationId": "66666666-6666-4666-8666-666666666666",
+  "createdAt": "2026-07-14T12:00:00Z",
+  "profileId": "minimal-current-user-lifecycle",
   "baselineType": "stock-clean",
   "vm": {
     "id": "vm-1",
@@ -16,35 +16,36 @@
     "userName": "test-user",
     "isAdministrator": false,
     "isElevated": false,
-    "tokenIntegrity": "medium",
-    "profilePathContainsNonAscii": true
+    "tokenIntegrity": "medium"
   },
   "artifact": {
-    "fileName": "Sample_0.1.0_x64-setup.exe",
+    "fileName": "SampleApp-0.1.0-x64.exe",
     "size": 1024,
     "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "guestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   },
   "automaticAssertions": [
     {
-      "id": "ordinary-user",
+      "id": "assert-installed-file",
       "required": true,
       "status": "passed",
-      "summary": "The package ran with a standard non-elevated token.",
+      "summary": "The required assertion passed.",
       "evidence": {}
     }
   ],
-  "manualAssertions": [
+  "manualAssertions": [],
+  "cleanupTriggered": false,
+  "cleanupResults": [
     {
-      "id": "dpi-150",
-      "required": false,
-      "description": "Inspect the UI at 150 percent DPI.",
+      "operationId": "66666666-6666-4666-8666-666666666666",
+      "profileId": "minimal-current-user-lifecycle",
+      "cleanupStepId": "forged-cleanup-step",
+      "cleanupStepType": "wait",
       "status": "notPerformed",
-      "attestation": null
+      "summary": "Cleanup was not triggered.",
+      "evidence": null
     }
   ],
-  "cleanupTriggered": false,
-  "cleanupResults": [],
   "overallStatus": "passed",
   "warnings": []
 }

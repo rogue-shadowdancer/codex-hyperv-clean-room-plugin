@@ -27,6 +27,8 @@
   },
   "automaticAssertions": [],
   "manualAssertions": [],
+  "cleanupTriggered": false,
+  "cleanupResults": [],
   "overallStatus": "passed",
   "warnings": []
 }

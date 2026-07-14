@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Validate plugin scaffold and frozen contract
+      - name: Validate plugin scaffold and Gate 1.1 contract
         shell: powershell
         run: ./scripts/validate-gate1.ps1 -MarketplacePath ./tests/fixtures/marketplace.json
       - name: Test frozen API boundary
@@ -24,5 +24,8 @@ jobs:
       - name: Validate Draft 2020-12 schemas and fixtures
         shell: powershell
         run: |
-          python -m pip install "jsonschema>=4.23,<5"
+          python -m pip install "jsonschema>=4.23,<5" "PyYAML>=6,<7"
           python ./tests/schema_contract_tests.py
+      - name: Validate UTF-8, YAML, JSON, docs, and local links
+        shell: powershell
+        run: python ./tests/static_quality_tests.py

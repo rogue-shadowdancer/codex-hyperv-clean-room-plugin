@@ -48,6 +48,8 @@
       }
     }
   ],
+  "cleanupTriggered": false,
+  "cleanupResults": [],
   "overallStatus": "passed",
   "warnings": []
 }

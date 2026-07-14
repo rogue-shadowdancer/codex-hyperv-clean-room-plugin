@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "operationId": "88888888-8888-4888-8888-888888888888",
+  "createdAt": "2026-07-14T13:00:00Z",
+  "profileId": "minimal-current-user-lifecycle",
+  "baselineType": "stock-clean",
+  "vm": {
+    "id": "vm-1",
+    "name": "clean-win11",
+    "checkpointName": "00-stock-clean",
+    "ownershipVerified": true
+  },
+  "guest": {
+    "windowsBuild": "22631",
+    "architecture": "x64",
+    "userName": "test-user",
+    "isAdministrator": false,
+    "isElevated": false,
+    "tokenIntegrity": "medium"
+  },
+  "artifact": {
+    "fileName": "SampleApp-0.1.0-x64.exe",
+    "size": 1024,
+    "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "automaticAssertions": [
+    {
+      "id": "assert-installed-file",
+      "required": true,
+      "status": "passed",
+      "summary": "The required assertion passed.",
+      "evidence": {}
+    }
+  ],
+  "manualAssertions": [],
+  "cleanupTriggered": false,
+  "cleanupResults": [
+    {
+      "operationId": "88888888-8888-4888-8888-888888888888",
+      "profileId": "minimal-current-user-lifecycle",
+      "cleanupStepId": "cleanup-stop-application",
+      "cleanupStepType": "stopApplication",
+      "status": "notPerformed",
+      "summary": "Cleanup was not triggered.",
+      "evidence": null
+    },
+    {
+      "operationId": "88888888-8888-4888-8888-888888888888",
+      "profileId": "minimal-current-user-lifecycle",
+      "cleanupStepId": "cleanup-assert-process-stopped",
+      "cleanupStepType": "assertProcess",
+      "status": "notPerformed",
+      "summary": "Cleanup was not triggered.",
+      "evidence": null
+    }
+  ],
+  "overallStatus": "passed",
+  "warnings": []
+}

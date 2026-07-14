@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
+from collections import Counter
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
@@ -10,20 +13,295 @@ from jsonschema import Draft202012Validator, FormatChecker
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_ROOT = REPO_ROOT / "hyperv-clean-room" / "schemas"
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "schemas"
+EXAMPLE_PROFILE_PATH = REPO_ROOT / "examples" / "minimal-test-profile.json"
+
+SCHEMA_BY_PREFIX = {
+    "vm-plan": "vm-plan.schema.json",
+    "checkpoint-plan": "checkpoint-plan.schema.json",
+    "evidence": "evidence.schema.json",
+    "test-profile": "test-profile.schema.json",
+}
+
+CLEANUP_TYPES = {
+    "stopApplication",
+    "wait",
+    "assertFile",
+    "assertRegistry",
+    "assertProcess",
+    "assertModule",
+    "assertShortcut",
+    "assertPort",
+    "assertSentinel",
+}
+
+ACTION_TYPES = {
+    "stageArtifact",
+    "installPackage",
+    "launchApplication",
+    "stopApplication",
+    "uninstallPackage",
+    "writeSentinel",
+    "wait",
+}
+
+COMMON_STEP_FIELDS = {"id", "type", "timeoutSeconds", "required"}
+TYPE_FIELDS = {
+    "stageArtifact": set(),
+    "installPackage": {"application"},
+    "launchApplication": {"application"},
+    "stopApplication": {"application"},
+    "uninstallPackage": {"application"},
+    "assertFile": {"path", "expected"},
+    "assertRegistry": {"registryPath", "registryName", "expected"},
+    "assertProcess": {"application", "processName", "expected"},
+    "assertModule": {"application", "moduleRelativePath", "expected"},
+    "assertShortcut": {"path", "expected"},
+    "assertPort": {"port", "expected"},
+    "writeSentinel": {"sentinelId"},
+    "assertSentinel": {"sentinelId", "expected"},
+    "wait": set(),
+}
+
+EXPECTED_CLEANUP_TRIGGER_BY_FIXTURE = {
+    "evidence.cleanup-not-triggered.valid.json": False,
+    "evidence.cleanup-untriggered-performed.semantic-invalid.json": False,
+    "evidence.cleanup-forged-trigger.semantic-invalid.json": False,
+    "evidence.cleanup-failed-overall-passed.valid.json": True,
+    "evidence.cleanup-cannot-upgrade.semantic-invalid.json": True,
+}
 
 
-def load_json(path: Path) -> object:
+def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def schema_for_fixture(path: Path) -> Path:
     prefix = path.name.split(".", 1)[0]
-    mapping = {
-        "vm-plan": "vm-plan.schema.json",
-        "checkpoint-plan": "checkpoint-plan.schema.json",
-        "evidence": "evidence.schema.json",
+    try:
+        schema_name = SCHEMA_BY_PREFIX[prefix]
+    except KeyError as error:
+        raise AssertionError(f"fixture has no schema mapping: {path.name}") from error
+    return SCHEMA_ROOT / schema_name
+
+
+def duplicate_values(values: list[str]) -> list[str]:
+    return sorted(value for value, count in Counter(values).items() if count > 1)
+
+
+def is_safe_relative_path(value: object) -> bool:
+    if not isinstance(value, str) or not value or "\x00" in value:
+        return False
+    normalized = value.replace("/", "\\")
+    if normalized.startswith("\\") or re.match(r"^[A-Za-z]:", normalized):
+        return False
+    if ":" in normalized or "%" in normalized:
+        return False
+    return all(part != ".." for part in normalized.split("\\"))
+
+
+def validate_profile_semantics(profile: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    applications = profile.get("applications", [])
+    steps = profile.get("steps", [])
+    cleanup_steps = profile.get("cleanupSteps", [])
+    manual_assertions = profile.get("manualAssertions", [])
+
+    application_ids = [item.get("id") for item in applications if isinstance(item, dict)]
+    duplicate_application_ids = duplicate_values(
+        [item for item in application_ids if isinstance(item, str)]
+    )
+    if duplicate_application_ids:
+        errors.append(f"duplicate application ids: {duplicate_application_ids}")
+    declared_applications = {
+        item for item in application_ids if isinstance(item, str)
     }
-    return SCHEMA_ROOT / mapping[prefix]
+
+    execution_ids = [
+        item.get("id")
+        for item in [*steps, *cleanup_steps, *manual_assertions]
+        if isinstance(item, dict)
+    ]
+    duplicate_execution_ids = duplicate_values(
+        [item for item in execution_ids if isinstance(item, str)]
+    )
+    if duplicate_execution_ids:
+        errors.append(
+            "step, cleanup step, and manual assertion ids are not globally unique: "
+            f"{duplicate_execution_ids}"
+        )
+
+    stage_indexes = [
+        index for index, step in enumerate(steps) if step.get("type") == "stageArtifact"
+    ]
+    if stage_indexes != [0]:
+        errors.append("steps must contain exactly one stageArtifact and it must be first")
+
+    cleanup_timeout = sum(
+        item.get("timeoutSeconds", 0)
+        for item in cleanup_steps
+        if isinstance(item.get("timeoutSeconds"), int)
+    )
+    if cleanup_timeout > 300:
+        errors.append(f"cleanup timeout budget exceeds 300 seconds: {cleanup_timeout}")
+
+    for application in applications:
+        path = application.get("executableRelativePath")
+        if not is_safe_relative_path(path):
+            errors.append(
+                f"application {application.get('id')!r} has an unsafe executableRelativePath"
+            )
+
+    for collection_name, collection in (
+        ("steps", steps),
+        ("cleanupSteps", cleanup_steps),
+    ):
+        for index, step in enumerate(collection):
+            step_type = step.get("type")
+            if collection_name == "cleanupSteps" and step_type not in CLEANUP_TYPES:
+                errors.append(f"cleanupSteps[{index}] has forbidden type {step_type!r}")
+
+            allowed_fields = COMMON_STEP_FIELDS | TYPE_FIELDS.get(step_type, set())
+            irrelevant_fields = sorted(set(step) - allowed_fields)
+            if irrelevant_fields:
+                errors.append(
+                    f"{collection_name}[{index}] has fields invalid for {step_type!r}: "
+                    f"{irrelevant_fields}"
+                )
+
+            application = step.get("application")
+            if application is not None and application not in declared_applications:
+                errors.append(
+                    f"{collection_name}[{index}] references unknown application "
+                    f"{application!r}"
+                )
+
+            if step_type in ACTION_TYPES and step.get("required", True) is False:
+                errors.append(f"{collection_name}[{index}] makes an action optional")
+
+            for path_field in ("path", "registryPath", "moduleRelativePath"):
+                if path_field in step and not is_safe_relative_path(step[path_field]):
+                    errors.append(
+                        f"{collection_name}[{index}] has unsafe {path_field}"
+                    )
+
+    return errors
+
+
+def derive_overall_status(evidence: dict[str, Any]) -> str:
+    required_results = [
+        result
+        for result in [
+            *evidence.get("automaticAssertions", []),
+            *evidence.get("manualAssertions", []),
+        ]
+        if result.get("required") is True
+    ]
+    if any(result.get("status") == "failed" for result in required_results):
+        return "failed"
+    if any(
+        result.get("status") in {"notPerformed", "unsupported"}
+        for result in required_results
+    ):
+        return "incomplete"
+    return "passed"
+
+
+def validate_evidence_semantics(
+    evidence: dict[str, Any],
+    profile: dict[str, Any] | None = None,
+    expected_cleanup_triggered: bool | None = None,
+) -> list[str]:
+    errors: list[str] = []
+    expected_overall = derive_overall_status(evidence)
+    if evidence.get("overallStatus") != expected_overall:
+        errors.append(
+            "overallStatus does not match required automatic/manual assertions: "
+            f"expected {expected_overall!r}"
+        )
+
+    artifact = evidence.get("artifact", {})
+    if artifact.get("sourceSha256") != artifact.get("guestSha256"):
+        errors.append("source and guest artifact SHA-256 values differ")
+
+    operation_id = evidence.get("operationId")
+    profile_id = evidence.get("profileId")
+    cleanup_triggered = evidence.get("cleanupTriggered")
+    cleanup_results = evidence.get("cleanupResults", [])
+    if (
+        expected_cleanup_triggered is not None
+        and cleanup_triggered is not expected_cleanup_triggered
+    ):
+        errors.append("cleanupTriggered does not match immutable operation state")
+    cleanup_ids: list[str] = []
+    for index, result in enumerate(cleanup_results):
+        cleanup_step_id = result.get("cleanupStepId")
+        if isinstance(cleanup_step_id, str):
+            cleanup_ids.append(cleanup_step_id)
+        if result.get("operationId") != operation_id:
+            errors.append(f"cleanupResults[{index}] operationId is not bound")
+        if result.get("profileId") != profile_id:
+            errors.append(f"cleanupResults[{index}] profileId is not bound")
+
+    duplicate_cleanup_ids = duplicate_values(cleanup_ids)
+    if duplicate_cleanup_ids:
+        errors.append(f"duplicate cleanup result ids: {duplicate_cleanup_ids}")
+    if cleanup_triggered is False and any(
+        result.get("status") != "notPerformed" for result in cleanup_results
+    ):
+        errors.append(
+            "cleanupResults must all be notPerformed when cleanupTriggered is false"
+        )
+
+    for index, assertion in enumerate(evidence.get("manualAssertions", [])):
+        attestation = assertion.get("attestation")
+        if not isinstance(attestation, dict):
+            continue
+        if attestation.get("operationId") != operation_id:
+            errors.append(f"manualAssertions[{index}] operationId is not bound")
+        if attestation.get("profileId") != profile_id:
+            errors.append(f"manualAssertions[{index}] profileId is not bound")
+        if attestation.get("assertionId") != assertion.get("id"):
+            errors.append(f"manualAssertions[{index}] assertionId is not bound")
+
+    if profile is not None:
+        if profile.get("id") != profile_id:
+            errors.append("evidence profileId does not match the bound profile")
+        expected_cleanup = profile.get("cleanupSteps", [])
+        if len(cleanup_results) != len(expected_cleanup):
+            errors.append(
+                "cleanupResults must contain one ordered result per cleanupSteps entry"
+            )
+        for index, (result, cleanup_step) in enumerate(
+            zip(cleanup_results, expected_cleanup)
+        ):
+            if result.get("cleanupStepId") != cleanup_step.get("id"):
+                errors.append(f"cleanupResults[{index}] cleanupStepId is not bound")
+            if result.get("cleanupStepType") != cleanup_step.get("type"):
+                errors.append(f"cleanupResults[{index}] cleanupStepType is not bound")
+
+    return errors
+
+
+def semantic_errors_for_fixture(
+    fixture_path: Path,
+    instance: dict[str, Any],
+    example_profile: dict[str, Any],
+) -> list[str]:
+    prefix = fixture_path.name.split(".", 1)[0]
+    if prefix == "test-profile":
+        return validate_profile_semantics(instance)
+    if prefix == "evidence":
+        profile = (
+            example_profile
+            if instance.get("profileId") == example_profile.get("id")
+            else None
+        )
+        return validate_evidence_semantics(
+            instance,
+            profile,
+            EXPECTED_CLEANUP_TRIGGER_BY_FIXTURE.get(fixture_path.name),
+        )
+    return []
 
 
 def main() -> int:
@@ -33,32 +311,99 @@ def main() -> int:
     for schema_path in schemas:
         Draft202012Validator.check_schema(load_json(schema_path))
 
+    example_profile = load_json(EXAMPLE_PROFILE_PATH)
+    profile_schema = load_json(SCHEMA_ROOT / "test-profile.schema.json")
+    profile_validator = Draft202012Validator(
+        profile_schema,
+        format_checker=FormatChecker(),
+    )
+    example_schema_errors = list(profile_validator.iter_errors(example_profile))
+    if example_schema_errors:
+        raise AssertionError(
+            "minimal profile example failed schema validation: "
+            + "; ".join(error.message for error in example_schema_errors[:5])
+        )
+    example_semantic_errors = validate_profile_semantics(example_profile)
+    if example_semantic_errors:
+        raise AssertionError(
+            "minimal profile example failed semantic validation: "
+            + "; ".join(example_semantic_errors)
+        )
+
+    unsafe_path_probes = (
+        r"C:\\Temp\\escape.exe",
+        r"AppData\\..\\escape.exe",
+        r"%TEMP%\\escape.exe",
+        r"%USERPROFILE%\\escape.exe",
+    )
+    for unsafe_path in unsafe_path_probes:
+        if is_safe_relative_path(unsafe_path):
+            raise AssertionError(
+                f"semantic path validator accepted unsafe path: {unsafe_path!r}"
+            )
+
     fixtures = sorted(FIXTURE_ROOT.glob("*.json"))
     if not fixtures:
         raise AssertionError("no schema fixtures found")
 
     valid_count = 0
-    invalid_count = 0
+    schema_invalid_count = 0
+    semantic_invalid_count = 0
     for fixture_path in fixtures:
-        expected_valid = fixture_path.name.endswith(".valid.json")
-        expected_invalid = fixture_path.name.endswith(".invalid.json")
-        if expected_valid == expected_invalid:
-            raise AssertionError(f"fixture name lacks one validity marker: {fixture_path.name}")
+        expects_semantic_invalid = fixture_path.name.endswith(
+            ".semantic-invalid.json"
+        )
+        expects_schema_invalid = (
+            fixture_path.name.endswith(".invalid.json")
+            and not expects_semantic_invalid
+        )
+        expects_valid = fixture_path.name.endswith(".valid.json")
+        if sum((expects_valid, expects_schema_invalid, expects_semantic_invalid)) != 1:
+            raise AssertionError(
+                f"fixture name lacks one validity marker: {fixture_path.name}"
+            )
 
+        instance = load_json(fixture_path)
         schema = load_json(schema_for_fixture(fixture_path))
         validator = Draft202012Validator(schema, format_checker=FormatChecker())
-        errors = sorted(
-            validator.iter_errors(load_json(fixture_path)),
+        schema_errors = sorted(
+            validator.iter_errors(instance),
             key=lambda error: list(error.absolute_path),
         )
-        if expected_valid and errors:
-            messages = "; ".join(error.message for error in errors[:5])
-            raise AssertionError(f"valid fixture rejected: {fixture_path.name}: {messages}")
-        if expected_invalid and not errors:
-            raise AssertionError(f"invalid fixture accepted: {fixture_path.name}")
 
-        valid_count += int(expected_valid)
-        invalid_count += int(expected_invalid)
+        if expects_schema_invalid:
+            if not schema_errors:
+                raise AssertionError(
+                    f"schema-invalid fixture accepted: {fixture_path.name}"
+                )
+            schema_invalid_count += 1
+            continue
+
+        if schema_errors:
+            messages = "; ".join(error.message for error in schema_errors[:5])
+            raise AssertionError(
+                f"schema-valid fixture rejected: {fixture_path.name}: {messages}"
+            )
+
+        semantic_errors = semantic_errors_for_fixture(
+            fixture_path,
+            instance,
+            example_profile,
+        )
+        if expects_semantic_invalid:
+            if not semantic_errors:
+                raise AssertionError(
+                    f"semantic-invalid fixture accepted: {fixture_path.name}"
+                )
+            semantic_invalid_count += 1
+            continue
+
+        if semantic_errors:
+            raise AssertionError(
+                f"valid fixture failed semantics: {fixture_path.name}: "
+                + "; ".join(semantic_errors[:5])
+            )
+        valid_count += 1
 
     evidence_schema = load_json(SCHEMA_ROOT / "evidence.schema.json")
     evidence_validator = Draft202012Validator(
@@ -136,7 +481,10 @@ def main() -> int:
                 "ok": True,
                 "schemas": len(schemas),
                 "validFixtures": valid_count,
-                "invalidFixtures": invalid_count,
+                "schemaInvalidFixtures": schema_invalid_count,
+                "semanticInvalidFixtures": semantic_invalid_count,
+                "minimalProfileExample": True,
+                "unsafePathProbes": len(unsafe_path_probes),
                 "conditionalEvidenceChecks": 6,
                 "vmPlanPreconditionChecks": vm_plan_checks,
                 "checkpointOwnershipChecks": 1,

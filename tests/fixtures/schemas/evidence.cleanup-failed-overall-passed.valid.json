@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "operationId": "66666666-6666-4666-8666-666666666666",
+  "createdAt": "2026-07-14T12:00:00Z",
+  "profileId": "minimal-current-user-lifecycle",
+  "baselineType": "stock-clean",
+  "vm": {
+    "id": "vm-1",
+    "name": "clean-win11",
+    "checkpointName": "00-stock-clean",
+    "ownershipVerified": true
+  },
+  "guest": {
+    "windowsBuild": "22631",
+    "architecture": "x64",
+    "userName": "test-user",
+    "isAdministrator": false,
+    "isElevated": false,
+    "tokenIntegrity": "medium"
+  },
+  "artifact": {
+    "fileName": "SampleApp-0.1.0-x64.exe",
+    "size": 1024,
+    "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "guestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "automaticAssertions": [
+    {
+      "id": "assert-installed-file",
+      "required": true,
+      "status": "passed",
+      "summary": "The required assertion passed.",
+      "evidence": {}
+    }
+  ],
+  "manualAssertions": [],
+  "cleanupTriggered": true,
+  "cleanupResults": [
+    {
+      "operationId": "66666666-6666-4666-8666-666666666666",
+      "profileId": "minimal-current-user-lifecycle",
+      "cleanupStepId": "cleanup-stop-application",
+      "cleanupStepType": "stopApplication",
+      "status": "failed",
+      "summary": "The recorded process identity no longer matched.",
+      "evidence": {}
+    },
+    {
+      "operationId": "66666666-6666-4666-8666-666666666666",
+      "profileId": "minimal-current-user-lifecycle",
+      "cleanupStepId": "cleanup-assert-process-stopped",
+      "cleanupStepType": "assertProcess",
+      "status": "passed",
+      "summary": "No matching process remained.",
+      "evidence": {}
+    }
+  ],
+  "overallStatus": "passed",
+  "warnings": ["Cleanup failed after the required lifecycle assertions passed."]
+}

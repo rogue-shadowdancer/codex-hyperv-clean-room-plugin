@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "duplicate-id",
+  "platform": "windows-x64",
+  "baselineType": "stock-clean",
+  "artifact": { "fileNamePattern": "Sample-*.exe", "architecture": "x64" },
+  "applications": [
+    {
+      "id": "sample-app",
+      "installerType": "nsis",
+      "installMode": "currentUser",
+      "executableRelativePath": "AppData\\Local\\Sample\\Sample.exe",
+      "uninstallerDiscovery": "hkcuUninstall"
+    }
+  ],
+  "steps": [
+    { "id": "same-id", "type": "stageArtifact", "timeoutSeconds": 30 }
+  ],
+  "cleanupSteps": [
+    { "id": "same-id", "type": "wait", "timeoutSeconds": 10 }
+  ],
+  "manualAssertions": []
+}

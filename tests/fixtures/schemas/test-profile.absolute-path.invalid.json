@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "absolute-path",
+  "platform": "windows-x64",
+  "baselineType": "stock-clean",
+  "artifact": { "fileNamePattern": "Sample-*.exe", "architecture": "x64" },
+  "applications": [
+    {
+      "id": "sample-app",
+      "installerType": "nsis",
+      "installMode": "currentUser",
+      "executableRelativePath": "AppData\\Local\\Sample\\Sample.exe",
+      "uninstallerDiscovery": "hkcuUninstall"
+    }
+  ],
+  "steps": [
+    { "id": "stage-artifact", "type": "stageArtifact", "timeoutSeconds": 30 },
+    { "id": "assert-file", "type": "assertFile", "path": "C:\\Temp\\Sample.exe", "timeoutSeconds": 10 }
+  ],
+  "cleanupSteps": [],
+  "manualAssertions": []
+}

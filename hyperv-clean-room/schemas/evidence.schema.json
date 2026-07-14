@@ -15,6 +15,8 @@
     "artifact",
     "automaticAssertions",
     "manualAssertions",
+    "cleanupTriggered",
+    "cleanupResults",
     "overallStatus",
     "warnings"
   ],
@@ -77,6 +79,12 @@
       "type": "array",
       "items": { "$ref": "#/$defs/manualAssertion" }
     },
+    "cleanupTriggered": { "type": "boolean" },
+    "cleanupResults": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/cleanupResult" }
+    },
     "overallStatus": { "enum": ["passed", "failed", "incomplete"] },
     "warnings": {
       "type": "array",
@@ -119,6 +127,56 @@
         "summary": { "type": "string", "maxLength": 2000 },
         "evidence": { "type": ["object", "null"] }
       }
+    },
+    "cleanupResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operationId",
+        "profileId",
+        "cleanupStepId",
+        "cleanupStepType",
+        "status",
+        "summary",
+        "evidence"
+      ],
+      "properties": {
+        "operationId": { "type": "string", "format": "uuid" },
+        "profileId": { "type": "string", "minLength": 1 },
+        "cleanupStepId": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "cleanupStepType": {
+          "enum": [
+            "stopApplication",
+            "wait",
+            "assertFile",
+            "assertRegistry",
+            "assertProcess",
+            "assertModule",
+            "assertShortcut",
+            "assertPort",
+            "assertSentinel"
+          ]
+        },
+        "status": {
+          "enum": ["passed", "failed", "notPerformed", "unsupported"]
+        },
+        "summary": { "type": "string", "maxLength": 2000 },
+        "evidence": { "type": ["object", "null"] }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "notPerformed" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": { "evidence": { "type": "null" } }
+          }
+        }
+      ]
     },
     "manualAssertion": {
       "type": "object",

@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "id": "minimal-current-user-lifecycle",
+  "description": "Install, launch, inspect, stop, and uninstall one current-user package.",
+  "platform": "windows-x64",
+  "baselineType": "stock-clean",
+  "artifact": {
+    "fileNamePattern": "SampleApp-*-x64.exe",
+    "architecture": "x64"
+  },
+  "applications": [
+    {
+      "id": "sample-app",
+      "installerType": "nsis",
+      "installMode": "currentUser",
+      "executableRelativePath": "AppData\\Local\\Programs\\SampleApp\\SampleApp.exe",
+      "uninstallerDiscovery": "hkcuUninstall",
+      "processName": "SampleApp.exe"
+    }
+  ],
+  "steps": [
+    {
+      "id": "stage-artifact",
+      "type": "stageArtifact",
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "install-package",
+      "type": "installPackage",
+      "application": "sample-app",
+      "timeoutSeconds": 300
+    },
+    {
+      "id": "assert-installed-file",
+      "type": "assertFile",
+      "path": "AppData\\Local\\Programs\\SampleApp\\SampleApp.exe",
+      "timeoutSeconds": 30,
+      "required": true
+    },
+    {
+      "id": "launch-application",
+      "type": "launchApplication",
+      "application": "sample-app",
+      "timeoutSeconds": 60
+    },
+    {
+      "id": "assert-running-process",
+      "type": "assertProcess",
+      "application": "sample-app",
+      "timeoutSeconds": 30,
+      "required": true
+    },
+    {
+      "id": "stop-application",
+      "type": "stopApplication",
+      "application": "sample-app",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "uninstall-package",
+      "type": "uninstallPackage",
+      "application": "sample-app",
+      "timeoutSeconds": 300
+    },
+    {
+      "id": "assert-removed-file",
+      "type": "assertFile",
+      "path": "AppData\\Local\\Programs\\SampleApp\\SampleApp.exe",
+      "expected": false,
+      "timeoutSeconds": 30,
+      "required": true
+    }
+  ],
+  "cleanupSteps": [
+    {
+      "id": "cleanup-stop-application",
+      "type": "stopApplication",
+      "application": "sample-app",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "cleanup-assert-process-stopped",
+      "type": "assertProcess",
+      "application": "sample-app",
+      "expected": false,
+      "timeoutSeconds": 15,
+      "required": true
+    }
+  ],
+  "manualAssertions": [
+    {
+      "id": "first-launch-visible",
+      "description": "Confirm that the first-launch window is visible and usable.",
+      "required": false
+    }
+  ]
+}
