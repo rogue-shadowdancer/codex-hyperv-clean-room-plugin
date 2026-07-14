@@ -2,11 +2,14 @@
 
 ## Current operating status
 
-Gate 2 implements the MCP runtime, the guarded Hyper-V adapter, and the fixed
-PowerShell Direct guest adapter. Automated acceptance uses mock adapters and
-static seams. It does not authorize or prove a real Hyper-V mutation, real
-credential enrollment, guest transfer, package lifecycle, or clean-machine
-result.
+Gate 4 provides an ownership-marked personal install and cachebuster-reinstall
+workflow for the Gate 2 MCP runtime. Final acceptance also requires the clean
+commit/reinstall state recorded in `TASK_HANDOFF.md`. Automated runtime
+acceptance still uses mock adapters and static seams for guest behavior. The
+installed-copy smoke starts only from `%USERPROFILE%\plugins\hyperv-clean-room`
+and performs read-only `inspect_host` plus a missing-ISO rejection. It does not
+authorize or prove a real Hyper-V mutation, real credential enrollment, guest
+transfer, package lifecycle, or clean-machine result.
 
 Do not infer operational readiness from a green mock run. Real use requires a
 separately approved host, owned VM, credential profile, artifact, profile, and
@@ -30,7 +33,26 @@ Development-only prerequisites:
 
 - Python 3.10 or newer;
 - `pip` for the selected interpreter;
-- no production Python dependency and no plugin installation.
+- no production Python dependency; Python is development-only, including the
+  `plugin-creator` marketplace and cachebuster helpers.
+
+## Personal plugin installation
+
+Validate and install from the repository root:
+
+```powershell
+.\scripts\validate-install-source.ps1
+.\scripts\install_plugin.ps1
+.\scripts\check_install.ps1
+```
+
+The installer targets `%USERPROFILE%\plugins\hyperv-clean-room`, requires an
+exact ownership marker before any reinstall overwrite, verifies a per-file
+relative-path/size/SHA-256 manifest, updates the default personal marketplace
+only through `plugin-creator`, and runs
+`codex plugin add hyperv-clean-room@personal`. It never deletes unexpected
+installed files. See [installation.md](installation.md) for the first install
+and [maintenance.md](maintenance.md) for the cachebuster loop.
 
 ## Reproducible development validation
 
@@ -52,6 +74,13 @@ After preparation, the complete Gate 2 validation has no arguments:
 
 ```powershell
 .\scripts\validate-gate2.ps1
+```
+
+After personal installation and one cachebuster rehearsal, run the complete
+Gate 4 validation:
+
+```powershell
+.\scripts\validate-gate4.ps1
 ```
 
 If preparation is missing, stale, or points to a removed interpreter,

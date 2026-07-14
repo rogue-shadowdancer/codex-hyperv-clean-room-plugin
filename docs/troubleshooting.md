@@ -7,7 +7,7 @@ adapter was mock or production. Do not respond to a failure by adding a shell
 escape, weakening ownership or hash checks, deleting partial resources, or
 putting credentials in arguments.
 
-Gate 2 validation is allowed to read the real host only through `inspect_host`
+Gate 4 validation is allowed to read the real host only through `inspect_host`
 and a `plan_vm_create` call that rejects a nonexistent ISO before mutation. It
 must not enroll a credential, open a real guest session, transfer a file, start
 a package, or mutate Hyper-V.
@@ -55,6 +55,53 @@ The bounded failure lists missing documents, required topics, strict UTF-8 or
 mojibake problems, and broken repository-relative links. Save Markdown as
 UTF-8 without BOM. Do not trust a terminal's mojibake display over a strict
 file decode.
+
+## Plugin installation
+
+### Source validation fails
+
+Run `scripts\validate-install-source.ps1` and use its bounded error. Do not
+install a payload with untracked files, reparse points, forbidden machine-state
+extensions, an unexpected folder/manifest name, or a version outside base
+`0.1.0` plus one optional Codex cachebuster.
+
+### The target is not owned
+
+`install_plugin.ps1` refuses an existing
+`%USERPROFILE%\plugins\hyperv-clean-room` unless its exact
+`.codex-plugin\install-ownership.json` marker owns that canonical path. Inspect
+the directory's provenance. Do not fabricate a marker, overwrite a foreign
+directory, or add automatic deletion to make the install pass.
+
+### The owned target contains an unexpected file
+
+The installer never deletes it. Review the reported relative path and determine
+whether another process or a prior layout created it. Resolve provenance
+outside the installer, then rerun source validation and installation.
+
+### `matches` is false
+
+Read `payloadError` from `scripts\check_install.ps1`. A payload path, size,
+SHA-256, source commit, version, cachebuster, or install-manifest claim differs.
+Return to the intended Git source and rerun the owned installer; do not weaken
+hash checks. After committing Gate changes, reinstall once more so
+`installedSourceCommit` matches the new HEAD.
+
+### `marketplaceVisible` is false
+
+The default personal marketplace is implicit. Run `codex plugin list` and
+confirm one local `hyperv-clean-room@personal` row. Rerun
+`scripts\install_plugin.ps1`, which updates the entry through `plugin-creator`
+and executes `codex plugin add hyperv-clean-room@personal`. Do not hand-edit
+`marketplace.json` or `config.toml`, and do not run
+`codex plugin marketplace add` for the default personal path.
+
+### Codex still loads an older local copy
+
+Use the default `plugin-creator` cachebuster helper documented in
+[maintenance.md](maintenance.md), reinstall, verify matching source/installed
+cachebusters, and start a new Codex task. Do not append multiple suffixes or
+increment the numeric version merely to bypass cache behavior.
 
 ## MCP transport
 

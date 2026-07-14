@@ -1,12 +1,12 @@
 # Hyper-V Clean Room v1 specification
 
-Status: Gate 2 mock-validated runtime baseline. The PowerShell 5.1 MCP entry
-point, all 16 tool surfaces, state and ownership guards, validators, evidence
-flow, credential initializer, and fixed production PowerShell Direct guest
-adapter are implemented. Gate 2 performs no real guest operation or Hyper-V
-mutation. Production guest behavior is validated only through mock execution,
-parser checks, and static closed-dispatch seams; it is not clean-machine
-validated.
+Status: Gate 4 installation/cachebuster baseline. The Gate 2 PowerShell 5.1
+runtime remains unchanged in schema-v1 behavior and is now installed through a
+source-validated, ownership-marked personal workflow. The installed copy is
+MCP-smoke-validated with exactly 16 tools, read-only `inspect_host`, and a
+missing-ISO rejection. No real guest operation or Hyper-V mutation is executed;
+production guest behavior is still mock/parser/static validated only and is not
+clean-machine validated.
 
 ## Purpose and boundary
 
@@ -510,7 +510,9 @@ remains auditable.
 
 Gate 1.1 is a deliberate pre-first-release correction to the v1 baseline.
 Although it adds required cleanup fields and evidence semantics, the plugin
-remains version `0.1.0` and every public schema remains `schemaVersion: 1`.
+base version remains `0.1.0` and every public schema remains `schemaVersion: 1`.
+Gate 4 permits one `+codex.<cachebuster>` build-metadata suffix for local Codex
+reinstallation; this does not change the base plugin or schema version.
 There is no earlier working runtime or released evidence producer to preserve.
 
 After the first working release, plugin semver and JSON schema versions evolve
@@ -584,5 +586,33 @@ This gate does not prove plugin installation, marketplace/cache runtime
 discovery, a real VM or checkpoint mutation, PowerShell Direct guest behavior,
 package execution on Windows, credential persistence with live accounts, or
 clean-machine evidence. Those claims require separate future authorization and
-validation. The next project gate is Birdsgone profile/acceptance documentation
-only and carries no authorization for real-adapter or real-VM validation.
+validation. At the Gate 2 boundary, the next project gate was Birdsgone
+profile/acceptance documentation only and carried no authorization for
+real-adapter or real-VM validation.
+
+## Gate 4 acceptance boundary
+
+Gate 4 preserves base plugin version `0.1.0`, schema version 1, exactly 16 MCP
+tools, and five public schemas. It adds no public MCP tool and changes no
+schema-v1 semantics.
+
+The installation source must contain exactly the Git-tracked plugin payload as
+ordinary non-reparse files. Installation targets
+`%USERPROFILE%\plugins\hyperv-clean-room`, refuses an existing target without
+the exact installer ownership marker, copies without deleting unexpected
+files, verifies each size and SHA-256, and writes a relative-path/size/SHA-256
+manifest bound to the source commit, version, and cachebuster.
+
+The default personal marketplace is created or updated only through the
+`plugin-creator` helper and contains exactly one canonical
+`hyperv-clean-room` entry. Installation and cachebuster rehearsal both use
+`codex plugin add hyperv-clean-room@personal`. The final checker requires
+`installed`, `owned`, `matches`, and `marketplaceVisible` to be true and
+requires source/installed hashes, version, commit, and cachebuster to match.
+
+Installed-copy acceptance starts the MCP server only from the personal plugin
+directory, discovers exactly 16 tools, executes read-only `inspect_host`, and
+requires a nonexistent ISO to fail with `INVALID_ISO` before mutation. It
+reports zero real guest operations and zero real Hyper-V mutations. Gate 4 does
+not claim clean-machine validation, live credential persistence, PowerShell
+Direct behavior, package execution, or any VM/checkpoint mutation.

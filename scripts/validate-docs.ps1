@@ -13,6 +13,8 @@ $requiredDocuments = @(
     'docs\specification.md',
     'docs\profile-authoring.md',
     'docs\architecture.md',
+    'docs\installation.md',
+    'docs\maintenance.md',
     'docs\operations.md',
     'docs\evidence.md',
     'docs\security.md',
@@ -20,6 +22,8 @@ $requiredDocuments = @(
 )
 $requiredPhrases = [ordered]@{
     'docs\architecture.md' = @('PowerShell Direct', 'trust boundar', 'operation-scoped', '16')
+    'docs\installation.md' = @('install_plugin.ps1', 'check_install.ps1', 'ownership', 'marketplaceVisible', 'SHA-256')
+    'docs\maintenance.md' = @('update_plugin_cachebuster.py', 'plugin add', 'sourceCommit', 'new Codex task')
     'docs\operations.md' = @('inspect_host', 'Initialize-GuestCredential.ps1', 'prepare-test-python.ps1', 'real Hyper-V mutation')
     'docs\evidence.md' = @('sourceSha256', 'guestSha256', 'cleanupTriggered', 'manual')
     'docs\security.md' = @('DPAPI', 'plaintext', 'reparse', 'arbitrary')

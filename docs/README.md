@@ -2,9 +2,12 @@
 
 ## English
 
-Gate 2 implements the pre-release v1 MCP runtime and validates it under Windows
-PowerShell 5.1 with mock adapters, parser checks, static production-adapter
-seams, strict documentation checks, and a bounded real-host read-only smoke.
+Gate 4 adds an owned personal-plugin install and cachebuster-reinstall workflow
+for the pre-release v1 MCP runtime under Windows PowerShell 5.1. Final
+acceptance also requires the clean commit/reinstall state recorded in
+`TASK_HANDOFF.md`. The inherited Gate 2 suite still uses mock adapters, parser
+checks, static production-adapter seams, strict documentation checks, and a
+bounded real-host read-only smoke.
 The production guest adapter contains fixed administrator-supervised
 PowerShell Direct behavior, standard-user execution, operation-scoped staging
 and PID identity, dual hashes, and bounded cleanup. Gate 2 did not execute that
@@ -12,6 +15,12 @@ real guest path or any real Hyper-V mutation and must not be presented as
 clean-machine-validated automation.
 
 Read in this order:
+
+- [Plugin installation](installation.md) defines source validation, ownership,
+  personal marketplace registration, installed-copy acceptance, and status
+  fields.
+- [Installation maintenance](maintenance.md) defines the cachebuster reinstall
+  loop, drift handling, and safe recovery.
 
 1. [Architecture](architecture.md) — components, trust boundaries, state, and
    production guest flow.
@@ -45,14 +54,20 @@ PowerShell 5.1 based.
 
 ## 简体中文
 
-Gate 2 已实现首次发布前的 v1 MCP runtime，并在 Windows PowerShell 5.1 下通过
-mock adapter、parser、production-adapter static seam、严格文档检查和有界真实 host
-只读 smoke 完成验证。Production guest adapter 已包含固定的 administrator-supervised
+Gate 4 为首次发布前的 v1 MCP runtime 增加带 ownership marker 的 personal plugin
+安装与 cachebuster 重装流程；最终验收还要求 `TASK_HANDOFF.md` 记录 clean
+commit/reinstall 状态。继承的 Gate 2 测试仍在 Windows PowerShell 5.1 下使用 mock
+adapter、parser、production-adapter static seam、严格文档
+检查和有界真实 host 只读 smoke。Production guest adapter 已包含固定的 administrator-supervised
 PowerShell Direct、standard-user execution、operation-scoped staging/PID identity、
 双 SHA-256 和 bounded cleanup；但 Gate 2 没有执行该真实 guest 路径，也没有执行任何
 真实 Hyper-V mutation，不得把当前版本宣传为已经通过 clean-machine 验证。
 
 建议阅读顺序：
+
+- [Plugin installation](installation.md)：source validation、ownership、personal
+  marketplace、installed-copy 验收与状态字段。
+- [Installation maintenance](maintenance.md)：cachebuster 重装、drift 与安全恢复。
 
 1. [Architecture](architecture.md)：组件、trust boundary、状态与 production guest
    flow。

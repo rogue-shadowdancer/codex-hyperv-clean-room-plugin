@@ -193,6 +193,8 @@ def main() -> int:
     required_documents = {
         REPO_ROOT / "SECURITY.md",
         REPO_ROOT / "docs" / "architecture.md",
+        REPO_ROOT / "docs" / "installation.md",
+        REPO_ROOT / "docs" / "maintenance.md",
         REPO_ROOT / "docs" / "operations.md",
         REPO_ROOT / "docs" / "evidence.md",
         REPO_ROOT / "docs" / "security.md",
@@ -204,7 +206,7 @@ def main() -> int:
         if not path.is_file()
     )
     if missing_documents:
-        raise AssertionError(f"required Gate 2 documents are missing: {missing_documents}")
+        raise AssertionError(f"required Gate documents are missing: {missing_documents}")
 
     requirements = read_utf8(REPO_ROOT / "requirements-dev.txt").splitlines()
     expected_requirements = {
