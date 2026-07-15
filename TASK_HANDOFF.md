@@ -55,6 +55,17 @@ stop before Gate 6.
   `projectPath` only in the single structured `TASK_HANDOFF.md` contract field;
   every other Markdown or repository absolute Windows/workspace path remains
   forbidden, with focused policy regressions covering the exception boundary.
+- Source commit `c5f0bd8114de182642c9d39204afed995fa41d0f` was merged by PR
+  #4 as the ordinary two-parent merge commit
+  `ff5765c2b4626c43c5de8b6444553a2408785920`. The exact source SHA passed
+  both push and pull-request CI with no unresolved review conversations.
+- The first post-merge `master` run exposed a publication-policy gap: GitHub's
+  signed web-flow merge uses the public user noreply email for the author and
+  the GitHub web-flow committer identity. The fail-closed repair accepts only
+  two-distinct-parent, GitHub-signature-envelope merges from this repository's
+  `rogue-shadowdancer/codex/*` branches, while preserving message scanning,
+  ordinary noreply identity checks, and the eight legacy raw-object digest
+  allowlist.
 - No MCP runtime file, tool name, tool input/output, schema-v1 semantic,
   production adapter, evidence derivation, or mutation path is changed.
 
@@ -73,21 +84,20 @@ stop before Gate 6.
 
 `repositoryState`:
 
-- Branch: `codex/add-marketplace-github-link`.
-- Current pre-commit HEAD and remote baseline:
-  `4bed14c8a7df068fcd8e827418e7c20527a2f271` on `origin/master`.
-- Exactly these ten Gate 5.2 files are staged, with no unstaged or untracked
-  files: `CHANGELOG.md`, `README.md`, `TASK_HANDOFF.md`, `docs/README.md`,
-  `docs/specification.md`, `hyperv-clean-room/.codex-plugin/plugin.json`,
-  `tests/public_release_contract_tests.py`, `tests/static_quality_tests.py`,
+- Branch: `codex/fix-gate5-2-merge-validation`.
+- Current pre-fix-commit HEAD and remote baseline:
+  `ff5765c2b4626c43c5de8b6444553a2408785920` on `origin/master`.
+- The fix candidate is limited to `TASK_HANDOFF.md`,
   `tests/publication_hygiene_tests.py`, and
-  `tests/publication_hygiene_policy_tests.py`.
+  `tests/publication_hygiene_policy_tests.py`; there are no unrelated,
+  untracked, or pre-existing user changes.
 - The worktree was clean before Gate 5.2. There was no pre-existing user work,
   same-name local/remote branch, or same-head pull request; therefore no
   existing change in this worktree belongs to the user outside this gate.
-- The required commit message is
-  `feat: link plugin listing to GitHub repository`. Protected `master` must be
-  changed only through the planned pull request and a normal merge commit.
+- The required Gate 5.2 source commit is
+  `feat: link plugin listing to GitHub repository`; the repair commit is
+  `fix: validate GitHub web-flow merge commits`. Protected `master` changes
+  only through pull requests and ordinary merge commits.
 - The immutable `v0.1.1` tag and GitHub Release are not moved, replaced, or
   recreated. No `v0.1.2` release is part of this gate.
 
@@ -108,6 +118,14 @@ stop before Gate 6.
 - `scripts/validate-github-actions-history.ps1` scanned 16 authoritative runs,
   3,728 log lines, and 597,833 log bytes with zero sensitive findings,
   credentialed URLs, private paths, or forbidden state files.
+- Initial source push run `29403897567` and pull-request run `29403915224`
+  succeeded on exact SHA `c5f0bd8114de182642c9d39204afed995fa41d0f`.
+  Post-merge run `29404039585` failed only because the history policy rejected
+  GitHub's web-flow author/committer combination for merge SHA
+  `ff5765c2b4626c43c5de8b6444553a2408785920`; it was not bypassed or rerun.
+- Focused repair validation passes 12 publication-hygiene policy regressions
+  and the full local history scan, which recognizes one structurally bounded
+  GitHub web-flow merge and reports zero sensitive findings.
 - Pull-request and post-merge `master` Actions must pass
   `public-release-validation` on their exact SHAs, strict status checks must
   remain satisfied, and all conversations must be resolved. The user explicitly
@@ -128,10 +146,9 @@ stop before Gate 6.
 
 `unresolvedIssues[]`:
 
-- PR publication, required CI, approval-only administrator bypass, normal merge,
-  post-merge CI, final
-  reinstall, and installed-copy/UI readback remain external acceptance steps
-  for the owning Gate 5.2 task after the source candidate is committed.
+- The merge-policy repair still requires complete local validation, a protected
+  fix PR, exact-SHA CI, approval-only administrator bypass, ordinary merge, and
+  successful post-merge `master` CI before reinstall may begin.
 - The OpenAI Platform portal requires the user to sign in. Only the existing
   plugin entry may be updated; if it is missing, Gate 5.2 stops rather than
   creating a new public submission or hosted MCP service.
@@ -157,15 +174,15 @@ stop before Gate 6.
 
 `nextCommands[]`:
 
-1. Run the complete local candidate validator and inspect the exact Gate 5.2
-   diff for scope, formatting, URL, version, and safety-boundary drift.
-2. Commit once with `feat: link plugin listing to GitHub repository`, push
-   `codex/add-marketplace-github-link`, and open PR
-   `Add GitHub link to plugin marketplace metadata`.
-3. Require exact-commit PR CI and resolved conversations; use the user-authorized
-   administrator bypass only for the unavailable independent approval, create a
-   normal merge commit, and require green post-merge `master` CI.
-4. Sync the clean merged `master`, reinstall without another cachebuster, and
+1. Run the complete local validator and inspect the three-file repair diff for
+   identity-policy, publication-hygiene, and safety-boundary drift.
+2. Commit with `fix: validate GitHub web-flow merge commits`, push
+   `codex/fix-gate5-2-merge-validation`, and open a protected fix PR.
+3. Require exact-commit fix-PR CI and resolved conversations; use the
+   user-authorized administrator bypass only for the unavailable independent
+   approval, create a normal merge commit, and require green post-merge
+   `master` CI.
+4. Sync the final clean `master`, reinstall without another cachebuster, and
    run source/install/hash/runtime readback plus local plugin-details UI
    verification.
 5. Sign in to the OpenAI Platform in the in-app browser, update only the
