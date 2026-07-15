@@ -4,6 +4,24 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
+## Unreleased - Gate 5.2 marketplace metadata
+
+### Added
+
+- A canonical GitHub repository link for Codex plugin details through
+  `interface.websiteURL`, aligned exactly with the manifest `homepage` and
+  `repository` fields.
+- A public-release contract assertion that rejects any missing or divergent
+  plugin listing URL.
+
+### Changed
+
+- The current `master` personal-install build is
+  `0.1.1+codex.20260715084043`. The immutable `v0.1.1` tag and GitHub Release
+  retain their accepted `0.1.1+codex.20260715064728` build.
+- No MCP tool, schema-v1 semantic, runtime behavior, GitHub Release, or Gate 6
+  validation scope changes in this metadata-only gate.
+
 ## 0.1.1 - GPL public release - 2026-07-15
 
 ### Added

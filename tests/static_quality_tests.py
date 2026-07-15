@@ -16,6 +16,9 @@ MARKDOWN_HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$", re.MULTILINE)
 EXPLICIT_ANCHOR = re.compile(
     r"<a\s+[^>]*(?:id|name)\s*=\s*['\"]([^'\"]+)['\"][^>]*>", re.IGNORECASE
 )
+HANDOFF_PROJECT_PATH = re.compile(
+    r"^`projectPath: [A-Za-z]:\\[^`\r\n]+`$", re.MULTILINE
+)
 
 
 def source_files() -> list[Path]:
@@ -56,8 +59,20 @@ def markdown_anchors(text: str) -> set[str]:
     return anchors
 
 
+def mask_handoff_project_path(relative: Path, text: str) -> str:
+    if relative.as_posix() != "TASK_HANDOFF.md":
+        return text
+    matches = list(HANDOFF_PROJECT_PATH.finditer(text))
+    if len(matches) != 1:
+        raise AssertionError(
+            "TASK_HANDOFF.md must contain exactly one absolute projectPath contract field"
+        )
+    return HANDOFF_PROJECT_PATH.sub("`projectPath: <workspace-root>`", text)
+
+
 def check_markdown(path: Path, text: str) -> int:
     relative = path.relative_to(REPO_ROOT)
+    policy_text = mask_handoff_project_path(relative, text)
     mojibake_markers = (
         chr(0xFFFD),
         chr(0x00C2),
@@ -84,7 +99,8 @@ def check_markdown(path: Path, text: str) -> int:
         ),
         (r"(?i)\bBearer\s+[A-Za-z0-9._~-]+", "bearer token"),
     ):
-        if re.search(pattern, text):
+        scan_text = policy_text if label == "absolute Windows path" else text
+        if re.search(pattern, scan_text):
             raise AssertionError(f"{label} found in {relative}")
 
     checked_links = 0
@@ -145,6 +161,7 @@ def check_sensitive_repository_state(decoded: dict[Path, str]) -> int:
         relative = path.relative_to(REPO_ROOT)
         if "tests" in relative.parts:
             continue
+        policy_text = mask_handoff_project_path(relative, text)
         for pattern, label in (
             (r"(?i)\b[A-Z]:\\Users\\[^\\\s]+", "absolute user path"),
             (r"(?i)\b[A-Z]:\\study\\", "workspace-specific path"),
@@ -155,7 +172,12 @@ def check_sensitive_repository_state(decoded: dict[Path, str]) -> int:
             ),
             (r"-----BEGIN [A-Z ]*PRIVATE KEY-----", "private key material"),
         ):
-            if re.search(pattern, text):
+            scan_text = (
+                policy_text
+                if label in {"absolute user path", "workspace-specific path"}
+                else text
+            )
+            if re.search(pattern, scan_text):
                 raise AssertionError(f"{label} found in {relative}")
         checked += 1
     return checked

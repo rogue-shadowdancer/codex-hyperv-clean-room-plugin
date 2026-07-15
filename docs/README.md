@@ -7,6 +7,10 @@ as GPL-3.0-only `v0.1.1`. It adds public community files, a source-only Release,
 full-tree/history/identity/Actions-log hygiene, and SHA-pinned
 `public-release-validation` with zero personal install, marketplace,
 installed-copy, real-host, guest, or Hyper-V mutation operations.
+Gate 5.2 adds one canonical GitHub repository link to the plugin install
+surface while preserving base version `0.1.1`, every runtime contract, and the
+immutable `v0.1.1` Release. The current `master` personal-install build is
+`0.1.1+codex.20260715084043`.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.
@@ -65,6 +69,9 @@ Gate 5.1 把经过 source validation 的 Gate 4 personal install baseline 以
 GPL-3.0-only `v0.1.1` 公开发布，并新增 public community 文件、source-only Release、
 完整 tree/history/identity/Actions-log hygiene，以及 personal install、marketplace、
 installed-copy、real-host、guest 与 Hyper-V mutation 全部为零的 SHA-pinned CI 路径。
+Gate 5.2 只在 plugin install surface 增加统一的 GitHub 仓库链接，保持 base
+version `0.1.1`、全部 runtime contract 与不可变的 `v0.1.1` Release；当前
+`master` personal-install build 为 `0.1.1+codex.20260715084043`。
 继承的 Gate 2 测试仍在 Windows PowerShell 5.1 下使用 mock
 adapter、parser、production-adapter static seam、严格文档
 检查和有界真实 host 只读 smoke。Production guest adapter 已包含固定的 administrator-supervised
