@@ -55,7 +55,7 @@ function Invoke-GhRead {
 
 $viewRead = Invoke-GhRead -Arguments @(
     'repo', 'view', $Repository, '--json',
-    'nameWithOwner,url,visibility,isPrivate,defaultBranchRef,description,homepageUrl,hasIssuesEnabled,hasWikiEnabled,hasProjectsEnabled,hasDiscussionsEnabled,repositoryTopics,licenseInfo'
+    'nameWithOwner,url,visibility,isPrivate,defaultBranchRef,description,homepageUrl,hasIssuesEnabled,hasWikiEnabled,hasProjectsEnabled,hasDiscussionsEnabled,repositoryTopics'
 )
 $view = $viewRead.text | ConvertFrom-Json -ErrorAction Stop
 Assert-PublicSetting ([string]$view.nameWithOwner -ceq $Repository) `
@@ -73,7 +73,11 @@ Assert-PublicSetting ([bool]$view.hasIssuesEnabled -and
     -not [bool]$view.hasProjectsEnabled -and
     -not [bool]$view.hasDiscussionsEnabled) `
     'Repository feature settings differ from the release contract.'
-Assert-PublicSetting ([string]$view.licenseInfo.spdxId -ceq 'GPL-3.0') `
+$licenseRead = Invoke-GhRead -Arguments @(
+    'api', "repos/$Repository/license"
+)
+$license = $licenseRead.text | ConvertFrom-Json -ErrorAction Stop
+Assert-PublicSetting ([string]$license.license.spdx_id -ceq 'GPL-3.0') `
     'GitHub did not detect GNU GPL v3.'
 $actualTopics = @($view.repositoryTopics | ForEach-Object {
         [string]$_.name
@@ -124,14 +128,23 @@ Assert-PublicSetting (-not [bool]$protection.allow_force_pushes.enabled -and
     -not [bool]$protection.allow_fork_syncing.enabled) `
     'Branch Boolean protections differ from the release contract.'
 $restrictionProperty = $protection.PSObject.Properties['restrictions']
-Assert-PublicSetting ($null -ne $restrictionProperty -and
+Assert-PublicSetting ($null -eq $restrictionProperty -or
     $null -eq $restrictionProperty.Value) 'Branch restrictions must be null.'
 
 $signatureRead = Invoke-GhRead -Arguments @(
     'api', "repos/$Repository/branches/master/protection/required_signatures"
 ) -AllowFailure
-Assert-PublicSetting ($signatureRead.exitCode -ne 0 -and
-    $signatureRead.text -match '(?i)(HTTP 404|Not Found)') `
+$signaturesDisabled = $false
+if ($signatureRead.exitCode -eq 0) {
+    $signature = $signatureRead.text | ConvertFrom-Json -ErrorAction Stop
+    $enabledProperty = $signature.PSObject.Properties['enabled']
+    $signaturesDisabled = $null -ne $enabledProperty -and
+        [bool]::Equals($enabledProperty.Value, $false)
+}
+else {
+    $signaturesDisabled = $signatureRead.text -match '(?i)(HTTP 404|Not Found)'
+}
+Assert-PublicSetting $signaturesDisabled `
     'Signed commits must remain an explicit disabled setting for v0.1.1.'
 
 [ordered]@{

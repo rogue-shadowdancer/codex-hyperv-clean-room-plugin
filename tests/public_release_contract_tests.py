@@ -126,6 +126,19 @@ def main() -> int:
         if value not in settings_source or value not in release_process:
             raise AssertionError(f"public repository metadata is not frozen: {value}")
     for fragment in (
+        'repos/$Repository/license',
+        "$license.license.spdx_id",
+        "'GPL-3.0'",
+    ):
+        if fragment not in settings_source:
+            raise AssertionError(
+                f"public GPL detection readback is missing: {fragment}"
+            )
+    if "[bool]::Equals($enabledProperty.Value, $false)" not in settings_source:
+        raise AssertionError(
+            "required-signatures readback must require literal Boolean false"
+        )
+    for fragment in (
         "public-release-validation",
         "required_status_checks",
         "strict",
