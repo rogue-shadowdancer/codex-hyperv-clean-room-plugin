@@ -1,4 +1,4 @@
-name: validate
+name: public-release-validation
 
 on:
   push:
@@ -8,13 +8,14 @@ permissions:
   contents: read
 
 jobs:
-  gate5-publication:
+  public-release-validation:
+    name: public-release-validation
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
       - name: Prepare pinned ABI-isolated test Python
@@ -29,6 +30,9 @@ jobs:
       - name: Validate publication-sensitive source and history
         shell: powershell
         run: python -S ./tests/publication_hygiene_tests.py
+      - name: Validate GPL and public-release contract
+        shell: powershell
+        run: python -S ./tests/public_release_contract_tests.py
       - name: Validate CI-safe Gate 4 baseline
         shell: powershell
         run: ./scripts/validate-gate4-ci.ps1

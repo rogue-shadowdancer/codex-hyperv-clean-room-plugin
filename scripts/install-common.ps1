@@ -265,17 +265,17 @@ function Get-HcrPluginVersionInfo {
 
     $match = [regex]::Match(
         $Version,
-        '^0\.1\.0(?:\+codex\.(?<cachebuster>[a-z0-9]+(?:-[a-z0-9]+)*))?$'
+        '^0\.1\.1(?:\+codex\.(?<cachebuster>[a-z0-9]+(?:-[a-z0-9]+)*))?$'
     )
     Assert-HcrInstallCondition $match.Success `
-        "Plugin version must be 0.1.0 with at most one +codex.<cachebuster> suffix: $Version"
+        "Plugin version must be 0.1.1 with at most one +codex.<cachebuster> suffix: $Version"
     $cachebuster = if ($match.Groups['cachebuster'].Success) {
         [string]$match.Groups['cachebuster'].Value
     }
     else { $null }
     return [pscustomobject][ordered]@{
         version = $Version
-        baseVersion = '0.1.0'
+        baseVersion = '0.1.1'
         cachebuster = $cachebuster
     }
 }

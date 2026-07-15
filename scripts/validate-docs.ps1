@@ -7,6 +7,8 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $requiredDocuments = @(
     'CHANGELOG.md',
+    'CODE_OF_CONDUCT.md',
+    'CONTRIBUTING.md',
     'README.md',
     'SECURITY.md',
     'TASK_HANDOFF.md',
@@ -23,16 +25,20 @@ $requiredDocuments = @(
     'docs\troubleshooting.md'
 )
 $requiredPhrases = [ordered]@{
-    'CHANGELOG.md' = @('0.1.0', 'Gate 5', 'clean-machine')
+    'CHANGELOG.md' = @('0.1.1', 'GPL-3.0-only', 'clean-machine', 'notPerformed')
+    'CODE_OF_CONDUCT.md' = @('Contributor Covenant', 'version 2.1', 'Enforcement')
+    'CONTRIBUTING.md' = @('validate-gate4-ci.ps1', 'public-release-validation', 'GPL')
+    'README.md' = @('v0.1.1', 'GPL-3.0-only', '16 MCP tools', 'notPerformed')
+    'TASK_HANDOFF.md' = @('nextCommands[]', 'validate-public-github-settings.ps1', 'Gate 6', 'notPerformed')
     'docs\architecture.md' = @('PowerShell Direct', 'trust boundar', 'operation-scoped', '16')
     'docs\installation.md' = @('install_plugin.ps1', 'check_install.ps1', 'ownership', 'marketplaceVisible', 'SHA-256')
-    'docs\maintenance.md' = @('update_plugin_cachebuster.py', 'plugin add', 'sourceCommit', 'new Codex task')
-    'docs\release-process.md' = @('private', 'validate-gate4-ci.ps1', 'publication_hygiene_policy_tests.py', 'publication_hygiene_tests.py', 'immutable terminal commit', 'remote get-url --all origin', 'remote get-url --push --all origin', 'external gate evidence', 'Do not edit, commit, or push', 'remote acceptance')
+    'docs\maintenance.md' = @('update_plugin_cachebuster.py', '0.1.1', 'plugin add', 'sourceCommit', 'new Codex task')
+    'docs\release-process.md' = @('GPL-3.0-only', 'validate-public-release.ps1', 'validate-github-actions-history.ps1', 'validate-public-github-settings.ps1', 'publication_hygiene_policy_tests.py', 'publication_hygiene_tests.py', 'public-release-validation', 'visibility public', 'anonymous', 'Protect', 'source-only', 'external evidence', 'do not modify repository source files', 'required_signatures')
     'docs\operations.md' = @('inspect_host', 'Initialize-GuestCredential.ps1', 'prepare-test-python.ps1', 'real Hyper-V mutation')
     'docs\evidence.md' = @('sourceSha256', 'guestSha256', 'cleanupTriggered', 'manual')
     'docs\security.md' = @('DPAPI', 'plaintext', 'reparse', 'arbitrary')
     'docs\troubleshooting.md' = @('prepare-test-python.ps1', 'INVALID_ISO', 'ARTIFACT_HASH_MISMATCH', 'PowerShell Direct')
-    'SECURITY.md' = @('report', 'credential', 'VM', 'supported')
+    'SECURITY.md' = @('Report a vulnerability', 'private vulnerability reporting', 'credential', 'VM', 'supported')
 }
 $strictUtf8 = New-Object System.Text.UTF8Encoding($false, $true)
 $texts = @{}

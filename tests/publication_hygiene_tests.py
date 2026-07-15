@@ -1,13 +1,27 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
+import os
 import subprocess
 from pathlib import Path, PurePosixPath
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MAX_SCANNED_BLOB_BYTES = 2 * 1024 * 1024
+ACCEPTED_LEGACY_COMMIT_SHA256 = {
+    "45193ddc75ba108b468a9bab180cfab9ae31620224817906420578cf6a3db0e1",
+    "5f9aeac3283df11ffe1918c33d16434d8e6a834f63a9b64e70dd7083f8a5ea3a",
+    "69bcfba21b8fcb68d1e4d8914631190eb3195c52bc160789c940f685dcd4795e",
+    "8194ee43dea44e54e32776669d29928548e9b3de99291eb847a5a285dd363f31",
+    "adb05c896fd6b201ca2c08b26abe89f3e5a4677ea507c4543c81b3c0814981c5",
+    "d323ea912a0bf3805b875262206e7ef9c8141adfb554954a70339da2c7dc48bc",
+    "b592529dc22c8b52289899035d1658d67fbc8eec5b57f0d50b0e13a5b7f3e55d",
+    "3ffce4f4af707fc3fc3ad137962571fe19d14b28d3c394356fab3fec1e582f07",
+}
+PUBLIC_COMMIT_NAME = "rogue-shadowdancer"
+PUBLIC_COMMIT_EMAIL = "78423508+rogue-shadowdancer@users.noreply.github.com"
 FORBIDDEN_SUFFIXES = {
     ".avhd",
     ".avhdx",
@@ -25,11 +39,22 @@ FORBIDDEN_PARTS = {
     ".artifacts",
     ".cache",
     ".state",
+    "artifacts",
     "cache",
     "caches",
+    "checkpoint",
+    "checkpoints",
     "credentials",
     "evidence",
+    "install-state",
+    "installed-copy",
+    "installed-state",
+    "log",
+    "logs",
     "plans",
+    "vm",
+    "vm-state",
+    "vms",
 }
 FORBIDDEN_FILENAMES = {"evidence.json", "inventory.json"}
 FORBIDDEN_CONTROL_FILES = {
@@ -80,7 +105,15 @@ UNIVERSAL_PATTERNS = (
     (re.compile(rb"(?i)\b[A-Z]:\\Users\\[^\\\s]+"), "absolute user path"),
     (re.compile(rb"(?i)\b[A-Z]:\\study\\"), "workspace-specific path"),
     (re.compile(rb"(?i)/(?:Users|home)/[^/\s]+"), "absolute user path"),
+    (
+        re.compile(rb"(?i)https?://[^/:\s]+:[^@\s/]+@"),
+        "credentialed URL",
+    ),
 )
+EMAIL_PATTERN = re.compile(
+    rb"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+)
+MOJIBAKE_MARKERS = ("\ufffd", "\u00c3", "\u00c2", "\u9225", "\u951b", "\u9286")
 OTHER_LITERAL_PATTERNS = (
     (re.compile(rb"(?i)\bBearer\s+[A-Za-z0-9._~-]{12,}"), "bearer token"),
     (
@@ -248,6 +281,11 @@ def scan_content(path_text: str, content: bytes, context: str) -> None:
         ) from error
     if content.startswith(b"\xef\xbb\xbf"):
         raise AssertionError(f"UTF-8 BOM found in {context}: {path_text}")
+    for marker in MOJIBAKE_MARKERS:
+        if marker in text:
+            raise AssertionError(
+                f"mojibake marker found in {context}: {path_text}"
+            )
 
     for pattern, label in UNIVERSAL_PATTERNS:
         if pattern.search(content):
@@ -255,6 +293,12 @@ def scan_content(path_text: str, content: bytes, context: str) -> None:
     for pattern, label in OTHER_LITERAL_PATTERNS:
         if pattern.search(content):
             raise AssertionError(f"{label} found in {context}: {path_text}")
+    for match in EMAIL_PATTERN.finditer(content):
+        email = match.group(0).decode("ascii")
+        if email.casefold() != PUBLIC_COMMIT_EMAIL.casefold():
+            raise AssertionError(
+                f"non-public email found in {context}: {path_text}"
+            )
     scan_structured_secret_literals(path_text, text, context)
 
 
@@ -263,8 +307,25 @@ def current_files() -> list[str]:
     return sorted(decode_path(item) for item in raw.split(b"\0") if item)
 
 
-def history_commits() -> list[str]:
-    return [line for line in git_bytes("rev-list", "--all").decode("ascii").splitlines() if line]
+def select_history_revision(event_name: str, base_ref: str) -> str:
+    if event_name == "pull_request":
+        if (
+            not base_ref
+            or not re.fullmatch(r"[A-Za-z0-9._/-]+", base_ref)
+            or base_ref.startswith(("/", "-"))
+            or ".." in base_ref
+        ):
+            raise AssertionError("pull_request history scan has an unsafe base ref")
+        return f"origin/{base_ref}"
+    return "HEAD"
+
+
+def history_commits(revision: str) -> list[str]:
+    return [
+        line
+        for line in git_bytes("rev-list", revision).decode("ascii").splitlines()
+        if line
+    ]
 
 
 def history_tree(commit: str) -> list[tuple[str, str]]:
@@ -280,6 +341,48 @@ def history_tree(commit: str) -> list[tuple[str, str]]:
     return rows
 
 
+def commit_identity(header: bytes, field: bytes) -> tuple[str, str]:
+    prefix = field + b" "
+    rows = [line for line in header.splitlines() if line.startswith(prefix)]
+    if len(rows) != 1:
+        raise AssertionError(f"commit has an invalid {field.decode()} header")
+    match = re.fullmatch(
+        rb"[^ ]+ (?P<name>.+) <(?P<email>[^<>\s]+)> (?P<time>[0-9]+) [+-][0-9]{4}",
+        rows[0],
+    )
+    if not match:
+        raise AssertionError(f"commit has an unparsable {field.decode()} header")
+    return (
+        match.group("name").decode("utf-8", errors="strict"),
+        match.group("email").decode("ascii", errors="strict"),
+    )
+
+
+def assert_commit_metadata_safe(commit: str, raw: bytes) -> str:
+    try:
+        header, message = raw.split(b"\n\n", 1)
+    except ValueError as error:
+        raise AssertionError(f"commit object is malformed: {commit}") from error
+    author = commit_identity(header, b"author")
+    committer = commit_identity(header, b"committer")
+    raw_sha256 = hashlib.sha256(raw).hexdigest()
+    if raw_sha256 in ACCEPTED_LEGACY_COMMIT_SHA256:
+        identity_class = "accepted-legacy-sha256"
+    else:
+        expected = (PUBLIC_COMMIT_NAME, PUBLIC_COMMIT_EMAIL)
+        if author != expected or committer != expected:
+            raise AssertionError(
+                f"unexpected author/committer identity in history commit {commit}"
+            )
+        identity_class = "public-noreply"
+    scan_content(
+        f"commit-message-{commit}.txt",
+        message,
+        f"history commit message {commit}",
+    )
+    return identity_class
+
+
 def main() -> int:
     current = current_files()
     for path_text in current:
@@ -290,10 +393,23 @@ def main() -> int:
             "prospective working tree",
         )
 
-    commits = history_commits()
+    history_revision = select_history_revision(
+        os.environ.get("GITHUB_EVENT_NAME", ""),
+        os.environ.get("GITHUB_BASE_REF", ""),
+    )
+    git_bytes("rev-parse", "--verify", f"{history_revision}^{{commit}}")
+    commits = history_commits(history_revision)
+    accepted_legacy_digests: set[str] = set()
+    public_identity_commits = 0
     seen_blob_paths: set[tuple[str, str]] = set()
     blob_cache: dict[str, bytes] = {}
     for commit in commits:
+        raw_commit = git_bytes("cat-file", "commit", commit)
+        identity_class = assert_commit_metadata_safe(commit, raw_commit)
+        if identity_class == "accepted-legacy-sha256":
+            accepted_legacy_digests.add(hashlib.sha256(raw_commit).hexdigest())
+        else:
+            public_identity_commits += 1
         for object_id, path_text in history_tree(commit):
             assert_publishable_path(path_text, f"history commit {commit}")
             key = (object_id, path_text)
@@ -305,13 +421,25 @@ def main() -> int:
             content = blob_cache[object_id]
             scan_content(path_text, content, f"history blob {object_id}")
 
+    if accepted_legacy_digests != ACCEPTED_LEGACY_COMMIT_SHA256:
+        missing = ACCEPTED_LEGACY_COMMIT_SHA256 - accepted_legacy_digests
+        unexpected = accepted_legacy_digests - ACCEPTED_LEGACY_COMMIT_SHA256
+        raise AssertionError(
+            "retained legacy commit SHA-256 allowlist mismatch: "
+            f"missing={len(missing)}, unexpected={len(unexpected)}"
+        )
+
     print(
         json.dumps(
             {
                 "ok": True,
                 "currentFiles": len(current),
                 "historyCommits": len(commits),
+                "historyRevision": history_revision,
                 "historyBlobPaths": len(seen_blob_paths),
+                "commitMessagesScanned": len(commits),
+                "acceptedLegacyCommits": len(accepted_legacy_digests),
+                "publicNoreplyCommits": public_identity_commits,
                 "forbiddenArtifacts": 0,
                 "sensitiveFindings": 0,
                 "strictUtf8": True,

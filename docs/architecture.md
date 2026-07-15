@@ -3,7 +3,7 @@
 ## Status and assurance boundary
 
 Hyper-V Clean Room is a Windows-only Codex plugin whose product surface is a
-PowerShell 5.1 MCP server. Version `0.1.0` exposes exactly 16 tools and five
+PowerShell 5.1 MCP server. Version `0.1.1` exposes exactly 16 tools and five
 public schema-v1 documents. Gate 2 implements both the mock adapter and the
 production Hyper-V/PowerShell Direct adapter, but validates guest execution
 only through mock behavior, parser checks, and closed-dispatch static seams.
@@ -203,9 +203,11 @@ Hyper-V storage, or operational state roots.
 
 ## Compatibility and non-goals
 
-The 0.x line preserves plugin version `0.1.0`, schema version 1, the five public
+The 0.x line preserves schema version 1, the five public
 schemas, the 16 tool names, JSON-string MCP text results, and the common result
-envelope unless the specification is deliberately revised.
+envelope unless the specification is deliberately revised. Plugin `0.1.1` is
+the first GPL-3.0-only public release; plugin semver and schema version evolve
+independently.
 
 The architecture intentionally excludes:
 

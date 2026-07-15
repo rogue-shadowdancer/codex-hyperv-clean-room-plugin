@@ -1,10 +1,45 @@
 # Changelog
 
-This file records source milestones for the pre-release `0.1.0` line. The
-repository has no tag or GitHub Release at the Gate 5 boundary; the installed
-personal copy uses build metadata only to invalidate the local Codex cache.
+This file records public releases and earlier source milestones. Plugin semver
+and schema versions evolve independently; Codex build metadata only invalidates
+the local plugin cache.
 
-## 0.1.0 - Gate 5 private publication candidate - 2026-07-15
+## 0.1.1 - GPL public release - 2026-07-15
+
+### Added
+
+- GNU GPL v3 licensing with SPDX identifier `GPL-3.0-only`.
+- Public contribution guidance, Contributor Covenant 2.1, issue forms, a pull
+  request template, Dependabot, and private vulnerability reporting guidance.
+- SHA-pinned `public-release-validation` on Windows with full-history checkout,
+  public-release contract validation, and the CI-safe Gate 4 suite.
+- Fail-closed publication checks for the prospective tree, full retained
+  history, commit identities/messages, GitHub Actions logs, credentials in
+  URLs, sensitive literals, private paths, and forbidden machine state.
+- Anonymous public readback, protected-branch, annotated-tag, source-only
+  Release, and installed-copy verification procedures.
+
+### Changed
+
+- Plugin base and MCP server version are `0.1.1`; the installed Codex build is
+  `0.1.1+codex.20260715064728`.
+- The eight existing commits and their object IDs remain unchanged. Their
+  accepted legacy identity metadata is bound only through SHA-256 digests of
+  the exact raw commit objects; new commits use the repository's GitHub
+  noreply identity.
+
+### Safety and validation boundary
+
+- The public API remains exactly 16 MCP tools, five Draft 2020-12 schemas,
+  `schemaVersion: 1`, and four supported MCP protocol versions.
+- Mock, parser, schema, static, installer-security, CI-safe, installed-copy,
+  license, community, encoding, privacy, and release-contract checks pass.
+- Installed-copy acceptance is limited to tool discovery, read-only
+  `inspect_host`, and a nonexistent-ISO rejection before mutation.
+- Clean-machine validation, credential enrollment, real guest/package work,
+  VM/checkpoint mutation, and manual GUI attestation remain `notPerformed`.
+
+## 0.1.0 - Gate 5 private publication baseline - 2026-07-15
 
 ### Added
 

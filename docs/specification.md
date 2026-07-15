@@ -1,12 +1,12 @@
 # Hyper-V Clean Room v1 specification
 
-Status: Gate 4 installation/cachebuster baseline. The Gate 2 PowerShell 5.1
-runtime remains unchanged in schema-v1 behavior and is now installed through a
-source-validated, ownership-marked personal workflow. The installed copy is
-MCP-smoke-validated with exactly 16 tools, read-only `inspect_host`, and a
-missing-ISO rejection. No real guest operation or Hyper-V mutation is executed;
-production guest behavior is still mock/parser/static validated only and is not
-clean-machine validated.
+Status: Gate 5.1 GPL public release. Plugin `0.1.1` preserves the Gate 2
+PowerShell 5.1 schema-v1 behavior and the Gate 4 source-validated,
+ownership-marked personal workflow. The installed copy is MCP-smoke-validated
+with exactly 16 tools, read-only `inspect_host`, and a missing-ISO rejection.
+No real guest operation or Hyper-V mutation is executed; production guest
+behavior is still mock/parser/static validated only and is not clean-machine
+validated.
 
 ## Purpose and boundary
 
@@ -515,6 +515,12 @@ Gate 4 permits one `+codex.<cachebuster>` build-metadata suffix for local Codex
 reinstallation; this does not change the base plugin or schema version.
 There is no earlier working runtime or released evidence producer to preserve.
 
+Gate 5.1 advances plugin semver to `0.1.1` for the GPL-3.0-only public release
+without changing any MCP tool name, input schema, common envelope, evidence
+semantics, public schema, schema version, or supported protocol version. The
+installed copy uses one `+codex.<UTC>` cachebuster; that metadata is not part of
+the public tag version.
+
 After the first working release, plugin semver and JSON schema versions evolve
 independently. Additive optional tool fields are minor-compatible. Tool
 renames, required-field changes, or evidence semantic changes require a plugin
@@ -616,3 +622,25 @@ requires a nonexistent ISO to fail with `INVALID_ISO` before mutation. It
 reports zero real guest operations and zero real Hyper-V mutations. Gate 4 does
 not claim clean-machine validation, live credential persistence, PowerShell
 Direct behavior, package execution, or any VM/checkpoint mutation.
+
+## Gate 5.1 acceptance boundary
+
+Gate 5.1 releases plugin base version `0.1.1` under `GPL-3.0-only` while
+preserving exactly 16 MCP tools, five public Draft 2020-12 schemas,
+`schemaVersion: 1`, and support for `2024-11-05`, `2025-03-26`, `2025-06-18`,
+and `2025-11-25`.
+
+Public-release validation covers the canonical GPL text and manifest SPDX
+identifier, community files, strict UTF-8/no-BOM documentation, JSON/YAML and
+schema parsing, PowerShell 5.1 parsing, the Gate 1/Gate 2/Gate 4 CI-safe
+contracts, prospective-tree and retained-history privacy, commit
+identity/message policy, and GitHub Actions log hygiene. The eight preserved
+pre-release commits are accepted only through SHA-256 digests of their exact
+raw commit objects. New commits use the repository's GitHub noreply identity.
+
+The public installation acceptance remains bounded to the owned personal copy,
+16-tool discovery, read-only `inspect_host`, and `INVALID_ISO` before mutation.
+Clean-machine testing, credential enrollment, live PowerShell Direct guest
+work, package execution, VM/checkpoint mutation, and manual GUI attestation all
+remain `notPerformed`. Birdsgone remains a name-level consumer boundary only;
+no Birdsgone file or evidence is part of this repository or release.

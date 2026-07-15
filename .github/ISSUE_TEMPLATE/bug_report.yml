@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a reproducible defect using synthetic or mock data.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include credentials, tokens, private host paths, VM/VHDX/checkpoint/ISO files, or machine-specific evidence. Report security issues privately through the Security tab.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version and commit
+      description: Include the v0.1.1 build version and commit SHA when known.
+      placeholder: 0.1.1+codex.<timestamp> at <commit>
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Windows and PowerShell versions
+      placeholder: Windows 11 24H2; Windows PowerShell 5.1
+    validations:
+      required: true
+  - type: dropdown
+    id: adapter
+    attributes:
+      label: Validation surface
+      options:
+        - Mock adapter
+        - Read-only inspect_host
+        - Nonexistent-ISO plan rejection
+        - Other explicitly authorized surface
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide the smallest safe reproduction using synthetic names and mock state.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I removed credentials, secrets, private paths, machine state, and evidence from this report.
+          required: true
+        - label: I did not run or request an unauthorized real Hyper-V or guest mutation.
+          required: true
+

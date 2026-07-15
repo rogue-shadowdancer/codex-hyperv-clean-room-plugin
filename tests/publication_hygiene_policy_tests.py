@@ -90,6 +90,12 @@ class PublicationHygienePolicyTests(unittest.TestCase):
             "docs/Birdsgone/profile.json",
             "cache/result.txt",
             ".cache/result.txt",
+            "artifacts/output.txt",
+            "nested/checkpoints/stock/state.txt",
+            "nested/vm/owned/state.txt",
+            "logs/run.txt",
+            "installed-copy/control.txt",
+            "install-state/current.json",
             "artifacts/evidence.json",
             "artifacts/inventory.json",
             "vm/disk.avhdx",
@@ -111,6 +117,80 @@ class PublicationHygienePolicyTests(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 hygiene.assert_publishable_path(path, "policy regression")
+
+    def test_rejects_credentialed_urls_nonpublic_email_and_mojibake(self) -> None:
+        credentialed_url = (
+            "https://" + "user:" + "value" + "@example.test/repo"
+        )
+        nonpublic_email = "person" + "@example.test"
+        with self.assertRaisesRegex(AssertionError, "credentialed URL"):
+            self.assert_content_allowed("notes.txt", credentialed_url)
+        with self.assertRaisesRegex(AssertionError, "non-public email"):
+            self.assert_content_allowed("notes.txt", nonpublic_email)
+        with self.assertRaisesRegex(AssertionError, "mojibake"):
+            self.assert_content_allowed("notes.txt", chr(0xFFFD))
+
+    @staticmethod
+    def synthetic_commit(name: str, email: str, message: str) -> bytes:
+        lines = [
+            "tree " + ("0" * 40),
+            f"author {name} <{email}> 1 +0000",
+            f"committer {name} <{email}> 1 +0000",
+            "",
+            message,
+            "",
+        ]
+        return "\n".join(lines).encode("utf-8")
+
+    def test_commit_identity_and_message_policy_fails_closed(self) -> None:
+        public = self.synthetic_commit(
+            hygiene.PUBLIC_COMMIT_NAME,
+            hygiene.PUBLIC_COMMIT_EMAIL,
+            "release candidate",
+        )
+        self.assertEqual(
+            hygiene.assert_commit_metadata_safe("a" * 40, public),
+            "public-noreply",
+        )
+
+        legacy_email = "person" + "@example.test"
+        legacy = self.synthetic_commit("Legacy Person", legacy_email, "old change")
+        with self.assertRaisesRegex(AssertionError, "unexpected author/committer"):
+            hygiene.assert_commit_metadata_safe("b" * 40, legacy)
+
+        private_path = "E:" + "\\study\\private"
+        unsafe_message = self.synthetic_commit(
+            hygiene.PUBLIC_COMMIT_NAME,
+            hygiene.PUBLIC_COMMIT_EMAIL,
+            "mentions " + private_path,
+        )
+        with self.assertRaisesRegex(AssertionError, "workspace-specific path"):
+            hygiene.assert_commit_metadata_safe("c" * 40, unsafe_message)
+
+    def test_pull_request_scans_base_history_not_synthetic_merge_history(self) -> None:
+        self.assertEqual(
+            hygiene.select_history_revision("pull_request", "master"),
+            "origin/master",
+        )
+        self.assertEqual(
+            hygiene.select_history_revision("push", "master"),
+            "HEAD",
+        )
+        self.assertEqual(
+            hygiene.select_history_revision("", ""),
+            "HEAD",
+        )
+        for unsafe in ("", "../master", "/master", "-master", "main^{}"):
+            with self.subTest(unsafe=unsafe):
+                with self.assertRaisesRegex(AssertionError, "unsafe base ref"):
+                    hygiene.select_history_revision("pull_request", unsafe)
+
+        contributor_email = "contributor" + "@example.test"
+        contributor_commit = self.synthetic_commit(
+            "Public Contributor", contributor_email, "safe pull request change"
+        )
+        with self.assertRaisesRegex(AssertionError, "unexpected author/committer"):
+            hygiene.assert_commit_metadata_safe("d" * 40, contributor_commit)
 
 
 if __name__ == "__main__":

@@ -44,7 +44,7 @@ From the repository root, run:
 Validation rejects reparse points, untracked or missing payload files,
 reserved install-state files, forbidden VM/credential/evidence file types,
 unsafe relative paths, oversized files, an unexpected manifest name or path,
-and any version outside base `0.1.0` with at most one
+and any version outside base `0.1.1` with at most one
 `+codex.<cachebuster>` suffix. The accepted Gate 4 payload contains exactly 20
 Git-tracked ordinary files and five public schemas.
 

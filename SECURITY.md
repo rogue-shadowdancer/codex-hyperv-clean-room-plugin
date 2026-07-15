@@ -2,10 +2,15 @@
 
 ## Supported versions
 
-This repository is a pre-release `0.1.0` implementation. Security fixes are
-accepted only for the current `master` baseline until a public release policy
-is established. Older commits, local forks, modified schemas, and generated
-evidence are not supported versions.
+The supported release is `0.1.1` and the current `master` baseline. Older
+commits, modified schemas, unofficial builds, local forks, and generated
+evidence are not supported versions. Security fixes are published as additive
+commits and reviewed pull requests; release history is not rewritten.
+
+| Version | Supported |
+| --- | --- |
+| 0.1.1 | Yes |
+| 0.1.0 and earlier | No |
 
 Gate 2 validates mock behavior and static production-adapter contracts. It has
 not completed authorized clean-machine validation of real VM mutation,
@@ -15,10 +20,11 @@ path that falsely bypasses or overstates it.
 
 ## Reporting a vulnerability
 
-Report security issues privately to the repository owner through the private
-security-reporting channel associated with the eventual hosting repository. If
-no private channel is available, contact the owner before opening a public
-issue and provide only a non-sensitive summary.
+Use **Security → Report a vulnerability** in this GitHub repository. Private vulnerability reporting
+is enabled and is the required channel for sensitive
+details. Do not open a public issue for a suspected vulnerability. If GitHub's
+private reporting form is unavailable, contact the repository owner through
+GitHub before sharing more than a non-sensitive summary.
 
 Include:
 

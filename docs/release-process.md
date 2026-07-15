@@ -1,146 +1,235 @@
-# Private release and publication process
+# GPL public release and publication process
 
 ## Scope
 
-This runbook governs source publication for the pre-release `0.1.0` line to
-the private repository `rogue-shadowdancer/codex-hyperv-clean-room-plugin`.
-It does not authorize a public visibility change, tag, GitHub Release, history
-rewrite, force push, clean-machine test, credential enrollment, guest package
-lifecycle, or VM/checkpoint mutation.
+This runbook governs the in-place conversion of
+`rogue-shadowdancer/codex-hyperv-clean-room-plugin` from private to public as
+`v0.1.1` under `GPL-3.0-only`. It preserves the repository URL, `master`, all
+eight pre-release commits, and every existing object ID. It permits only an
+additive release commit, normal pushes, an annotated unsigned tag, and a
+source-only GitHub Release.
 
-The six commits that precede Gate 5 are preserved. Publication adds commits on
-`master`; it does not amend, rebase, filter, or replace earlier author metadata.
-The local build suffix `0.1.0+codex.20260714150737` is a Codex cachebuster, not
-a new base release or schema version.
+This process never authorizes a force push, amend, rebase, filter, history
+rewrite, clean export, real Hyper-V or guest mutation, credential enrollment,
+package lifecycle run, clean-machine claim, or publication of Birdsgone files.
+The public API remains exactly 16 tools, five public schemas,
+`schemaVersion: 1`, and four supported MCP protocol versions.
 
 ## Candidate prerequisites
 
-Before creating or changing a remote:
+Before editing or changing GitHub state:
 
-1. Confirm the branch is `master`, the expected history is present, the remote
-   destination does not already exist, and every dirty path belongs to the
-   Gate 5 candidate.
-2. Confirm the plugin still exposes exactly 16 tools, five public schemas,
-   base version `0.1.0`, and schema version 1.
-3. Confirm Birdsgone and all VM, VHDX, checkpoint, ISO, credential, DPAPI,
-   evidence, installed-control, cache, log, and machine-state paths are absent
-   from the publishable tree and history.
-4. Confirm the GitHub account and exact private destination. Do not create a
-   public or internal repository as a substitute.
+1. Confirm the checkout is clean `master` at the same commit as
+   `origin/master`, with exactly one approved HTTPS fetch URL and one approved
+   effective push URL.
+2. Confirm the GitHub repository is private, the viewer has `ADMIN`, there is
+   one `master` branch, and there are no tags, Releases, or artifacts.
+3. Confirm the owned personal install matches the source commit and marketplace
+   entry and exposes exactly 16 tools.
+4. Read `AGENTS.md`, this runbook, `docs/specification.md`, `TASK_HANDOFF.md`,
+   and the other release authorities before mutation.
+5. Inspect the separate Birdsgone workspace read-only. Never modify, stage,
+   commit, remote-connect, or publish it from this process.
+
+The eight preserved pre-release commits contain user-accepted legacy identity
+metadata. The current tree must not duplicate that address. Publication hygiene
+accepts those commits only when the SHA-256 digest of each exact raw commit
+object matches the eight-value allowlist in
+`tests/publication_hygiene_tests.py`. Any other legacy identity, changed raw
+commit object, unexpected author/committer, or sensitive commit message fails.
+All new commits and the tag use
+`rogue-shadowdancer <78423508+rogue-shadowdancer@users.noreply.github.com>`
+through repository-local Git configuration only.
+
+## Release source
+
+The release source must include:
+
+- the standard GNU GPL version 3 text in `LICENSE` and manifest SPDX identifier
+  `GPL-3.0-only`;
+- plugin/server base version `0.1.1` and one helper-generated
+  `0.1.1+codex.<UTC>` installed build;
+- `CONTRIBUTING.md`, Contributor Covenant 2.1, issue forms and configuration,
+  a pull request template, Dependabot, the public security policy, and
+  synchronized English/Chinese documentation;
+- `public-release-validation` with `contents: read`, full-history checkout,
+  official v6 Actions pinned to full commit SHAs with version comments; and
+- release-contract, publication-hygiene, GitHub Actions-log, anonymous
+  readback, and regression checks.
+
+Use `plugin-creator/scripts/update_plugin_cachebuster.py` exactly once after
+setting base version `0.1.1`. Do not hand-edit marketplace/cache state and do
+not create a second cachebuster during final reinstall.
 
 ## Local validation
 
-Prepare the pinned ABI-isolated Python environment, then run the documentation,
-publication, CI-safe, and full installed-copy checks:
+Save full output only below ignored `.artifacts`. Require all of the following:
 
 ```powershell
 .\scripts\prepare-test-python.ps1
-.\scripts\validate-docs.ps1
-& (Get-Command python).Source -S .\tests\publication_hygiene_policy_tests.py
-& (Get-Command python).Source -S .\tests\publication_hygiene_tests.py
-.\scripts\validate-gate4-ci.ps1
+.\scripts\validate-public-release.ps1
+.\scripts\validate-github-actions-history.ps1
 .\scripts\validate-gate4.ps1
 ```
 
-`publication_hygiene_tests.py` examines the prospective working tree and every
-reachable historical blob. It rejects forbidden state artifacts, installed
-control files, Birdsgone paths at any depth, cache/evidence/Hyper-V state,
-high-confidence secret forms, syntax-bound JSON/YAML/assignment secret
-literals, absolute user or workspace paths, non-UTF-8 text, UTF-8 BOMs,
-unexpected binary blobs, and blobs too large for the bounded scan. The adjacent
-policy regression suite proves both rejection cases and narrow allowances for
-redaction sentinels and environment/reference expressions; the scanner has no
-directory-wide test exemption.
+`validate-public-release.ps1` is the aggregate local gate. It performs:
 
-`validate-gate4-ci.ps1` is the non-machine-specific Gate 4 path. It runs the
-mock/schema/static/documentation baseline, source inventory, and local
-installer-security fixture. It explicitly skips the real-host smoke and
-performs zero personal installation operations, marketplace mutations,
-installed-copy operations, guest operations, and Hyper-V mutations.
+- PowerShell 5.1 parsing for every script;
+- strict UTF-8, no BOM, no mojibake, JSON, Draft 2020-12 schema, YAML,
+  Markdown/link, Python compile, and `git diff --check` validation;
+- plugin-creator `validate_plugin.py` and skill-creator `quick_validate.py`;
+- `validate-gate1.ps1`, no-argument `validate-gate2.ps1`,
+  `validate-docs.ps1`, and `validate-gate4-ci.ps1`;
+- `publication_hygiene_policy_tests.py`,
+  `publication_hygiene_tests.py`, and
+  `public_release_contract_tests.py`; and
+- exact version, license, tool/schema/protocol, community, workflow pin, and
+  not-performed boundary checks.
 
-The no-argument `validate-gate4.ps1` remains the workstation acceptance. It
-also requires the owned personal install to match the current clean source
-commit and runs only the installed-copy tool discovery, read-only host
-inspection, and nonexistent-ISO rejection. It is not a clean-machine test.
+`validate-github-actions-history.ps1` enumerates every retained Actions run,
+writes full logs only to `.artifacts/public-release/actions`, and scans them for
+secrets, credentialed URLs, private local paths, non-public identities,
+Birdsgone files/state, and VM/ISO/VHD/checkpoint/evidence/cache/log material.
+Missing or unreadable logs fail closed.
 
-## Review gate
+The no-argument `validate-gate4.ps1` is run after the final commit and reinstall
+so the installed manifest can bind to the immutable release SHA. Its real-host
+surface remains read-only `inspect_host` plus nonexistent-ISO rejection and
+must report zero real guest operations and zero Hyper-V mutations.
 
-After the candidate is complete and validation is green, obtain fresh bounded
-read-only signoff for all of these scopes:
+## Review gates
 
-- affected source, tests, and PowerShell 5.1 behavior;
-- documentation, release-state honesty, CI coverage, and reproducibility; and
-- publication privacy, tracked/history sensitive state, destination, and
-  pre-push safety.
+After the first complete candidate-safe validation pass, obtain three fresh
+bounded read-only reviews:
 
-Any actionable finding returns the candidate to implementation and validation.
-Do not create the remote until the replacement reviews have zero actionable
-findings.
+- license, public metadata, community files, documentation, and versioning;
+- full retained history, identities/messages, current-tree and Actions-log
+  privacy; and
+- install, PowerShell 5.1, CI, workflow pinning, and zero-mutation safety.
 
-## Immutable terminal commit
+Fix every actionable finding and rerun affected checks. Then obtain three
+entirely fresh signoff reviews over the final working tree. Each report must
+contain `actionableFindings: []`. Any finding reopens implementation,
+validation, and fresh signoff; only zero findings permits the release commit.
 
-After the final pre-push reviews return zero actionable findings, commit the
-complete source, documentation, validation, CI, and handoff candidate once.
-The commit containing `TASK_HANDOFF.md` is the terminal Gate 5 repository
-state. Reinstall from that commit without changing the cachebuster, run the
-no-argument full validation, and require the installed source commit to equal
-that terminal `HEAD` before creating the remote.
+## Immutable release commit and private CI
 
-From this point onward, do not edit, commit, or generate any publishable
-repository file. Validation logs remain ignored local artifacts. Publication,
-Actions, installed-copy readback, and remote reviewer results are external gate
-evidence; they do not trigger a follow-up handoff commit.
-External gate evidence is retained by the completing Codex task.
+Set only the repository-local Git identity and create one additive commit with
+the exact message:
 
-## Private publication
-
-Create only the exact private repository, without pushing from the creation
-command so visibility can be read back first:
-
-```powershell
-gh repo create rogue-shadowdancer/codex-hyperv-clean-room-plugin `
-  --private --source . --remote origin
-gh repo view rogue-shadowdancer/codex-hyperv-clean-room-plugin `
-  --json nameWithOwner,visibility,defaultBranchRef
-$expectedOrigin = 'https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin.git'
-$fetchUrls = @(git remote get-url --all origin)
-$fetchReadSucceeded = $LASTEXITCODE -eq 0
-$pushUrls = @(git remote get-url --push --all origin)
-$pushReadSucceeded = $LASTEXITCODE -eq 0
-if (-not $fetchReadSucceeded -or -not $pushReadSucceeded -or
-    $fetchUrls.Count -ne 1 -or $pushUrls.Count -ne 1 -or
-    $fetchUrls[0] -cne $expectedOrigin -or
-    $pushUrls[0] -cne $expectedOrigin) {
-    throw 'Origin fetch/push URLs are not exactly the approved private destination.'
-}
-git push -u origin master
+```text
+release: open source v0.1.1 under GPL-3.0-only
 ```
 
-Stop if the destination already exists unexpectedly, visibility is not
-`PRIVATE`, the remote URL is not the exact destination, or the push would not
-be a normal fast-forward first publication. Never use force push.
+Reinstall from that commit without another cachebuster. Run
+`validate-gate4.ps1`, `check_install.ps1`, the public-release aggregate, and
+Actions-history scan. Require source and installed version/cachebuster/SHA and
+payload hashes to match.
 
-## Actions and remote acceptance
+Fetch, require a normal fast-forward relationship, and push `master` while the
+repository is still private. Wait for `public-release-validation` to complete
+successfully on the exact release SHA. Read back GitHub license detection as
+GPL v3 and rescan all Actions logs including that commit run. Any source fix
+must be a new additive private commit followed by affected validation, fresh
+reviews, reinstall, push, and exact-commit CI.
 
-The workflow checks out full history and explicitly runs documentation
-validation, the publication-sensitive working-tree/history scan, and
-`validate-gate4-ci.ps1`. Wait for the final `master` workflow to finish
-successfully; do not treat a queued or running workflow as acceptance.
+## Public visibility and settings
 
-Obtain two fresh remote acceptance reviews against the same immutable terminal
-commit. Together they must read back:
+Only after every private prerequisite passes, switch visibility with:
 
-- exact private visibility, owner/name, default branch, and local tracking;
-- equality of local `HEAD`, `origin/master`, and the remote `master` object;
-- strict UTF-8/no-BOM remote source and expected file inventory;
-- successful final Actions status at that exact commit; and
-- installed source commit/version/cachebuster and payload hashes matching the
-  same final commit, with 16 tools and zero real mutations.
+```powershell
+gh repo edit rogue-shadowdancer/codex-hyperv-clean-room-plugin `
+  --visibility public --accept-visibility-change-consequences
+```
 
-The two final review reports and the final command readbacks are external gate
-evidence held by the completing Codex task. Do not edit, commit, or push any
-repository file after the terminal commit; any later repository edit would
-create an unaccepted SHA. Gate 5 ends when that immutable commit satisfies
-every check above and both external reviews return zero actionable findings. Any
-clean-machine, credential, real guest, package, VM, or checkpoint work belongs
-to a separately authorized gate.
+After the switch, do not modify repository source files. Freeze repository
+metadata to exactly:
+
+- description: `Guarded Windows Hyper-V clean-room and package lifecycle testing for Codex via typed MCP tools.`;
+- homepage: empty;
+- topics: `codex-plugin`, `mcp-server`, `hyper-v`, `windows`, `powershell`,
+  `virtualization`, `clean-room`, `package-testing`, and `test-automation`;
+- Issues on; Wiki, Projects, Discussions, and Pages off; and
+- private vulnerability reporting on.
+
+Set description/homepage/features with `gh repo edit`, replace topics through
+`PUT /repos/{owner}/{repo}/topics`, enable private vulnerability reporting
+through its repository endpoint, and require `GET /pages` to return HTTP 404.
+Do not leave an extra topic or an unspecified feature state.
+
+Run `scripts/verify-anonymous-public-readback.ps1` without authentication. It
+must verify the public `master` SHA, GPL detection, root README and LICENSE,
+manifest, companion skill, documentation center, and Simplified Chinese
+profile guide as strict UTF-8 without BOM or mojibake.
+
+Protect `master` with this exact API payload:
+
+```powershell
+@'
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["public-release-validation"]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": {
+    "dismiss_stale_reviews": false,
+    "require_code_owner_reviews": false,
+    "required_approving_review_count": 1,
+    "require_last_push_approval": false
+  },
+  "restrictions": null,
+  "required_linear_history": false,
+  "allow_force_pushes": false,
+  "allow_deletions": false,
+  "block_creations": false,
+  "required_conversation_resolution": true,
+  "lock_branch": false,
+  "allow_fork_syncing": false
+}
+'@ | gh api --method PUT `
+  repos/rogue-shadowdancer/codex-hyperv-clean-room-plugin/branches/master/protection `
+  --input -
+```
+
+Required commit signatures (`required_signatures`) remain disabled. Run
+`scripts/validate-public-github-settings.ps1` and require exact readback of the
+metadata, features, GPL detection, Pages/vulnerability state, status-check
+strictness/context, one non-stale non-code-owner approval, conversation
+resolution, null restrictions, all false Boolean controls, disabled
+signatures, and `enforce_admins: false`.
+
+## Tag and GitHub Release
+
+Create annotated unsigned tag `v0.1.1` at the exact release SHA using the
+repository noreply identity and push it normally. Wait for the tag-triggered
+`public-release-validation` run to succeed. Create a non-prerelease GitHub
+Release titled `v0.1.1` that states:
+
+- licensing is GPL-3.0-only;
+- the public contract is 16 tools, five schemas, and schema version 1;
+- the owned installed copy matches the release SHA and cachebuster; and
+- clean-machine, credential, real guest/package, VM/checkpoint, and manual GUI
+  scopes remain `notPerformed`.
+
+Upload no binaries, archives, logs, evidence, or other assets. GitHub's source
+archives are the only downloads.
+
+## Post-public acceptance and source-fix rule
+
+Obtain two fresh read-only reviews after the Release exists:
+
+- remote SHA, CI, license, community files, repository settings/protection,
+  tag, Release, and anonymous access; and
+- installed-copy/marketplace consistency plus the read-only Birdsgone
+  separation and explicit untested scope.
+
+Both reports must contain `actionableFindings: []`. External evidence for the
+public state is retained by the completing task; it does not trigger a source
+edit.
+If a source defect is found after the visibility switch, create a new public
+branch, pull request, and CI/review flow. Never re-private the repository as a
+rollback and never bypass protected `master`.
+
+Gate 6 clean-machine and real-guest validation remains `notPerformed` and is
+not authorized by this release process.

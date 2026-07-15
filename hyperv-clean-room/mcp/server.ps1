@@ -221,7 +221,7 @@ while ($true) {
                         }
                         serverInfo = [pscustomobject][ordered]@{
                             name = 'hyperv-clean-room'
-                            version = '0.1.0'
+                            version = '0.1.1'
                         }
                     }
                 })

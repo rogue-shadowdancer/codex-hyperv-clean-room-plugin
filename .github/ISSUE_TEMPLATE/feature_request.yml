@@ -1,0 +1,41 @@
+name: Feature request
+description: Propose a bounded improvement to the guarded clean-room workflow.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the use case and safety contract. Public tools do not expose arbitrary shell execution or destructive VM, VHDX, checkpoint, guest-path, or host-path deletion.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What safe workflow is currently difficult or impossible?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include typed inputs, expected output, guard conditions, and failure behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility impact
+      description: Explain any effect on the 16-tool schema-v1 contract and PowerShell 5.1 support.
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Boundary confirmation
+      options:
+        - label: This proposal does not require plaintext credentials or arbitrary caller-supplied commands.
+          required: true
+        - label: This proposal does not add destructive deletion of VMs, VHDX files, checkpoints, guest paths, or host paths.
+          required: true
+

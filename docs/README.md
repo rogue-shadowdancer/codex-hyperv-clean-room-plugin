@@ -2,10 +2,11 @@
 
 ## English
 
-Gate 5 prepares the source-validated Gate 4 personal installation baseline for
-private publication. It adds a release process, changelog, full-history
-sensitive-state scan, and a CI-safe Gate 4 path with zero personal install,
-marketplace, installed-copy, real-host, guest, or Hyper-V mutation operations.
+Gate 5.1 publishes the source-validated Gate 4 personal installation baseline
+as GPL-3.0-only `v0.1.1`. It adds public community files, a source-only Release,
+full-tree/history/identity/Actions-log hygiene, and SHA-pinned
+`public-release-validation` with zero personal install, marketplace,
+installed-copy, real-host, guest, or Hyper-V mutation operations.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.
@@ -22,9 +23,10 @@ Read in this order:
   fields.
 - [Installation maintenance](maintenance.md) defines the cachebuster reinstall
   loop, drift handling, and safe recovery.
-- [Private release process](release-process.md) defines publication hygiene,
-  CI coverage, private remote creation, Actions, and remote acceptance.
-- [Changelog](../CHANGELOG.md) records the pre-release source milestones and
+- [Public release process](release-process.md) defines publication hygiene,
+  CI, private-to-public sequencing, anonymous readback, protection, tag, and
+  source-only Release acceptance.
+- [Changelog](../CHANGELOG.md) records `v0.1.1`, earlier source milestones, and
   the explicit clean-machine boundary.
 
 1. [Architecture](architecture.md) — components, trust boundaries, state, and
@@ -59,10 +61,11 @@ PowerShell 5.1 based.
 
 ## 简体中文
 
-Gate 5 把经过 source validation 的 Gate 4 personal install baseline 准备为 private
-publication candidate，并新增 release process、changelog、完整 history sensitive-state
-扫描，以及 personal install、marketplace、installed-copy、real-host、guest 与 Hyper-V
-mutation 全部为零的 CI-safe Gate 4 路径。继承的 Gate 2 测试仍在 Windows PowerShell 5.1 下使用 mock
+Gate 5.1 把经过 source validation 的 Gate 4 personal install baseline 以
+GPL-3.0-only `v0.1.1` 公开发布，并新增 public community 文件、source-only Release、
+完整 tree/history/identity/Actions-log hygiene，以及 personal install、marketplace、
+installed-copy、real-host、guest 与 Hyper-V mutation 全部为零的 SHA-pinned CI 路径。
+继承的 Gate 2 测试仍在 Windows PowerShell 5.1 下使用 mock
 adapter、parser、production-adapter static seam、严格文档
 检查和有界真实 host 只读 smoke。Production guest adapter 已包含固定的 administrator-supervised
 PowerShell Direct、standard-user execution、operation-scoped staging/PID identity、
@@ -74,9 +77,9 @@ PowerShell Direct、standard-user execution、operation-scoped staging/PID ident
 - [Plugin installation](installation.md)：source validation、ownership、personal
   marketplace、installed-copy 验收与状态字段。
 - [Installation maintenance](maintenance.md)：cachebuster 重装、drift 与安全恢复。
-- [Private release process](release-process.md)：publication hygiene、CI、private remote、
-  Actions 与 remote acceptance。
-- [Changelog](../CHANGELOG.md)：pre-release source milestones 与 clean-machine boundary。
+- [Public release process](release-process.md)：publication hygiene、CI、private-to-public
+  sequencing、anonymous readback、branch protection、tag 与 source-only Release。
+- [Changelog](../CHANGELOG.md)：`v0.1.1`、早期 source milestones 与 clean-machine boundary。
 
 1. [Architecture](architecture.md)：组件、trust boundary、状态与 production guest
    flow。

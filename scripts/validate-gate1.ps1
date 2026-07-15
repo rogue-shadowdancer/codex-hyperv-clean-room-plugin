@@ -42,12 +42,12 @@ $mcp = Read-Json $mcpPath
 
 Assert-True ($manifest.name -eq 'hyperv-clean-room') `
     'Plugin name must be hyperv-clean-room.'
-Assert-True ($manifest.version -match '^0\.1\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') `
-    'The plugin must preserve base version 0.1.0 with at most one Codex cachebuster suffix.'
+Assert-True ($manifest.version -match '^0\.1\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') `
+    'The plugin must preserve base version 0.1.1 with at most one Codex cachebuster suffix.'
 Assert-True ($manifest.author.name -eq 'rogue-shadowdancer') `
     'Unexpected plugin author.'
-Assert-True ($manifest.license -eq 'UNLICENSED') `
-    'The private v0.1 plugin must remain UNLICENSED.'
+Assert-True ($manifest.license -eq 'GPL-3.0-only') `
+    'The public v0.1.1 plugin must declare GPL-3.0-only.'
 Assert-True ($manifest.skills -eq './skills/') `
     'Plugin skills path is not canonical.'
 Assert-True ($manifest.mcpServers -eq './.mcp.json') `
