@@ -1,12 +1,13 @@
 # Hyper-V Clean Room v1 specification
 
-Status: Gate 5.1 GPL public release. Plugin `0.1.1` preserves the Gate 2
-PowerShell 5.1 schema-v1 behavior and the Gate 4 source-validated,
-ownership-marked personal workflow. The installed copy is MCP-smoke-validated
-with exactly 16 tools, read-only `inspect_host`, and a missing-ISO rejection.
-No real guest operation or Hyper-V mutation is executed; production guest
-behavior is still mock/parser/static validated only and is not clean-machine
-validated.
+Status: Gate 5.2 marketplace metadata on the Gate 5.1 GPL public release.
+Plugin `0.1.1` preserves the Gate 2 PowerShell 5.1 schema-v1 behavior and the
+Gate 4 source-validated, ownership-marked personal workflow. Gate 5.2 aligns
+the manifest `homepage`, `repository`, and `interface.websiteURL` with the
+canonical public GitHub repository and uses personal-install build
+`0.1.1+codex.20260715084043`. No real guest operation or Hyper-V mutation is
+executed; production guest behavior is still mock/parser/static validated only
+and is not clean-machine validated.
 
 ## Purpose and boundary
 
@@ -644,3 +645,24 @@ Clean-machine testing, credential enrollment, live PowerShell Direct guest
 work, package execution, VM/checkpoint mutation, and manual GUI attestation all
 remain `notPerformed`. Birdsgone remains a name-level consumer boundary only;
 no Birdsgone file or evidence is part of this repository or release.
+
+## Gate 5.2 acceptance boundary
+
+Gate 5.2 keeps plugin and MCP server base version `0.1.1`, exactly 16 MCP
+tools, five public Draft 2020-12 schemas, `schemaVersion: 1`, and the four
+supported MCP protocol versions. It changes no runtime code, tool input or
+output, schema-v1 semantic, production adapter, or mutation path.
+
+The source manifest `homepage`, `repository`, and `interface.websiteURL` must
+all equal
+`https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin` exactly.
+The current `master` personal-install build uses the single Gate 5.2
+cachebuster `0.1.1+codex.20260715084043`; the immutable `v0.1.1` tag and GitHub
+Release retain `0.1.1+codex.20260715064728`. Gate 5.2 creates no new tag or
+GitHub Release.
+
+Installed-copy acceptance remains limited to source/install hash and commit
+agreement, 16-tool discovery, read-only `inspect_host`, and `INVALID_ISO`
+before mutation. Clean-machine testing, credential enrollment, real guest or
+package work, VM/checkpoint mutation, and manual GUI attestation remain
+`notPerformed` and require a separately authorized Gate 6 task.

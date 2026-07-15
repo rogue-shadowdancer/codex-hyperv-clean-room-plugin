@@ -19,6 +19,9 @@ EXPECTED_DESCRIPTION = (
     "Guarded Windows Hyper-V clean-room and package lifecycle testing for "
     "Codex via typed MCP tools."
 )
+EXPECTED_PLUGIN_URL = (
+    "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin"
+)
 EXPECTED_TOPICS = (
     "clean-room",
     "codex-plugin",
@@ -68,6 +71,19 @@ def main() -> int:
     )
     if manifest.get("license") != "GPL-3.0-only":
         raise AssertionError("manifest SPDX identifier must be GPL-3.0-only")
+    interface = manifest.get("interface")
+    if not isinstance(interface, dict):
+        raise AssertionError("manifest interface metadata must be an object")
+    manifest_urls = {
+        "homepage": manifest.get("homepage"),
+        "repository": manifest.get("repository"),
+        "interface.websiteURL": interface.get("websiteURL"),
+    }
+    for field, actual in manifest_urls.items():
+        if actual != EXPECTED_PLUGIN_URL:
+            raise AssertionError(
+                f"manifest {field} must be the canonical plugin URL: {actual}"
+            )
     version = str(manifest.get("version", ""))
     if not re.fullmatch(r"0\.1\.1\+codex\.[0-9]{14}", version):
         raise AssertionError(f"release cachebuster version is invalid: {version}")

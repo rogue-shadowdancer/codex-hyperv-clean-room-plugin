@@ -123,6 +123,9 @@ OTHER_LITERAL_PATTERNS = (
         "restore confirmation token",
     ),
 )
+HANDOFF_PROJECT_PATH = re.compile(
+    rb"^`projectPath: [A-Za-z]:\\[^`\r\n]+`$", re.MULTILINE
+)
 
 
 def git_bytes(*arguments: str) -> bytes:
@@ -265,6 +268,17 @@ def scan_structured_secret_literals(path_text: str, text: str, context: str) -> 
                     )
 
 
+def mask_handoff_project_path(path_text: str, content: bytes) -> bytes:
+    if PurePosixPath(path_text).as_posix() != "TASK_HANDOFF.md":
+        return content
+    matches = list(HANDOFF_PROJECT_PATH.finditer(content))
+    if len(matches) > 1:
+        raise AssertionError(
+            f"multiple projectPath contract fields found in publication content: {path_text}"
+        )
+    return HANDOFF_PROJECT_PATH.sub(b"`projectPath: <workspace-root>`", content)
+
+
 def scan_content(path_text: str, content: bytes, context: str) -> None:
     if len(content) > MAX_SCANNED_BLOB_BYTES:
         raise AssertionError(
@@ -287,8 +301,14 @@ def scan_content(path_text: str, content: bytes, context: str) -> None:
                 f"mojibake marker found in {context}: {path_text}"
             )
 
+    policy_content = mask_handoff_project_path(path_text, content)
     for pattern, label in UNIVERSAL_PATTERNS:
-        if pattern.search(content):
+        candidate_content = (
+            policy_content
+            if label in {"absolute user path", "workspace-specific path"}
+            else content
+        )
+        if pattern.search(candidate_content):
             raise AssertionError(f"{label} found in {context}: {path_text}")
     for pattern, label in OTHER_LITERAL_PATTERNS:
         if pattern.search(content):

@@ -1,6 +1,6 @@
 {
   "name": "hyperv-clean-room",
-  "version": "0.1.1+codex.20260715064728",
+  "version": "0.1.1+codex.20260715084043",
   "description": "Automate safe Windows Hyper-V clean-room provisioning, package lifecycle tests, and evidence collection.",
   "author": {
     "name": "rogue-shadowdancer"
@@ -27,6 +27,7 @@
       "Interactive",
       "Write"
     ],
+    "websiteURL": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin",
     "defaultPrompt": [
       "Inspect this Hyper-V host without making changes.",
       "Plan a clean Windows VM and show every proposed mutation.",

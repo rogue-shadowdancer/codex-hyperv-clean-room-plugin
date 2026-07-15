@@ -130,6 +130,24 @@ class PublicationHygienePolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "mojibake"):
             self.assert_content_allowed("notes.txt", chr(0xFFFD))
 
+    def test_allows_only_the_structured_handoff_project_path(self) -> None:
+        project_path = "E:" + "\\study\\great_projects\\plugin"
+        field = f"`projectPath: {project_path}`\n"
+        self.assert_content_allowed("TASK_HANDOFF.md", field)
+        with self.assertRaisesRegex(AssertionError, "workspace-specific path"):
+            self.assert_content_allowed("notes.md", field)
+        with self.assertRaisesRegex(AssertionError, "workspace-specific path"):
+            self.assert_content_allowed(
+                "TASK_HANDOFF.md", field + f"workspace: {project_path}\n"
+            )
+        with self.assertRaisesRegex(AssertionError, "multiple projectPath"):
+            self.assert_content_allowed("TASK_HANDOFF.md", field + field)
+        token_path = project_path + "\\" + "ghp_" + ("A" * 20)
+        with self.assertRaisesRegex(AssertionError, "GitHub token"):
+            self.assert_content_allowed(
+                "TASK_HANDOFF.md", f"`projectPath: {token_path}`\n"
+            )
+
     @staticmethod
     def synthetic_commit(name: str, email: str, message: str) -> bytes:
         lines = [
