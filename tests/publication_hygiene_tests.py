@@ -22,6 +22,13 @@ ACCEPTED_LEGACY_COMMIT_SHA256 = {
 }
 PUBLIC_COMMIT_NAME = "rogue-shadowdancer"
 PUBLIC_COMMIT_EMAIL = "78423508+rogue-shadowdancer@users.noreply.github.com"
+GITHUB_WEB_FLOW_COMMITTER = ("GitHub", "noreply" + "@github.com")
+GITHUB_MERGE_MESSAGE = re.compile(
+    rb"Merge pull request #[1-9][0-9]* from "
+    rb"rogue-shadowdancer/codex/(?P<branch>[A-Za-z0-9][A-Za-z0-9._/-]{0,199})"
+    rb"\n\n[^\r\n]{1,256}\n?"
+)
+PARENT_HEADER = re.compile(rb"^parent ([0-9a-f]{40})$", re.MULTILINE)
 FORBIDDEN_SUFFIXES = {
     ".avhd",
     ".avhdx",
@@ -378,6 +385,32 @@ def commit_identity(header: bytes, field: bytes) -> tuple[str, str]:
     )
 
 
+def is_safe_github_web_flow_merge(
+    header: bytes,
+    message: bytes,
+    author: tuple[str, str],
+    committer: tuple[str, str],
+) -> bool:
+    if author[1].casefold() != PUBLIC_COMMIT_EMAIL.casefold():
+        return False
+    if committer != GITHUB_WEB_FLOW_COMMITTER:
+        return False
+    parents = PARENT_HEADER.findall(header)
+    if len(parents) != 2 or parents[0] == parents[1]:
+        return False
+    if b"gpgsig -----BEGIN PGP SIGNATURE-----\n" not in header:
+        return False
+    if b"\n -----END PGP SIGNATURE-----" not in header:
+        return False
+    match = GITHUB_MERGE_MESSAGE.fullmatch(message)
+    if not match:
+        return False
+    branch = match.group("branch").decode("ascii")
+    if ".." in branch or "//" in branch or branch.endswith(("/", ".")):
+        return False
+    return True
+
+
 def assert_commit_metadata_safe(commit: str, raw: bytes) -> str:
     try:
         header, message = raw.split(b"\n\n", 1)
@@ -390,11 +423,14 @@ def assert_commit_metadata_safe(commit: str, raw: bytes) -> str:
         identity_class = "accepted-legacy-sha256"
     else:
         expected = (PUBLIC_COMMIT_NAME, PUBLIC_COMMIT_EMAIL)
-        if author != expected or committer != expected:
+        if author == expected and committer == expected:
+            identity_class = "public-noreply"
+        elif is_safe_github_web_flow_merge(header, message, author, committer):
+            identity_class = "github-web-flow-merge"
+        else:
             raise AssertionError(
                 f"unexpected author/committer identity in history commit {commit}"
             )
-        identity_class = "public-noreply"
     scan_content(
         f"commit-message-{commit}.txt",
         message,
@@ -421,6 +457,7 @@ def main() -> int:
     commits = history_commits(history_revision)
     accepted_legacy_digests: set[str] = set()
     public_identity_commits = 0
+    github_web_flow_merge_commits = 0
     seen_blob_paths: set[tuple[str, str]] = set()
     blob_cache: dict[str, bytes] = {}
     for commit in commits:
@@ -428,6 +465,8 @@ def main() -> int:
         identity_class = assert_commit_metadata_safe(commit, raw_commit)
         if identity_class == "accepted-legacy-sha256":
             accepted_legacy_digests.add(hashlib.sha256(raw_commit).hexdigest())
+        elif identity_class == "github-web-flow-merge":
+            github_web_flow_merge_commits += 1
         else:
             public_identity_commits += 1
         for object_id, path_text in history_tree(commit):
@@ -460,6 +499,7 @@ def main() -> int:
                 "commitMessagesScanned": len(commits),
                 "acceptedLegacyCommits": len(accepted_legacy_digests),
                 "publicNoreplyCommits": public_identity_commits,
+                "githubWebFlowMergeCommits": github_web_flow_merge_commits,
                 "forbiddenArtifacts": 0,
                 "sensitiveFindings": 0,
                 "strictUtf8": True,

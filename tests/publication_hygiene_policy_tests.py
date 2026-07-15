@@ -160,6 +160,38 @@ class PublicationHygienePolicyTests(unittest.TestCase):
         ]
         return "\n".join(lines).encode("utf-8")
 
+    @staticmethod
+    def synthetic_github_merge(
+        *,
+        author_email: str = hygiene.PUBLIC_COMMIT_EMAIL,
+        committer: tuple[str, str] = hygiene.GITHUB_WEB_FLOW_COMMITTER,
+        parent_count: int = 2,
+        signed: bool = True,
+        message: str = (
+            "Merge pull request #4 from "
+            "rogue-shadowdancer/codex/metadata-fix\n\nMetadata fix"
+        ),
+    ) -> bytes:
+        lines = ["tree " + ("0" * 40)]
+        for index in range(parent_count):
+            lines.append("parent " + (str(index + 1) * 40))
+        lines.extend(
+            [
+                f"author Public User <{author_email}> 1 +0000",
+                f"committer {committer[0]} <{committer[1]}> 1 +0000",
+            ]
+        )
+        if signed:
+            lines.extend(
+                [
+                    "gpgsig -----BEGIN PGP SIGNATURE-----",
+                    " synthetic-signature",
+                    " -----END PGP SIGNATURE-----",
+                ]
+            )
+        lines.extend(["", message, ""])
+        return "\n".join(lines).encode("utf-8")
+
     def test_commit_identity_and_message_policy_fails_closed(self) -> None:
         public = self.synthetic_commit(
             hygiene.PUBLIC_COMMIT_NAME,
@@ -184,6 +216,41 @@ class PublicationHygienePolicyTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(AssertionError, "workspace-specific path"):
             hygiene.assert_commit_metadata_safe("c" * 40, unsafe_message)
+
+    def test_github_web_flow_merge_policy_fails_closed(self) -> None:
+        accepted = self.synthetic_github_merge()
+        self.assertEqual(
+            hygiene.assert_commit_metadata_safe("e" * 40, accepted),
+            "github-web-flow-merge",
+        )
+
+        private_email = "person" + "@example.test"
+        rejected = (
+            self.synthetic_github_merge(author_email=private_email),
+            self.synthetic_github_merge(
+                committer=(hygiene.PUBLIC_COMMIT_NAME, hygiene.PUBLIC_COMMIT_EMAIL)
+            ),
+            self.synthetic_github_merge(parent_count=1),
+            self.synthetic_github_merge(signed=False),
+            self.synthetic_github_merge(
+                message=(
+                    "Merge pull request #4 from "
+                    "another-owner/codex/metadata-fix\n\nMetadata fix"
+                )
+            ),
+            self.synthetic_github_merge(
+                message=(
+                    "Merge pull request #4 from "
+                    "rogue-shadowdancer/codex/../metadata-fix\n\nMetadata fix"
+                )
+            ),
+        )
+        for raw in rejected:
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(
+                    AssertionError, "unexpected author/committer identity"
+                ):
+                    hygiene.assert_commit_metadata_safe("f" * 40, raw)
 
     def test_pull_request_scans_base_history_not_synthetic_merge_history(self) -> None:
         self.assertEqual(
