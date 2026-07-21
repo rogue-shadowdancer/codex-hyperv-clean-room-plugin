@@ -16,10 +16,11 @@ about a real Hyper-V host.
 
 Gate 6/H1 freezes a plugin `0.2.0`, schema-v2 target contract for guarded power
 and network planning, portable ZIP deployment, fixed WebDriver automation, a
-closed `data-testid` UI DSL, and evidence v2. The executable plugin remains
-`0.1.1`, schema v1, and 16 tools until Gate 7/H2 implements that contract. Do
-not call or claim the four target tools before they appear in `tools/list`, and
-do not treat H1 fixtures as real clean-room evidence.
+closed `data-testid` UI DSL, and evidence v2. Gate 7/H2 integrates the contract
+as exactly 20 tools while preserving the first 16 schema-v1 tools and five
+schema-v1 files. H2 validation is mock/parser/static only: do not treat the
+implementation, fixtures, or generated mock evidence as proof of a real
+clean-room, guest, portable, driver, network, or UI run.
 
 ## Required workflow
 

@@ -44,9 +44,11 @@ From the repository root, run:
 Validation rejects reparse points, untracked or missing payload files,
 reserved install-state files, forbidden VM/credential/evidence file types,
 unsafe relative paths, oversized files, an unexpected manifest name or path,
-and any version outside base `0.1.1` with at most one
-`+codex.<cachebuster>` suffix. The accepted Gate 4 payload contains exactly 20
-Git-tracked ordinary files and five public schemas.
+and any version outside base `0.2.0` with at most one
+`+codex.<cachebuster>` suffix. The Gate 7 source payload contains exactly 31
+Git-tracked ordinary files: five public schema-v1 files and seven schema-v2
+files are included. H2 did not install this payload; installation acceptance
+belongs to a later gate.
 
 ## Install the personal copy
 

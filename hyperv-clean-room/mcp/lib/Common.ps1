@@ -1,6 +1,8 @@
 Set-StrictMode -Version Latest
 
+$script:HcrPluginVersion = '0.2.0'
 $script:HcrSchemaVersion = 1
+$script:HcrSchemaVersionV2 = 2
 $script:HcrPlanLifetimeMinutes = 15
 $script:HcrMockWarning = 'TEST_ONLY_MOCK_ADAPTER: no result in this operation proves real Hyper-V behavior.'
 $script:HcrSupportedProtocolVersions = @(
@@ -25,7 +27,11 @@ $script:HcrToolNames = @(
     'stage_artifact',
     'run_test_profile',
     'collect_evidence',
-    'record_manual_attestation'
+    'record_manual_attestation',
+    'plan_vm_power',
+    'apply_vm_power',
+    'plan_vm_network',
+    'apply_vm_network'
 )
 $script:HcrActionStepTypes = @(
     'stageArtifact',
@@ -55,6 +61,60 @@ $script:HcrCleanupStepTypes = @(
     'assertShortcut',
     'assertPort',
     'assertSentinel'
+)
+$script:HcrV2ActionStepTypes = @(
+    'stageArtifact',
+    'installPackage',
+    'deployPortable',
+    'launchApplication',
+    'stopApplication',
+    'uninstallPackage',
+    'writeSentinel',
+    'wait',
+    'acquireWebDriver',
+    'startUiSession',
+    'stopUiSession',
+    'uiClick',
+    'uiSetText',
+    'uiPressKey',
+    'uiSelectOption',
+    'uiUploadFixture',
+    'captureUiScreenshot'
+)
+$script:HcrV2AssertionStepTypes = @(
+    'assertFile',
+    'assertRegistry',
+    'assertProcess',
+    'assertModule',
+    'assertShortcut',
+    'assertPort',
+    'assertSentinel',
+    'assertUiElement'
+)
+$script:HcrV2CleanupStepTypes = @(
+    'stopApplication',
+    'stopUiSession',
+    'captureUiScreenshot',
+    'wait',
+    'assertFile',
+    'assertRegistry',
+    'assertProcess',
+    'assertModule',
+    'assertShortcut',
+    'assertPort',
+    'assertSentinel'
+)
+$script:HcrV2UiStepTypes = @(
+    'acquireWebDriver',
+    'startUiSession',
+    'stopUiSession',
+    'uiClick',
+    'uiSetText',
+    'uiPressKey',
+    'uiSelectOption',
+    'uiUploadFixture',
+    'assertUiElement',
+    'captureUiScreenshot'
 )
 $script:HcrUtf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
@@ -292,19 +352,32 @@ function Throw-HcrPartialMutationError {
         [ValidateSet('confirmed', 'indeterminate')]
         [string]$EffectState,
         [Parameter(Mandatory = $true)][object]$PartialIdentity,
-        [Parameter(Mandatory = $true)][string]$RecoveryWarning
+        [Parameter(Mandatory = $true)][string]$RecoveryWarning,
+        [AllowNull()][object]$AdditionalDetails = $null
     )
 
     if (-not (Test-HcrObjectLike $PartialIdentity) -or
         [string]::IsNullOrWhiteSpace($RecoveryWarning)) {
         Throw-HcrError 'INTERNAL_ERROR' 'Partial mutation reporting could not be bounded safely.'
     }
-    Throw-HcrError $Code $Message ([pscustomobject][ordered]@{
+    $details = [ordered]@{
         mutationEntered = $true
         effectState = $EffectState
         partialIdentity = Copy-HcrObject $PartialIdentity
         recoveryWarning = $RecoveryWarning
-    })
+    }
+    if ($null -ne $AdditionalDetails) {
+        if (-not (Test-HcrObjectLike $AdditionalDetails)) {
+            Throw-HcrError 'INTERNAL_ERROR' 'Partial mutation details are not a bounded object.'
+        }
+        foreach ($name in (Get-HcrPropertyNames $AdditionalDetails)) {
+            if ($details.Contains($name)) {
+                Throw-HcrError 'INTERNAL_ERROR' 'Partial mutation details attempted to replace a required binding.'
+            }
+            $details[$name] = Copy-HcrObject (Get-HcrPropertyValue $AdditionalDetails $name)
+        }
+    }
+    Throw-HcrError $Code $Message ([pscustomobject]$details)
 }
 
 function Get-HcrExceptionData {
@@ -343,14 +416,15 @@ function New-HcrEnvelope {
         [AllowNull()][object]$Data = $null,
         [string[]]$Warnings = @(),
         [AllowNull()][object]$EvidencePath = $null,
-        [AllowNull()][object]$Error = $null
+        [AllowNull()][object]$Error = $null,
+        [ValidateSet(1, 2)][int]$SchemaVersion = 1
     )
 
     if ($null -eq $Data) {
         $Data = [pscustomobject]@{}
     }
     $envelope = [ordered]@{
-        schemaVersion = $script:HcrSchemaVersion
+        schemaVersion = $SchemaVersion
         ok = $Ok
         operationId = $OperationId
         changed = $Changed

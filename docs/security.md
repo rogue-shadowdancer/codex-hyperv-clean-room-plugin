@@ -22,11 +22,13 @@ The primary security properties are:
   deletion tool;
 - keep evidence provenance and cleanup state immutable.
 
-Gate 6/H1 freezes additional schema-v2 controls but implements none of them.
-Until Gate 7/H2 integrates the contract, the executable plugin remains
-`0.1.1`, schema v1, and 16 tools. Contract fixtures and static validation are
-not evidence that a real portable deployment, WebDriver session, network
-transition, or UI workflow is safe or has been performed.
+Gate 6/H1 freezes additional schema-v2 controls and Gate 7/H2 integrates them
+into plugin `0.2.0`: exact-version routing, four guarded power/network tools,
+atomic portable slots and data preservation, fixed-driver verification, the
+closed UI dispatcher, and evidence-v2 binding/derivation. Contract fixtures,
+mock execution, parser checks, and static validation are not evidence that a
+real portable deployment, WebDriver session, network transition, UI workflow,
+or clean-machine run is safe or has been performed.
 
 ## Threats and controls
 

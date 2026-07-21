@@ -1,11 +1,11 @@
 # Hyper-V Clean Room 0.2 contract freeze
 
-This directory is the Gate 6/H1 machine-readable target contract for plugin
-`0.2.0` and public schema version 2. It is deliberately outside the current
-`hyperv-clean-room` plugin payload: H1 changes no executable MCP registry,
-adapter, installer, or mutation path. The shipped/runtime contract remains
-plugin `0.1.1`, schema version 1, 16 tools, and five public schemas until the
-separate H2 implementation gate integrates this frozen contract.
+This directory is the Gate 6/H1 machine-readable contract for plugin `0.2.0`
+and public schema version 2. Gate 7/H2 integrates it into the installable
+`hyperv-clean-room` source while keeping this directory authoritative. The
+runtime candidate now exposes exactly 20 tools, preserves the first 16
+schema-v1 definitions and five public schema-v1 files byte-for-byte, and ships
+exact copies of all seven schema-v2 contracts under `hyperv-clean-room/schemas/v2`.
 
 The seven Draft 2020-12 schemas have stable versioned IDs. `tool-catalog.json`
 freezes the 20-tool `0.2.0` target: all 16 schema-v1 tools retain their exact
@@ -24,5 +24,7 @@ Ambiguous package kinds require authoring. V1 evidence remains v1 because the
 candidate, fixed-driver, fixture, UI, and recovery provenance required by v2
 cannot be invented.
 
-No file in this directory authorizes a real host, VM, checkpoint, credential,
-guest, package, portable deployment, WebDriver, network, or UI operation.
+No file in this directory, nor the H2 mock/parser/static implementation gate,
+authorizes or proves a real host, VM, checkpoint, credential, guest, package,
+portable deployment, WebDriver, network, UI, installation, release, or
+clean-machine operation.

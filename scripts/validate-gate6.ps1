@@ -51,7 +51,7 @@ try {
     }
     if (-not [bool]$contractResult.ok -or
         [string]$contractResult.targetPluginVersion -cne '0.2.0' -or
-        [string]$contractResult.currentRuntimeVersion -cne '0.1.1' -or
+        [string]$contractResult.currentRuntimeVersion -cne '0.2.0' -or
         [int]$contractResult.v1ToolsPreserved -ne 16 -or
         [int]$contractResult.v2ToolsDeclared -ne 20 -or
         [int]$contractResult.v1SchemasPreserved -ne 5 -or

@@ -28,10 +28,10 @@ try {
     $inventory = Get-HcrSourceInventory -SourceRoot $sourceRoot
     Assert-Gate4 ($inventory.pluginName -ceq 'hyperv-clean-room') `
         'Source validation returned the wrong plugin name.'
-    Assert-Gate4 ($inventory.baseVersion -ceq '0.1.1') `
+    Assert-Gate4 ($inventory.baseVersion -ceq '0.2.0') `
         'Source validation returned the wrong base version.'
-    Assert-Gate4 ($inventory.fileCount -eq 20) `
-        'Source validation did not freeze the 20-file payload.'
+    Assert-Gate4 ($inventory.fileCount -eq 31) `
+        'Source validation did not freeze the 31-file schema-v2 payload.'
     Assert-Gate4 (@($inventory.files | Where-Object {
                 [IO.Path]::IsPathRooted([string]$_.path) -or
                 [string]$_.path -match '\\|(^|/)\.\.?(/|$)'
@@ -75,7 +75,7 @@ try {
 
     $owned = Join-Path $testRoot 'owned'
     $manifest = Install-HcrPluginPayload -SourceInventory $inventory -TargetRoot $owned
-    Assert-Gate4 ($manifest.files.Count -eq 20) `
+    Assert-Gate4 ($manifest.files.Count -eq 31) `
         'Install manifest does not contain the complete payload.'
     Assert-Gate4 ([string]$manifest.sourceCommit -ceq [string]$inventory.sourceCommit) `
         'Install manifest source commit is wrong.'
@@ -89,7 +89,7 @@ try {
         Join-Path $owned '.codex-plugin\install-manifest.json'
     )
     $manifestRows = @($installedManifest.files)
-    Assert-Gate4 ($manifestRows.Count -eq 20) `
+    Assert-Gate4 ($manifestRows.Count -eq 31) `
         'Serialized install manifest file count is wrong.'
     Assert-Gate4 (@($manifestRows | Where-Object {
                 [IO.Path]::IsPathRooted([string]$_.path) -or

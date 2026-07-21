@@ -85,15 +85,19 @@ def main() -> int:
                 f"manifest {field} must be the canonical plugin URL: {actual}"
             )
     version = str(manifest.get("version", ""))
-    if not re.fullmatch(r"0\.1\.1\+codex\.[0-9]{14}", version):
-        raise AssertionError(f"release cachebuster version is invalid: {version}")
+    if version != "0.2.0":
+        raise AssertionError(f"integrated source version must be 0.2.0: {version}")
 
     server = read_text("hyperv-clean-room/mcp/server.ps1")
-    if "version = '0.1.1'" not in server:
-        raise AssertionError("MCP serverInfo version is not 0.1.1")
+    common = read_text("hyperv-clean-room/mcp/lib/Common.ps1")
+    if "$script:HcrPluginVersion" not in server or "$script:HcrPluginVersion = '0.2.0'" not in common:
+        raise AssertionError("MCP serverInfo is not bound to plugin version 0.2.0")
     schemas = sorted((PLUGIN_ROOT / "schemas").glob("*.json"))
     if len(schemas) != 5:
-        raise AssertionError("public schema count must remain exactly five")
+        raise AssertionError("schema-v1 count must remain exactly five")
+    schemas_v2 = sorted((PLUGIN_ROOT / "schemas" / "v2").glob("*.json"))
+    if len(schemas_v2) != 7:
+        raise AssertionError("integrated schema-v2 count must be exactly seven")
 
     for relative in REQUIRED_COMMUNITY_FILES:
         if not (REPO_ROOT / relative).is_file():
@@ -114,6 +118,7 @@ def main() -> int:
         "name: public-release-validation",
         "Validate GPL and public-release contract",
         "validate-gate4-ci.ps1",
+        "validate-gate7.ps1 -SkipInheritedBaseline",
     )
     for fragment in required_workflow_fragments:
         if fragment not in workflow:
@@ -185,7 +190,9 @@ def main() -> int:
     for phrase in (
         "GPL-3.0-only",
         "16 MCP tools",
+        "20 MCP tools",
         "five public",
+        "seven schema-v2",
         "schemaVersion: 1",
         "notPerformed",
         "Birdsgone",
@@ -201,9 +208,10 @@ def main() -> int:
                 "license": "GPL-3.0-only",
                 "licenseSha256": EXPECTED_LICENSE_SHA256,
                 "version": version,
-                "tools": 16,
-                "schemas": len(schemas),
-                "schemaVersion": 1,
+                "tools": 20,
+                "v1Schemas": len(schemas),
+                "v2Schemas": len(schemas_v2),
+                "schemaVersions": [1, 2],
                 "protocolVersions": 4,
                 "communityFiles": len(REQUIRED_COMMUNITY_FILES),
                 "workflowPins": len(EXPECTED_ACTION_PINS),

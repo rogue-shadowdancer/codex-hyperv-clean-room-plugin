@@ -4,7 +4,7 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
-## Unreleased - Gate 6/H1 schema-v2 contract freeze
+## Unreleased - Gate 6/H1 contract and Gate 7/H2 integration
 
 ### Added
 
@@ -20,6 +20,12 @@ the local plugin cache.
 - Portable ZIP, fixed Microsoft EdgeDriver, closed `data-testid` UI DSL,
   evidence-v2, v1 compatibility, deterministic migration, and invalid/drift
   fixtures plus the Gate 6 static validator.
+- A Windows PowerShell 5.1 plugin `0.2.0` runtime candidate with exact
+  schema-version dispatch, four guarded power/network tools, atomic portable
+  slots and data inventory preservation, fixed-driver provenance, a closed UI
+  dispatcher, evidence-v2 derivation, and additive v1-to-v2 migration.
+- Seven byte-identical installable schema-v2 files and the Gate 7 mock runtime,
+  parser, generated-evidence-schema, and static production-integration checks.
 
 ### Changed
 
@@ -28,11 +34,13 @@ the local plugin cache.
   retain their accepted `0.1.1+codex.20260715064728` build.
 - The retained Gate 5.2 marketplace metadata changed no MCP tool,
   schema-v1 semantic, runtime behavior, or GitHub Release.
-- Gate 6 changes no executable MCP registry, adapter, installer, or mutation
-  path. The runtime remains `0.1.1`, schema v1, exactly 16 MCP tools, and five
-  public schemas until Gate 7/H2 implements the frozen target. Real clean-room,
-  VM, guest, portable, WebDriver, network, UI, and manual-attestation work
-  remains `notPerformed`.
+- Gate 7 changes the source runtime candidate to `0.2.0` and exactly 20 MCP
+  tools while preserving the exact 16-tool schema-v1 snapshot and byte hashes
+  of all five public schema-v1 files. CI now validates the Gate 7 integration.
+- Gate 7 executes mock/parser/static checks only. Plugin release, cachebuster
+  install, clean-machine validation, and real VM, credential, guest, package,
+  portable, WebDriver, network, UI, and manual-attestation work remain
+  `notPerformed`.
 
 ## 0.1.1 - GPL public release - 2026-07-15
 

@@ -171,7 +171,7 @@ function New-HcrPlanRecord {
     )
 
     $record = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = [int](Get-HcrPropertyValue $Plan 'schemaVersion' 1)
         planId = [string](Get-HcrPropertyValue $Plan 'planId')
         planKind = [string](Get-HcrPropertyValue $Plan 'planKind')
         consumed = $false
@@ -539,6 +539,20 @@ function Invoke-HcrApplyVmCreate {
             ownershipId = $ownershipId
             createdAt = Get-HcrUtcTimestamp
             checkpoints = @()
+        }
+        $primaryAdapter = $null
+        try { $primaryAdapter = Get-HcrVerifiedPrimaryAdapter $vm }
+        catch {
+            if ((Get-HcrExceptionData $_.Exception).code -ne 'PRIMARY_ADAPTER_UNVERIFIED') { throw }
+        }
+        if ($null -ne $primaryAdapter -and
+            [string](Get-HcrPropertyValue $primaryAdapter.attachment 'mode') -eq 'connected') {
+            $ownership | Add-Member -NotePropertyName networkBaseline -NotePropertyValue ([pscustomobject][ordered]@{
+                adapterId = [string]$primaryAdapter.id
+                adapterName = [string]$primaryAdapter.name
+                macAddress = [string]$primaryAdapter.macAddress
+                attachment = Copy-HcrObject $primaryAdapter.attachment
+            })
         }
         Save-HcrOwnershipRecord $ownership
         return [pscustomobject][ordered]@{

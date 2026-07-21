@@ -1,183 +1,102 @@
-# TaskHandoff - Gate 6/H1 automation contract freeze
+# TaskHandoff - Gate 7/H2 schema-v2 production integration
 
 `relayProtocolVersion: 1`
 
-## Objective
+## Objective and outcome
 
-Freeze, review, and validate the plugin `0.2.0`, schema-v2 automation contract
-needed by the Birdsgone private `v0.1.0-rc.1` route. H1 is contract, schema,
-fixture, static-test, and documentation work only. It does not implement or run
-any new mutation.
+Gate 7/H2 implements the frozen Hyper-V Clean Room plugin `0.2.0` / public
+schema-v2 contract from `contracts/v2` in production source. The candidate
+preserves the exact 16 schema-v1 tools and five schema-v1 file hashes, adds the
+four frozen power/network tools for exactly 20 MCP tools, and installs exact
+copies of all seven schema-v2 files.
 
-## Specification paths
-
-`specificationPaths[]`:
-
-- `AGENTS.md`
-- `TASK_HANDOFF.md`
-- `docs/specification.md`
-- `docs/architecture.md`
-- `docs/security.md`
-- `docs/profile-authoring.md`
-- `docs/evidence.md`
-- `contracts/v2/README.md`
-- `contracts/v2/tool-catalog.json`
-- `contracts/v2/compatibility.json`
-- `contracts/v2/schemas/*.schema.json`
-- `tests/gate6_contract_tests.py`
-- `tests/fixtures/v2/**`
-- `scripts/validate-gate6.ps1`
-- `hyperv-clean-room/skills/manage-hyperv-clean-room/SKILL.md`
-
-## Completed work
-
-`completedWork[]`:
-
-- The target plugin version is `0.2.0`, public schema version is 2, and the
-  target tool catalog contains exactly 20 tools.
-- All 16 shipped schema-v1 tool names, input schemas, annotations, envelope
-  behavior, profile/evidence behavior, and five public schema files are frozen
-  without semantic change.
-- Four additive tools are frozen: `plan_vm_power`, `apply_vm_power`,
-  `plan_vm_network`, and `apply_vm_network`.
-- Power transitions are limited to start and graceful shutdown. Network
-  transitions are limited to the verified primary NIC's recorded baseline or
-  disconnected state, with a pre-created paired recovery plan.
-- Portable ZIP manifest/path/hash/limit/atomic-slot/data-preservation rules,
-  exact Microsoft EdgeDriver provenance, the closed `data-testid` UI DSL,
-  evidence-v2 derivation, and exact-version dispatch/migration are frozen.
-- Seven stable Draft 2020-12 target schemas plus valid, invalid,
-  semantic-invalid, compatibility, and deterministic migration fixtures are
-  present outside the installable plugin payload.
-- The current executable plugin remains `0.1.1`, schema v1, exactly 16 tools,
-  and five public schemas. `ToolSchemas.ps1`, the runtime, production adapter,
-  installer, manifest, tags, and Releases are unchanged.
+H2 used only mock adapters, PowerShell parsers, JSON Schema validation, and
+static production-seam checks. Real Hyper-V, VM/VHDX/checkpoint, power/network,
+credential, guest, package, portable, WebDriver, UI, evidence/manual,
+installation, release, and clean-machine operations remain `notPerformed`.
 
 ## Changed areas
 
-`changedFiles[]`:
-
-- `contracts/v2/**`
-- `tests/gate6_contract_tests.py`
-- `tests/fixtures/v2/**`
-- `scripts/validate-gate6.ps1`
-- `.github/workflows/ci.yml`
-- `docs/specification.md`
-- `docs/architecture.md`
-- `docs/security.md`
-- `docs/profile-authoring.md`
-- `docs/evidence.md`
-- `docs/README.md`
-- `README.md`
-- `CHANGELOG.md`
-- `hyperv-clean-room/skills/manage-hyperv-clean-room/SKILL.md`
-- `TASK_HANDOFF.md`
+- `hyperv-clean-room/mcp/lib/Common.ps1`, `Runtime.ps1`, `ToolSchemas.ps1`, and
+  `server.ps1`: version `0.2.0`, exact 20-tool registry, and v1/v2 envelopes.
+- `Tools.Host.V2.ps1` and `Adapters.ps1`: guarded one-shot VM power plans,
+  paired network change/recovery plans, ownership/drift/expiry rebinding, exact
+  primary-NIC transitions, and bounded partial-effect reporting.
+- `Validation.V2.ps1`, `Tools.Guest.V2.ps1`, and `GuestWorker.ps1`: exact
+  schema dispatch, closed portable/driver/UI workflows, atomic slot metadata,
+  data-inventory preservation, evidence-v2 derivation, and fail-closed
+  production seams.
+- `Migrate-TestProfile.ps1`: additive, deterministic v1-to-v2 profile
+  migration that refuses ambiguous input and existing destinations.
+- `hyperv-clean-room/schemas/v2`: byte-identical copies of the seven frozen
+  contracts; schema-v1 bytes remain unchanged.
+- `tests/gate7-runtime.tests.ps1`, `tests/gate7_implementation_tests.py`, and
+  `scripts/validate-gate7.ps1`: mock/parser/schema/static Gate 7 acceptance.
+- Installer source validation, CI, authoritative documentation, changelog,
+  skill guidance, and compatibility metadata now describe the integrated
+  source candidate without claiming release or real validation.
 
 ## Repository state
 
-`repositoryState`:
-
 `projectPath: E:\study\great_projects\codex-hyperv-clean-room-plugin-gate6`
 
-- Branch: `codex/gate6-automation-contract`.
-- H1 started from public `origin/master` commit
-  `3234daea726ebd6685b5dfef20f99aaab152b279` after a clean, ancestor-verified
-  `--ff-only` update.
-- The H1 commit is the branch HEAD containing this handoff; obtain its exact
-  SHA with `git rev-parse HEAD` rather than copying a pre-commit placeholder.
-- The saved root `master` workspace is read-only and remained outside H1.
-- No pre-existing user changes were present in the dedicated H1 worktree.
-- Ignored `.artifacts/test-python` contains only the prepared test runtime and
-  logs; it is not committed.
+- Writable workspace: the `projectPath` above.
+- Branch: `codex/gate6-automation-contract`, tracking the same remote branch.
+- The exact Gate 7 commit is the branch HEAD containing this handoff; obtain it
+  with `git rev-parse HEAD` and require identical local/remote/PR head OIDs.
+- Draft PR: <https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/pull/7>.
+- No pre-existing user changes existed in this dedicated workspace. All Gate 7
+  changes belong to H2. The saved root `master` workspace remains read-only.
 
 ## Verification
 
-`verification[]`:
+- `scripts/validate-gate7.ps1` passes the inherited CI-safe runtime/schema
+  baseline plus Gate 7 integration on mock/parser/static paths only.
+- Gate 7 records exactly 20 tools, 16 preserved schema-v1 tools, five preserved
+  schema-v1 files, seven installed schema-v2 files, 76 mock runtime assertions,
+  one generated evidence-v2 document validated against Draft 2020-12, and zero
+  real operations.
+- Publication policy/tree/release-contract tests, strict UTF-8/link docs,
+  install-source/CI-safe payload tests, and `git diff --check` pass.
+- The exact staged candidate receives a substantive compatibility, security,
+  recovery, data-integrity, and scope review with ZERO ACTIONABLE FINDINGS.
+- Hosted `public-release-validation` must pass on the exact pushed Gate 7 SHA
+  before the next task treats this handoff as publication-ready.
 
-- `scripts/prepare-test-python.ps1` prepared the pinned ABI-isolated test
-  runtime under ignored `.artifacts`.
-- `tests/gate6_contract_tests.py` passed with 16 preserved v1 tools, 20 target
-  tools, five preserved v1 schemas, seven v2 schemas, eight valid fixtures,
-  five schema-invalid fixtures, three semantic-invalid fixtures, two migration
-  fixtures, 15 dynamic compatibility/safety checks, and zero real operations.
-- `scripts/validate-gate6.ps1` passed the complete H1 mock/static/docs gate and
-  recorded target plugin `0.2.0`, current runtime `0.1.1`, 20/16 tool counts,
-  seven/five schema counts, 16 contract fixtures, two migration fixtures, 15
-  dynamic contract checks, and zero real operations.
-- Strict documentation validation passed 17 documents and 97 local links with
-  UTF-8/no-BOM and zero mojibake findings.
-- The three publication policy/tree/release contract tests and
-  `scripts/validate-gate4-ci.ps1` passed, matching the remaining CI-safe
-  workflow checks affected by H1.
-- `git diff --cached --check` passed. Substantive review of the exact 43-path
-  staged candidate found zero production runtime/schema/manifest changes, zero
-  added mutation primitives, zero unstaged drift, and ZERO ACTIONABLE FINDINGS.
-- Clean-machine testing, credential enrollment, real PowerShell Direct work,
-  VM/checkpoint/power/network mutation, package or portable deployment,
-  WebDriver/UI execution, evidence collection, and manual attestation remain
-  `notPerformed`.
+## Blockers and unresolved work
 
-## Unresolved issues
+`blockers[]`: none for H2 source integration.
 
-`unresolvedIssues[]`:
-
-- Gate 7/H2 must implement the frozen target in production code and mock tests.
-- H2 must decide internal file/module placement without changing any frozen
-  public tool, schema, compatibility, expiry, recovery, path, hash, driver, UI,
-  evidence, or migration semantic.
-- Real clean-room acceptance is a later, separately authorized gate after H2;
-  it is not implied by contract or mock success.
-
-## Blockers
-
-`blockers[]`: none for H1 contract completion. Any real mutation remains
-authorization-blocked by design.
+The candidate is not released, tagged, merged, cachebuster-installed, or
+clean-machine validated. The immutable `v0.1.1` tag/Release and existing
+`0.1.1+codex.20260715084043` personal installation are not moved or rewritten.
+Birdsgone G6-G7 remains open until later publication and installed-source-match
+work is separately completed.
 
 ## Next gate
 
-`nextGate`: Gate 7/H2 implementation only.
+H3/G8 only: publish the reviewed plugin `0.2.0` source candidate. Re-read the
+authority files, verify the exact branch/PR head and successful required check,
+resolve any review threads, make draft PR #7 ready, merge through protected
+`master`, and create/read back the immutable `v0.2.0` tag and source-only
+GitHub Release from the exact accepted commit. Do not perform a cachebuster
+personal install or any real Hyper-V/guest/package/portable/WebDriver/UI or
+clean-machine operation in H3; those belong to later gates.
 
-H2 owns executable integration of the already-frozen contract. It must not
-perform clean-machine or real Hyper-V/guest/package automation.
+## Successor commands and safety
 
-## Next commands
+1. Verify cwd, branch, clean state, local/upstream/PR OIDs, protected `master`,
+   required checks, and unresolved review threads before any write.
+2. Read `AGENTS.md`, this handoff, all authoritative docs, `contracts/v2`, and
+   the release process before changing PR/release state.
+3. Require exact-head validation and ZERO ACTIONABLE FINDINGS. A changed HEAD
+   resets publication validation.
+4. Preserve all v1 definitions/hashes, the frozen v2 contract, and every
+   fail-closed boundary. Never force-push or rewrite history.
+5. Do not move `v0.1.1`, install a cachebuster, claim an installed-source
+   match, or perform real host/VM/credential/guest/package/portable/WebDriver/UI
+   work in H3.
 
-`nextCommands[]`:
+`ownership.previousTask: read-only-after-relay`
 
-1. Read `AGENTS.md`, `TASK_HANDOFF.md`, `docs/specification.md`, and every file
-   under `contracts/v2` before editing.
-2. Verify the H1 branch/PR exact HEAD and checks, then use that exact candidate
-   as the H2 baseline without rewriting H1 history.
-3. Add v2 exact-version validation and the four tool registrations while
-   preserving the 16-tool v1 snapshot.
-4. Implement fixed adapter/worker seams only through mock-backed tests: plan
-   consumption/drift/expiry/recovery, portable staging, driver provenance,
-   closed UI dispatch, evidence derivation, and migration.
-5. Run scoped tests while iterating, then the full exact-HEAD Gate 7 validation
-   and staged review to ZERO ACTIONABLE FINDINGS.
-6. Update this handoff, commit/push the H2 gate on the existing draft PR, sync
-   GitHub trackers, and relay the next separately authorized gate.
-
-## Safety constraints
-
-`safetyConstraints[]`:
-
-- Do not execute a real VM, VHDX, checkpoint, power, network, credential,
-  guest, package, portable, WebDriver, UI, evidence, or manual-attestation
-  operation in H2.
-- Tests use the mock adapter. Do not add or expose deletion tools for a VM,
-  VHDX, checkpoint, guest file, deployment data, or host path.
-- Never accept plaintext credentials, arbitrary command/script/shell/URL,
-  CSS/XPath selector, JavaScript, raw WebDriver payload, raw uninstall string,
-  caller-selected executable argument, adapter, or switch.
-- Dispatch profile/evidence by exact schema version and fail closed. Preserve
-  v1 semantics; never synthesize v2 evidence from v1.
-- Do not move or replace `v0.1.1`, publish `0.2.0`, install a cachebuster,
-  force-push, rewrite history, or push `master` directly.
-
-## Ownership
-
-`ownership`:
-
-- `previousTask: read-only-after-relay`
-- `successorTask: owns-Gate-7-H2`
+`ownership.successorTask: owns-next-gate`

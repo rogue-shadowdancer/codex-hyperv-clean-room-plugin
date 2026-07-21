@@ -1,7 +1,7 @@
 {
   "contractVersion": 2,
   "targetPluginVersion": "0.2.0",
-  "currentRuntimeVersion": "0.1.1",
+  "currentRuntimeVersion": "0.2.0",
   "schemaV1Sha256": {
     "checkpoint-plan.schema.json": "905373bf634cb74a02fd352bf7c65be8355fbbcb35e92ce61672db5a3a115167",
     "evidence.schema.json": "3154f1f91781eba0115436245d9c548f0c02542b454640fe170d9e140c5bdfe5",

@@ -164,8 +164,27 @@ function Get-HcrToolDefinitions {
             evidenceReferences = @{ type = 'array'; maxItems = 64; items = $evidenceReference }
         } @('operationId', 'assertionId', 'status', 'method', 'summary'))))
 
-    if ($tools.Count -ne 16) {
-        Throw-HcrError 'INTERNAL_ERROR' 'The runtime tool registry must contain exactly 16 tools.'
+    $tools.Add((New-HcrToolDefinition 'plan_vm_power' `
+        'Create a 15-minute, non-mutating plan to start or gracefully shut down a verified managed VM.' `
+        (New-HcrInputSchema @{
+            vmName = $vmName
+            action = @{ type = 'string'; enum = @('start', 'gracefulShutdown') }
+        } @('vmName', 'action'))))
+    $tools.Add((New-HcrToolDefinition 'apply_vm_power' `
+        'Consume and revalidate a VM-power plan, then perform only its guarded start or graceful shutdown.' `
+        (New-HcrInputSchema @{ planId = $uuid } @('planId')) $false $true))
+    $tools.Add((New-HcrToolDefinition 'plan_vm_network' `
+        'Create guarded change and recovery plans for the verified managed primary NIC and its recorded baseline switch.' `
+        (New-HcrInputSchema @{
+            vmName = $vmName
+            target = @{ type = 'string'; enum = @('baseline', 'disconnected') }
+        } @('vmName', 'target'))))
+    $tools.Add((New-HcrToolDefinition 'apply_vm_network' `
+        'Consume and revalidate one VM-network change or recovery plan, then apply only its baseline or disconnected target.' `
+        (New-HcrInputSchema @{ planId = $uuid } @('planId')) $false $true))
+
+    if ($tools.Count -ne 20) {
+        Throw-HcrError 'INTERNAL_ERROR' 'The runtime tool registry must contain exactly 20 tools.'
     }
     return @($tools | ForEach-Object { $_ })
 }

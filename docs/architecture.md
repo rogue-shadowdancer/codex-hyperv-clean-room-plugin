@@ -3,8 +3,9 @@
 ## Status and assurance boundary
 
 Hyper-V Clean Room is a Windows-only Codex plugin whose product surface is a
-PowerShell 5.1 MCP server. Version `0.1.1` exposes exactly 16 tools and five
-public schema-v1 documents. Gate 2 implements both the mock adapter and the
+PowerShell 5.1 MCP server. Version `0.2.0` preserves the exact 16 schema-v1
+tools and five public schema-v1 documents and adds four schema-v2 power/network
+tools plus seven schema-v2 documents. Gate 2 implements both the mock adapter and the
 production Hyper-V/PowerShell Direct adapter, but validates guest execution
 only through mock behavior, parser checks, and closed-dispatch static seams.
 No real guest credential, file transfer, package process, VM mutation, or
@@ -14,13 +15,13 @@ Implementation is therefore not the same as clean-machine validation. A real
 operator must treat guest transfer and lifecycle actions as state-changing and
 obtain explicit authorization for the named VM and operation before use.
 
-Gate 6/H1 additionally freezes a plugin `0.2.0`, schema-v2 target under
-`contracts/v2`. These files are design-time inputs only: they are intentionally
-outside the installable plugin and do not alter the current 16-tool runtime.
-Gate 7/H2 must implement the target without weakening the v1 paths described
-below.
+Gate 6/H1 additionally freezes the schema-v2 contract under `contracts/v2`.
+Gate 7/H2 integrates exact schema copies and the 20-tool runtime without
+weakening the v1 paths described below. H2 assurance is limited to mock,
+parser, schema, and static production-seam validation; it is not clean-machine
+or real-operation evidence.
 
-## Schema-v2 target architecture
+## Schema-v2 integrated architecture
 
 The target remains one PowerShell 5.1 MCP server and one closed production
 worker; it does not add a general automation endpoint. H2 adds four registry

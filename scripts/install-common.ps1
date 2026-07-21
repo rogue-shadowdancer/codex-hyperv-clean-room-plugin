@@ -9,7 +9,7 @@ $script:HcrPluginName = 'hyperv-clean-room'
 $script:HcrInstallerOwner = 'hyperv-clean-room-installer/v1'
 $script:HcrOwnershipRelativePath = '.codex-plugin/install-ownership.json'
 $script:HcrManifestRelativePath = '.codex-plugin/install-manifest.json'
-$script:HcrExpectedPayloadFileCount = 20
+$script:HcrExpectedPayloadFileCount = 31
 $script:HcrUtf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 function Assert-HcrInstallCondition {
@@ -265,17 +265,17 @@ function Get-HcrPluginVersionInfo {
 
     $match = [regex]::Match(
         $Version,
-        '^0\.1\.1(?:\+codex\.(?<cachebuster>[a-z0-9]+(?:-[a-z0-9]+)*))?$'
+        '^0\.2\.0(?:\+codex\.(?<cachebuster>[a-z0-9]+(?:-[a-z0-9]+)*))?$'
     )
     Assert-HcrInstallCondition $match.Success `
-        "Plugin version must be 0.1.1 with at most one +codex.<cachebuster> suffix: $Version"
+        "Plugin version must be 0.2.0 with at most one +codex.<cachebuster> suffix: $Version"
     $cachebuster = if ($match.Groups['cachebuster'].Success) {
         [string]$match.Groups['cachebuster'].Value
     }
     else { $null }
     return [pscustomobject][ordered]@{
         version = $Version
-        baseVersion = '0.1.1'
+        baseVersion = '0.2.0'
         cachebuster = $cachebuster
     }
 }
@@ -306,7 +306,7 @@ function Get-HcrSourceInventory {
 
     $files = @(Get-HcrOrdinaryFiles $source)
     Assert-HcrInstallCondition ($files.Count -eq $script:HcrExpectedPayloadFileCount) `
-        "The Gate 4 plugin payload must contain exactly $($script:HcrExpectedPayloadFileCount) files."
+        "The integrated plugin payload must contain exactly $($script:HcrExpectedPayloadFileCount) files."
     $relativeFiles = @($files | ForEach-Object {
             Get-HcrRelativeInstallPath -Root $source -Path $_.FullName
         })
@@ -344,6 +344,8 @@ function Get-HcrSourceInventory {
     }
     $schemas = @($actualRelative | Where-Object { $_ -match '^schemas/[^/]+\.schema\.json$' })
     Assert-HcrInstallCondition ($schemas.Count -eq 5) 'Plugin source must contain exactly five public schemas.'
+    $schemasV2 = @($actualRelative | Where-Object { $_ -match '^schemas/v2/[^/]+\.schema\.json$' })
+    Assert-HcrInstallCondition ($schemasV2.Count -eq 7) 'Plugin source must contain exactly seven schema-v2 files.'
     $forbidden = @($actualRelative | Where-Object {
             $_ -match '(?i)(^|/)(credentials?|evidence|\.state)(/|$)' -or
             $_ -match '(?i)\.(clixml|iso|vhd|vhdx|pfx|pem|key|log|exe|dll)$'

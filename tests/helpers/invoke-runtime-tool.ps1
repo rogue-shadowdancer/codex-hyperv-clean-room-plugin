@@ -14,9 +14,12 @@ foreach ($runtimeFile in @(
         'State.ps1',
         'ToolSchemas.ps1',
         'Validation.ps1',
+        'Validation.V2.ps1',
         'Adapters.ps1',
         'Tools.Host.ps1',
+        'Tools.Host.V2.ps1',
         'Tools.Guest.ps1',
+        'Tools.Guest.V2.ps1',
         'Runtime.ps1'
     )) {
     . (Join-Path (Join-Path (Join-Path $PluginRoot 'mcp') 'lib') $runtimeFile)

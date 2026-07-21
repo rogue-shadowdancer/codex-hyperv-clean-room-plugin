@@ -223,7 +223,9 @@ def live_v1_tools() -> list[dict[str, Any]]:
     parsed = json.loads(completed.stdout)
     if not isinstance(parsed, list):
         raise AssertionError("live v1 tool registry did not serialize as an array")
-    return parsed
+    if len(parsed) != 20:
+        raise AssertionError("live schema-v2 tool registry must expose exactly 20 tools")
+    return parsed[:16]
 
 
 def schema_registry(schemas: dict[str, dict[str, Any]]) -> Registry:
@@ -779,8 +781,8 @@ def assert_contract_metadata(catalog: dict[str, Any]) -> None:
         raise AssertionError("tool catalog contractVersion must be 2")
     if catalog.get("targetPluginVersion") != "0.2.0":
         raise AssertionError("tool catalog target plugin version must be 0.2.0")
-    if catalog.get("currentRuntimeVersion") != "0.1.1":
-        raise AssertionError("H1 must leave the executable runtime at 0.1.1")
+    if catalog.get("currentRuntimeVersion") != "0.2.0":
+        raise AssertionError("H2 must integrate executable runtime 0.2.0")
     envelopes = catalog.get("resultEnvelopes", {})
     if envelopes != {
         "exactV1Tools": "hyperv-clean-room/schemas/operation-envelope.schema.json",
@@ -795,8 +797,8 @@ def assert_contract_metadata(catalog: dict[str, Any]) -> None:
     }:
         raise AssertionError("tool catalog schema dispatch is not exact and fail closed")
     manifest = load_json(PLUGIN_MANIFEST_PATH)
-    if not re.fullmatch(r"0\.1\.1(?:\+codex\.[a-z0-9.-]+)?", manifest["version"]):
-        raise AssertionError("H1 changed the current plugin runtime version")
+    if manifest["version"] != "0.2.0":
+        raise AssertionError("H2 did not set the exact plugin runtime version")
 
 
 def assert_v1_compatibility(catalog: dict[str, Any]) -> tuple[int, int]:
@@ -1368,7 +1370,7 @@ def main() -> int:
             {
                 "ok": True,
                 "targetPluginVersion": "0.2.0",
-                "currentRuntimeVersion": "0.1.1",
+                "currentRuntimeVersion": "0.2.0",
                 "v1ToolsPreserved": v1_tool_count,
                 "v2ToolsDeclared": len(EXPECTED_TOOL_NAMES),
                 "v1SchemasPreserved": v1_schema_count,

@@ -15,9 +15,12 @@ $runtimeFiles = @(
     'State.ps1',
     'ToolSchemas.ps1',
     'Validation.ps1',
+    'Validation.V2.ps1',
     'Adapters.ps1',
     'Tools.Host.ps1',
+    'Tools.Host.V2.ps1',
     'Tools.Guest.ps1',
+    'Tools.Guest.V2.ps1',
     'Runtime.ps1'
 )
 foreach ($runtimeFile in $runtimeFiles) {
@@ -221,7 +224,7 @@ while ($true) {
                         }
                         serverInfo = [pscustomobject][ordered]@{
                             name = 'hyperv-clean-room'
-                            version = '0.1.1'
+                            version = $script:HcrPluginVersion
                         }
                     }
                 })

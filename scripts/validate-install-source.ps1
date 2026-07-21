@@ -22,6 +22,8 @@ $inventory = Get-HcrSourceInventory `
     fileCount = $inventory.fileCount
     schemaCount = @(Get-ChildItem -LiteralPath (Join-Path $sourceRoot 'schemas') `
         -File -Filter '*.json').Count
+    schemaV2Count = @(Get-ChildItem -LiteralPath (Join-Path $sourceRoot 'schemas\v2') `
+        -File -Filter '*.json').Count
     totalBytes = $inventory.totalBytes
     reparsePoints = 0
     untrackedPayloadFiles = 0

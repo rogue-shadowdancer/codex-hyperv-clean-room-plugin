@@ -36,6 +36,6 @@ jobs:
       - name: Validate CI-safe Gate 4 baseline
         shell: powershell
         run: ./scripts/validate-gate4-ci.ps1
-      - name: Validate Gate 6 schema-v2 contract freeze
+      - name: Validate Gate 7 schema-v2 production integration
         shell: powershell
-        run: ./scripts/validate-gate6.ps1 -SkipInheritedBaseline
+        run: ./scripts/validate-gate7.ps1 -SkipInheritedBaseline

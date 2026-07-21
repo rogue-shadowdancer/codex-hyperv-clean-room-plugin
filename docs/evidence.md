@@ -14,9 +14,10 @@ derivation rules that JSON Schema alone cannot express.
 
 Gate 6/H1 freezes an additive schema-v2 target at
 [`contracts/v2/schemas/evidence.schema.json`](../contracts/v2/schemas/evidence.schema.json).
-It is not emitted by the current `0.1.1` runtime. Gate 7/H2 must dispatch v1
-and v2 by the exact integer `schemaVersion`; v1 evidence remains valid v1 and
-must never be synthetically upgraded.
+Gate 7/H2 integrates deterministic schema-v2 evidence generation and validates
+it with mock-only operation state. Readers dispatch v1 and v2 by the exact
+integer `schemaVersion`; v1 evidence remains valid v1 and is never
+synthetically upgraded. Mock evidence is not real clean-room evidence.
 
 ## Schema-v2 provenance and derivation
 

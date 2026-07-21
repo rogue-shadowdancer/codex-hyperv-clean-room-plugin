@@ -1,7 +1,7 @@
 {
   "contractVersion": 2,
   "targetPluginVersion": "0.2.0",
-  "currentRuntimeVersion": "0.1.1",
+  "currentRuntimeVersion": "0.2.0",
   "schemaVersion": 2,
   "toolCount": 20,
   "resultEnvelopes": {

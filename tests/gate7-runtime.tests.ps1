@@ -1,0 +1,529 @@
+[CmdletBinding()]
+param()
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$script:AssertionCount = 0
+
+function Assert-Gate7 {
+    param(
+        [Parameter(Mandatory = $true)][bool]$Condition,
+        [Parameter(Mandatory = $true)][string]$Message
+    )
+
+    $script:AssertionCount++
+    if (-not $Condition) { throw $Message }
+}
+
+function Assert-Gate7Equal {
+    param(
+        [AllowNull()][object]$Actual,
+        [AllowNull()][object]$Expected,
+        [Parameter(Mandatory = $true)][string]$Message
+    )
+
+    $script:AssertionCount++
+    if ($Actual -ne $Expected) {
+        throw "$Message Expected '$Expected', received '$Actual'."
+    }
+}
+
+function ConvertTo-Gate7CanonicalJson {
+    param([AllowNull()][object]$Value)
+
+    if ($null -eq $Value) { return 'null' }
+    if (Test-HcrObjectLike $Value) {
+        $properties = @(Get-HcrPropertyNames $Value | Sort-Object | ForEach-Object {
+            $encodedName = ConvertTo-Json -InputObject ([string]$_) -Compress
+            $encodedValue = ConvertTo-Gate7CanonicalJson (Get-HcrPropertyValue $Value $_)
+            return ($encodedName + ':' + $encodedValue)
+        })
+        return ('{' + ($properties -join ',') + '}')
+    }
+    if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
+        $items = @($Value | ForEach-Object { ConvertTo-Gate7CanonicalJson $_ })
+        return ('[' + ($items -join ',') + ']')
+    }
+    return (ConvertTo-Json -InputObject $Value -Compress)
+}
+
+function Assert-Gate7Error {
+    param(
+        [Parameter(Mandatory = $true)][object]$Envelope,
+        [Parameter(Mandatory = $true)][string]$Code,
+        [Parameter(Mandatory = $true)][string]$Message
+    )
+
+    Assert-Gate7 (-not [bool]$Envelope.ok) "$Message The operation unexpectedly succeeded."
+    Assert-Gate7Equal ([string]$Envelope.error.code) $Code $Message
+}
+
+function Write-Gate7Json {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][object]$Value
+    )
+
+    $parent = Split-Path -Parent $Path
+    if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
+        [void](New-Item -ItemType Directory -Path $parent -Force)
+    }
+    [IO.File]::WriteAllText(
+        $Path,
+        (($Value | ConvertTo-Json -Depth 100 -Compress) + "`n"),
+        (New-Object System.Text.UTF8Encoding($false))
+    )
+}
+
+function Invoke-Gate7Tool {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [AllowNull()][object]$Arguments = $null,
+        [int]$EnvelopeSchemaVersion = 1
+    )
+
+    if ($null -eq $Arguments) { $Arguments = [pscustomobject]@{} }
+    $result = Invoke-HcrToolCall $Name $Arguments
+    Assert-Gate7Equal ([int]$result.schemaVersion) $EnvelopeSchemaVersion `
+        "Tool '$Name' returned the wrong envelope schema version."
+    Assert-Gate7 (Test-HcrUuid $result.operationId) `
+        "Tool '$Name' returned an invalid operation ID."
+    return $result
+}
+
+function Set-Gate7MutationFault {
+    param(
+        [Parameter(Mandatory = $true)][string]$Operation,
+        [Parameter(Mandatory = $true)][string]$Phase
+    )
+
+    $state = Read-HcrMockAdapterState
+    $state | Add-Member -NotePropertyName mutationFault -NotePropertyValue ([pscustomobject][ordered]@{
+        operation = $Operation
+        phase = $Phase
+    }) -Force
+    Write-HcrMockAdapterState $state
+}
+
+function Clear-Gate7MutationFault {
+    $state = Read-HcrMockAdapterState
+    if (Test-HcrProperty $state 'mutationFault') {
+        $state.PSObject.Properties.Remove('mutationFault')
+        Write-HcrMockAdapterState $state
+    }
+}
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$pluginRoot = Join-Path $repoRoot 'hyperv-clean-room'
+$testRoot = Join-Path $repoRoot ('.artifacts\gate7-tests-' + [Guid]::NewGuid().ToString('N'))
+$vmRoot = Join-Path $testRoot 'vm-root'
+$stateRoot = Join-Path $testRoot 'state'
+$credentialRoot = Join-Path $testRoot 'credentials'
+$mockPath = Join-Path $testRoot 'mock-adapter.json'
+$isoPath = Join-Path $testRoot 'source.iso'
+$portablePath = Join-Path $testRoot 'SampleProduct_0.2.0_windows-x64-portable.zip'
+$fixtureDirectory = Join-Path $testRoot 'fixtures'
+$fixturePath = Join-Path $fixtureDirectory 'sample-image.png'
+$profilePath = Join-Path $testRoot 'portable-profile.json'
+$unknownPath = Join-Path $testRoot 'unknown-profile.json'
+$legacyV2ProfilePath = Join-Path $testRoot 'legacy-v2-profile.json'
+$legacyArtifactPath = Join-Path $testRoot 'SampleApp-0.2.0-x64.exe'
+$volumeRoot = [IO.Path]::GetPathRoot($testRoot)
+
+foreach ($directory in @($vmRoot, $fixtureDirectory)) {
+    [void](New-Item -ItemType Directory -Path $directory -Force)
+}
+[IO.File]::WriteAllBytes($isoPath, [byte[]](1..128))
+[IO.File]::WriteAllBytes($portablePath, [byte[]](1..96))
+[IO.File]::WriteAllBytes($fixturePath, [byte[]](1..64))
+[IO.File]::WriteAllBytes($legacyArtifactPath, [byte[]](1..80))
+
+$mockState = [ordered]@{
+    schemaVersion = 1
+    host = [ordered]@{
+        computerName = 'MOCK-HOST'
+        windowsEdition = 'Windows 11 Pro'
+        windowsBuild = '26100'
+        architecture = 'AMD64'
+        hyperVCommandsAvailable = $true
+        hypervisorPresent = $true
+        elevated = $true
+        processorCount = 8
+        memoryBytes = 17179869184
+        switches = @([ordered]@{
+            id = 'switch-1'
+            name = 'Default Switch'
+            type = 'Internal'
+        })
+        targetVolumes = @([ordered]@{
+            uniqueId = 'mock-volume'
+            root = $volumeRoot
+            fileSystem = 'NTFS'
+            availableBytes = 1099511627776
+        })
+    }
+    vms = @()
+    credentialProfiles = @([ordered]@{
+        name = 'test-profile'
+        vmName = 'cleanroom-v2'
+    })
+    guest = [ordered]@{
+        windowsBuild = '26100'
+        architecture = 'x64'
+        userName = 'TEST\standard'
+        userSid = 'S-1-5-21-1000-1000-1000-1001'
+        isAdministrator = $false
+        isElevated = $false
+        tokenIntegrity = 'medium'
+        profilePathContainsNonAscii = $true
+    }
+    stepResults = [ordered]@{}
+    cleanupResults = [ordered]@{}
+}
+Write-Gate7Json $mockPath $mockState
+
+$env:HCR_TEST_MODE = '1'
+$env:HCR_ADAPTER_MODE = 'mock'
+$env:HCR_MOCK_ADAPTER_PATH = $mockPath
+$env:HCR_STATE_ROOT = $stateRoot
+$env:HCR_CREDENTIAL_ROOT = $credentialRoot
+$env:HCR_TEST_SOURCE_COMMIT = 'abcdef1234567890abcdef1234567890abcdef12'
+$script:HcrInitialized = $false
+foreach ($runtimeFile in @(
+        'Common.ps1',
+        'State.ps1',
+        'ToolSchemas.ps1',
+        'Validation.ps1',
+        'Validation.V2.ps1',
+        'Adapters.ps1',
+        'Tools.Host.ps1',
+        'Tools.Host.V2.ps1',
+        'Tools.Guest.ps1',
+        'Tools.Guest.V2.ps1',
+        'Runtime.ps1'
+    )) {
+    . (Join-Path (Join-Path (Join-Path $pluginRoot 'mcp') 'lib') $runtimeFile)
+}
+Initialize-HcrRuntime $pluginRoot
+
+$definitions = @(Get-HcrToolDefinitions)
+$expectedNames = @(
+    'inspect_host', 'list_vms', 'inspect_vm', 'validate_test_profile',
+    'validate_evidence', 'plan_vm_create', 'apply_vm_create',
+    'plan_checkpoint_create', 'apply_checkpoint_create',
+    'plan_checkpoint_restore', 'apply_checkpoint_restore', 'inspect_guest',
+    'stage_artifact', 'run_test_profile', 'collect_evidence',
+    'record_manual_attestation', 'plan_vm_power', 'apply_vm_power',
+    'plan_vm_network', 'apply_vm_network'
+)
+Assert-Gate7Equal $definitions.Count 20 'The schema-v2 runtime does not expose exactly 20 tools.'
+Assert-Gate7Equal (($definitions.name -join ',')) ($expectedNames -join ',') `
+    'The schema-v2 runtime tool order changed.'
+$targetCatalog = Get-Content -LiteralPath (Join-Path $repoRoot 'contracts\v2\tool-catalog.json') `
+    -Raw -Encoding UTF8 | ConvertFrom-Json
+$catalogDefinitions = @($targetCatalog.tools | Select-Object -Skip 16 | ForEach-Object {
+    [pscustomobject][ordered]@{
+        name = $_.name
+        description = $_.description
+        inputSchema = $_.inputSchema
+        annotations = $_.annotations
+    }
+})
+Assert-Gate7Equal `
+    (ConvertTo-Gate7CanonicalJson @($definitions | Select-Object -Skip 16)) `
+    (ConvertTo-Gate7CanonicalJson $catalogDefinitions) `
+    'The four schema-v2 production tools diverged from the authoritative target catalog.'
+$v1Snapshot = Get-Content `
+    -LiteralPath (Join-Path $PSScriptRoot 'fixtures\v2\compatibility\tool-catalog-v1.json') `
+    -Raw -Encoding UTF8 | ConvertFrom-Json
+Assert-Gate7Equal `
+    ((@($definitions | Select-Object -First 16) | ConvertTo-Json -Depth 30 -Compress)) `
+    ((@($v1Snapshot) | ConvertTo-Json -Depth 30 -Compress)) `
+    'The first 16 schema-v1 tool definitions drifted during H2 integration.'
+
+$vmPlan = Invoke-Gate7Tool 'plan_vm_create' ([pscustomobject]@{
+    name = 'cleanroom-v2'
+    isoPath = $isoPath
+    vmRoot = $vmRoot
+    switchName = 'Default Switch'
+})
+Assert-Gate7 $vmPlan.ok 'The mock VM baseline plan failed.'
+$vmCreate = Invoke-Gate7Tool 'apply_vm_create' ([pscustomobject]@{
+    planId = [string]$vmPlan.data.plan.planId
+})
+Assert-Gate7 $vmCreate.ok 'The mock VM baseline apply failed.'
+
+$powerPlan = Invoke-Gate7Tool 'plan_vm_power' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    action = 'start'
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7 $powerPlan.ok 'Power planning failed.'
+Assert-Gate7Equal ([string]$powerPlan.data.plan.planKind) 'vmPower' `
+    'Power planning returned the wrong plan kind.'
+$powerApply = Invoke-Gate7Tool 'apply_vm_power' ([pscustomobject]@{
+    planId = [string]$powerPlan.data.plan.planId
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7 ($powerApply.ok -and $powerApply.changed) 'Power apply did not confirm a change.'
+Assert-Gate7Equal ([string]$powerApply.data.currentState) 'Running' `
+    'Power apply did not reach the exact target state.'
+$powerReplay = Invoke-Gate7Tool 'apply_vm_power' ([pscustomobject]@{
+    planId = [string]$powerPlan.data.plan.planId
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7Error $powerReplay 'PLAN_ALREADY_CONSUMED' 'A power plan was reusable.'
+
+$networkPlan = Invoke-Gate7Tool 'plan_vm_network' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    target = 'disconnected'
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7 $networkPlan.ok `
+    ('Network disconnect planning failed: ' +
+        ((Get-HcrPropertyValue $networkPlan 'error') | ConvertTo-Json -Depth 10 -Compress))
+$networkPairFiles = @(Get-ChildItem -LiteralPath (Join-Path $stateRoot 'plans') `
+    -File -Filter 'network-pair-*.json')
+Assert-Gate7Equal $networkPairFiles.Count 1 `
+    'The disconnect change/recovery plans were not atomically published as one record.'
+Assert-Gate7 (-not (Test-Path -LiteralPath (Get-HcrStateSubpath 'plans' (([string]$networkPlan.data.changePlan.planId) + '.json')))) `
+    'The disconnect change plan was also published as a non-atomic standalone record.'
+Assert-Gate7 (-not (Test-Path -LiteralPath (Get-HcrStateSubpath 'plans' (([string]$networkPlan.data.recoveryPlan.planId) + '.json')))) `
+    'The disconnect recovery plan was also published as a non-atomic standalone record.'
+Assert-Gate7 `
+    ([string]$networkPlan.data.changePlan.pairedPlanId -eq
+        [string]$networkPlan.data.recoveryPlan.planId) `
+    'The disconnect plan was not paired to its recovery plan.'
+$networkApply = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
+    planId = [string]$networkPlan.data.changePlan.planId
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7 ($networkApply.ok -and $networkApply.changed) `
+    'Network disconnect apply did not confirm a change.'
+Assert-Gate7 ([bool]$networkApply.data.recoveryRequired) `
+    'A confirmed disconnect did not require recovery.'
+$networkRecovery = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
+    planId = [string]$networkPlan.data.recoveryPlan.planId
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7 ($networkRecovery.ok -and $networkRecovery.changed) `
+    'The paired network recovery did not restore the baseline.'
+
+$faultPlan = Invoke-Gate7Tool 'plan_vm_network' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    target = 'disconnected'
+}) -EnvelopeSchemaVersion 2
+Set-Gate7MutationFault 'SetVmNetwork' 'entered'
+$faultApply = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
+    planId = [string]$faultPlan.data.changePlan.planId
+}) -EnvelopeSchemaVersion 2
+Clear-Gate7MutationFault
+Assert-Gate7Error $faultApply 'NETWORK_RECOVERY_REQUIRED' `
+    'An indeterminate disconnect did not return the recovery-required error.'
+Assert-Gate7 ([bool]$faultApply.changed) `
+    'An indeterminate network effect did not report changed=true.'
+Assert-Gate7Equal `
+    ([string]$faultApply.error.details.recoveryPlanId) `
+    ([string]$faultPlan.data.recoveryPlan.planId) `
+    'The network failure did not return its pre-created recovery plan ID.'
+
+$fixtureHash = Get-HcrSha256File $fixturePath
+$portableHash = Get-HcrSha256File $portablePath
+$profile = [ordered]@{
+    schemaVersion = 2
+    id = 'portable-ui-smoke'
+    workflowKind = 'portableAutomation'
+    platform = 'windows-x64'
+    baselineType = 'stock-clean'
+    artifact = [ordered]@{
+        packageKind = 'portableZip'
+        fileNamePattern = [IO.Path]::GetFileName($portablePath)
+        architecture = 'x64'
+        sha256 = $portableHash
+        sizeBytes = [int64](Get-Item -LiteralPath $portablePath).Length
+        portableManifestEntryPath = 'portable-manifest.json'
+        portableManifestSha256 = ('2' * 64)
+    }
+    fixtures = @([ordered]@{
+        id = 'sample-image'
+        sourceRelativePath = 'fixtures\sample-image.png'
+        sizeBytes = [int64](Get-Item -LiteralPath $fixturePath).Length
+        sha256 = $fixtureHash
+        mediaType = 'image/png'
+    })
+    webDriver = [ordered]@{
+        schemaVersion = 2
+        id = 'edge-driver-138-0-3351-121'
+        provider = 'microsoftEdgeDriver'
+        browserKind = 'fixedVersionWebView2'
+        browserVersion = '138.0.3351.121'
+        driverVersion = '138.0.3351.121'
+        architecture = 'x64'
+        acquisition = [ordered]@{
+            source = 'microsoftFixedEndpoint'
+            archiveFileName = 'edgedriver_win64.zip'
+            archiveSizeBytes = 10485760
+            archiveSha256 = ('a' * 64)
+            redirectPolicy = 'microsoftHttpsAllowlist'
+        }
+        executable = [ordered]@{
+            relativePath = 'msedgedriver.exe'
+            sizeBytes = 15728640
+            sha256 = ('b' * 64)
+            peArchitecture = 'x64'
+            authenticodePublisher = 'Microsoft Corporation'
+        }
+        sessionPolicy = [ordered]@{
+            listenAddress = '127.0.0.1'
+            portPolicy = 'serverAllocatedEphemeral'
+            browserArguments = @()
+            allowNavigation = $false
+            allowExecuteScript = $false
+            allowArbitrarySelector = $false
+        }
+        files = @([ordered]@{
+            path = 'msedgedriver.exe'
+            sizeBytes = 15728640
+            sha256 = ('b' * 64)
+        })
+    }
+    applications = @([ordered]@{
+        id = 'sample-product'
+        packageKind = 'portableZip'
+        executableRelativePath = 'SampleProduct.exe'
+        dataDirectoryRelativePath = 'data'
+        processName = 'SampleProduct.exe'
+    })
+    steps = @(
+        [ordered]@{ id = 'stage-artifact'; type = 'stageArtifact'; timeoutSeconds = 120 },
+        [ordered]@{ id = 'deploy-portable'; type = 'deployPortable'; application = 'sample-product'; timeoutSeconds = 300 },
+        [ordered]@{ id = 'launch-application'; type = 'launchApplication'; application = 'sample-product'; timeoutSeconds = 60 },
+        [ordered]@{ id = 'acquire-webdriver'; type = 'acquireWebDriver'; timeoutSeconds = 180 },
+        [ordered]@{ id = 'start-ui-session'; type = 'startUiSession'; application = 'sample-product'; timeoutSeconds = 60 },
+        [ordered]@{ id = 'upload-fixture'; type = 'uiUploadFixture'; testId = 'source-file-input'; fixtureId = 'sample-image'; timeoutSeconds = 30 },
+        [ordered]@{ id = 'assert-review-visible'; type = 'assertUiElement'; testId = 'recognition-review'; state = 'visible'; timeoutSeconds = 60; required = $true },
+        [ordered]@{ id = 'capture-review'; type = 'captureUiScreenshot'; evidenceName = 'recognition-review'; timeoutSeconds = 30 },
+        [ordered]@{ id = 'stop-ui-session'; type = 'stopUiSession'; timeoutSeconds = 30 },
+        [ordered]@{ id = 'stop-application'; type = 'stopApplication'; application = 'sample-product'; timeoutSeconds = 30 }
+    )
+    cleanupSteps = @()
+    manualAssertions = @([ordered]@{
+        id = 'visual-dpi-check'
+        description = 'Confirm the portable UI is usable at the declared DPI.'
+        required = $true
+    })
+}
+Write-Gate7Json $profilePath $profile
+
+$profileValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $profilePath
+})
+Assert-Gate7 $profileValidation.ok `
+    ('The valid schema-v2 profile failed exact-version validation: ' +
+        ((Get-HcrPropertyValue $profileValidation 'error') | ConvertTo-Json -Depth 10 -Compress))
+$openStepProfile = Copy-HcrObject ([pscustomobject]$profile)
+$openStepProfile.steps[0] | Add-Member -NotePropertyName arguments -NotePropertyValue @('--forbidden')
+$openStepValidation = Test-HcrProfileDocumentV2 $openStepProfile
+Assert-Gate7 (-not $openStepValidation.valid) `
+    'The native schema-v2 validator accepted an open action-step payload.'
+$missingExpectedProfile = Copy-HcrObject ([pscustomobject]$profile)
+$missingExpectedProfile.steps[6].state = 'textEquals'
+$missingExpectedValidation = Test-HcrProfileDocumentV2 $missingExpectedProfile
+Assert-Gate7 (-not $missingExpectedValidation.valid) `
+    'The native schema-v2 validator accepted a text assertion without expected.'
+$outsideSessionProfile = Copy-HcrObject ([pscustomobject]$profile)
+$temporaryStep = $outsideSessionProfile.steps[4]
+$outsideSessionProfile.steps[4] = $outsideSessionProfile.steps[5]
+$outsideSessionProfile.steps[5] = $temporaryStep
+$outsideSessionValidation = Test-HcrProfileDocumentV2 $outsideSessionProfile
+Assert-Gate7 (-not $outsideSessionValidation.valid) `
+    'The native schema-v2 validator accepted a UI interaction outside the owned session.'
+$optionalAssertionProfile = Copy-HcrObject ([pscustomobject]$profile)
+$optionalAssertionProfile.steps[6].required = $false
+$optionalAssertionProfile.manualAssertions[0].required = $false
+$optionalAssertionValidation = Test-HcrProfileDocumentV2 $optionalAssertionProfile
+Assert-Gate7 $optionalAssertionValidation.valid `
+    'The native schema-v2 validator rejected contract-valid optional assertions.'
+$unknown = Copy-HcrObject ([pscustomobject]$profile)
+$unknown.schemaVersion = 3
+Write-Gate7Json $unknownPath $unknown
+$unknownValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $unknownPath
+})
+Assert-Gate7Error $unknownValidation 'UNSUPPORTED_SCHEMA_VERSION' `
+    'An unknown profile schema version did not fail closed.'
+
+$portableRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $profilePath
+    artifactPath = $portablePath
+})
+Assert-Gate7 $portableRun.ok `
+    ('The schema-v2 mock portable workflow failed: ' +
+        ((Get-HcrPropertyValue $portableRun 'error') | ConvertTo-Json -Depth 10 -Compress))
+Assert-Gate7Equal ([string]$portableRun.data.machineStatus) 'passed' `
+    'The schema-v2 mock workflow did not derive machineStatus=passed.'
+Assert-Gate7Equal ([string]$portableRun.data.overallStatus) 'incomplete' `
+    'An unperformed required manual assertion did not keep evidence incomplete.'
+$portableOperation = Get-HcrOperationRecord ([string]$portableRun.data.testOperationId)
+$portableEvidence = Read-HcrJsonFile ([string]$portableOperation.evidenceFile) 'EVIDENCE_NOT_READY'
+Assert-Gate7Equal ([int]$portableEvidence.schemaVersion) 2 `
+    'The schema-v2 workflow did not emit evidence v2.'
+$evidenceValidation = Invoke-Gate7Tool 'validate_evidence' ([pscustomobject]@{
+    evidencePath = [string]$portableOperation.evidenceFile
+})
+Assert-Gate7 $evidenceValidation.ok 'Generated schema-v2 evidence failed validation.'
+$hashDriftEvidence = Copy-HcrObject $portableEvidence
+$hashDriftEvidence.artifacts[0].guestSha256 = ('0' * 64)
+$hashDriftValidation = Test-HcrEvidenceDocumentV2 $hashDriftEvidence $portableOperation
+Assert-Gate7 (-not $hashDriftValidation.valid) `
+    'The native evidence-v2 validator accepted artifact hash drift.'
+Assert-Gate7Equal ([string]$hashDriftValidation.derivedMachineStatus) 'failed' `
+    'Artifact hash drift did not deterministically fail machine status.'
+
+$migrationInput = Get-Content `
+    -LiteralPath (Join-Path $PSScriptRoot 'fixtures\v2\migration\test-profile.v1.input.json') `
+    -Raw -Encoding UTF8 | ConvertFrom-Json
+$migrationExpected = Get-Content `
+    -LiteralPath (Join-Path $PSScriptRoot 'fixtures\v2\migration\test-profile.v2.expected.json') `
+    -Raw -Encoding UTF8 | ConvertFrom-Json
+$migrationActual = Convert-HcrProfileV1ToV2 $migrationInput
+Assert-Gate7Equal `
+    ($migrationActual | ConvertTo-Json -Depth 50 -Compress) `
+    ($migrationExpected | ConvertTo-Json -Depth 50 -Compress) `
+    'The production v1-to-v2 migration is not deterministic.'
+$migrationRoundTrip = Convert-HcrLegacyProfileV2ToV1 $migrationActual
+Assert-Gate7Equal `
+    (ConvertTo-Gate7CanonicalJson $migrationRoundTrip) `
+    (ConvertTo-Gate7CanonicalJson $migrationInput) `
+    'The deterministic legacy migration cannot return to the preserved v1 lifecycle without semantic drift.'
+Write-Gate7Json $legacyV2ProfilePath $migrationActual
+$legacyV2Validation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $legacyV2ProfilePath
+})
+Assert-Gate7 $legacyV2Validation.ok 'The migrated schema-v2 legacy profile failed native validation.'
+$legacyV2Run = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $legacyV2ProfilePath
+    artifactPath = $legacyArtifactPath
+})
+Assert-Gate7 $legacyV2Run.ok `
+    ('The migrated schema-v2 legacy workflow did not retain runnable v1 semantics: ' +
+        ((Get-HcrPropertyValue $legacyV2Run 'error') | ConvertTo-Json -Depth 10 -Compress))
+$legacyOperation = Get-HcrOperationRecord ([string]$legacyV2Run.data.testOperationId)
+Assert-Gate7Equal ([int]$legacyOperation.schemaVersion) 1 `
+    'A legacy schema-v2 profile did not preserve the non-synthesized v1 evidence lane.'
+$legacyEvidence = Read-HcrJsonFile ([string]$legacyOperation.evidenceFile) 'EVIDENCE_NOT_READY'
+Assert-Gate7Equal ([int]$legacyEvidence.schemaVersion) 1 `
+    'A legacy schema-v2 run synthesized unsupported evidence-v2 provenance.'
+
+[ordered]@{
+    ok = $true
+    gate = 7
+    assertions = $script:AssertionCount
+    tools = $definitions.Count
+    v1ToolsPreserved = 16
+    v2Tools = 4
+    realHostOperations = 0
+    realHyperVMutations = 0
+    realGuestOperations = 0
+    portableDeployments = 0
+    webDriverLaunches = 0
+    uiOperations = 0
+} | ConvertTo-Json -Compress

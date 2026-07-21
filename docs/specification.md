@@ -1,12 +1,13 @@
 # Hyper-V Clean Room specification
 
 Status: Gate 6/H1 freezes the additive plugin `0.2.0`, schema-v2 automation
-contract. The executable plugin is still `0.1.1`: its PowerShell 5.1 runtime,
-16-tool registry, five schema-v1 files, installer, and production adapter are
-unchanged. H1 adds only machine-readable target contracts, deterministic
-fixtures, static tests, and documentation. Implementation belongs to Gate
-7/H2. No real host, VM, checkpoint, credential, guest, package, portable,
-WebDriver, network, or UI operation was executed for this contract freeze.
+contract, and Gate 7/H2 integrates it into the Windows PowerShell 5.1 source.
+The implementation exposes exactly 20 MCP tools, preserves the first 16
+schema-v1 tools and five schema-v1 files byte-for-byte, installs seven
+schema-v2 files, and dispatches only by the exact integer `schemaVersion`.
+Gate 7 validation is mock/parser/static only. No real host, VM, checkpoint,
+credential, guest, package, portable, WebDriver, network, UI, installation,
+release, or clean-machine operation was executed or claimed.
 
 ## Purpose and boundary
 
@@ -23,9 +24,10 @@ VHDX, checkpoint, or host file.
 
 ## Plugin 0.2.0 and schema-v2 target contract
 
-The normative H1 artifacts are under `contracts/v2`. They remain outside the
-installable `hyperv-clean-room` payload until H2 implements them. The seven
-Draft 2020-12 schema IDs are the canonical repository URLs for:
+The normative H1 artifacts are under `contracts/v2`. H2 installs byte-identical
+copies of their seven Draft 2020-12 schemas under
+`hyperv-clean-room/schemas/v2`; the contract paths and canonical repository
+IDs remain authoritative for:
 
 - `operation-envelope.schema.json`;
 - `vm-power-plan.schema.json`;
@@ -220,7 +222,9 @@ source. A v1 NSIS/MSI profile with an unambiguous package kind maps to
 `legacyPackageLifecycle`; ambiguous input requires authoring and fails with the
 exact `MIGRATION_AMBIGUOUS_PACKAGE_KIND` error. V1 evidence always remains v1 because v2
 candidate, driver, fixture, UI, deployment, and recovery provenance cannot be
-safely synthesized.
+safely synthesized. A validated migrated legacy profile therefore reuses the
+preserved lifecycle runner and its v1 evidence lane; only `portableAutomation`
+produces schema-v2 automation evidence.
 
 Plugin `0.2.0` continues using the existing v1 state root and
 `hyperv-clean-room/v1:<ownership-id>` marker so already-managed resources do
@@ -891,3 +895,20 @@ credential, guest, package, portable, WebDriver, network, UI, clean-room, and
 manual-attestation operations remain `notPerformed`. Gate 7/H2 owns the first
 implementation of this contract and must preserve these frozen compatibility
 and fail-closed boundaries.
+
+## Gate 7/H2 acceptance boundary
+
+Gate 7 integrates only the frozen H1 contract. It requires plugin/server source
+version `0.2.0`, exactly 20 registered tools, exact schema-v1 tool and file
+compatibility, exact v1/v2 dispatch without fallback, atomic one-shot
+power/network planning with drift and recovery handling, fail-closed portable
+staging/data preservation, fixed-driver provenance, the closed `data-testid`
+dispatcher, evidence-v2 derivation/binding, and additive deterministic
+migration. The exact candidate must pass inherited compatibility, mock runtime,
+parser, schema, static safety, documentation, publication, and staged-diff
+review with zero actionable findings.
+
+H2 does not publish or install plugin `0.2.0` and does not perform real
+Hyper-V, credential, guest, package, portable, WebDriver, network, UI,
+clean-machine, or manual-attestation work. Those results remain
+`notPerformed` and belong to later, separately authorized gates.
