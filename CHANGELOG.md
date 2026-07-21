@@ -4,7 +4,7 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
-## Unreleased - Gate 5.2 marketplace metadata
+## Unreleased - Gate 6/H1 schema-v2 contract freeze
 
 ### Added
 
@@ -13,14 +13,26 @@ the local plugin cache.
   `repository` fields.
 - A public-release contract assertion that rejects any missing or divergent
   plugin listing URL.
+- A design-time plugin `0.2.0`, schema-v2 contract under `contracts/v2` with
+  seven stable Draft 2020-12 schema IDs and an exact 20-tool target catalog.
+- Four additive guarded tool contracts for VM start/graceful shutdown and
+  primary-NIC baseline/disconnected plan/apply transitions.
+- Portable ZIP, fixed Microsoft EdgeDriver, closed `data-testid` UI DSL,
+  evidence-v2, v1 compatibility, deterministic migration, and invalid/drift
+  fixtures plus the Gate 6 static validator.
 
 ### Changed
 
 - The current `master` personal-install build is
   `0.1.1+codex.20260715084043`. The immutable `v0.1.1` tag and GitHub Release
   retain their accepted `0.1.1+codex.20260715064728` build.
-- No MCP tool, schema-v1 semantic, runtime behavior, GitHub Release, or Gate 6
-  validation scope changes in this metadata-only gate.
+- The retained Gate 5.2 marketplace metadata changed no MCP tool,
+  schema-v1 semantic, runtime behavior, or GitHub Release.
+- Gate 6 changes no executable MCP registry, adapter, installer, or mutation
+  path. The runtime remains `0.1.1`, schema v1, exactly 16 MCP tools, and five
+  public schemas until Gate 7/H2 implements the frozen target. Real clean-room,
+  VM, guest, portable, WebDriver, network, UI, and manual-attestation work
+  remains `notPerformed`.
 
 ## 0.1.1 - GPL public release - 2026-07-15
 

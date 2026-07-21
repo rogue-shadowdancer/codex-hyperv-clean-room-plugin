@@ -22,6 +22,12 @@ The primary security properties are:
   deletion tool;
 - keep evidence provenance and cleanup state immutable.
 
+Gate 6/H1 freezes additional schema-v2 controls but implements none of them.
+Until Gate 7/H2 integrates the contract, the executable plugin remains
+`0.1.1`, schema v1, and 16 tools. Contract fixtures and static validation are
+not evidence that a real portable deployment, WebDriver session, network
+transition, or UI workflow is safe or has been performed.
+
 ## Threats and controls
 
 ### Accidental mutation or stale approval
@@ -43,6 +49,74 @@ and a state record with matching VM ID, name, VM root, VHDX path, creation
 operation, and ownership ID. Missing or divergent data stops every mutation
 with `OWNERSHIP_UNVERIFIED`. Read-only inspection remains available for
 recovery diagnosis.
+
+### Power and network transition abuse
+
+Schema v2 permits only `Off -> Running` start and `Running -> Off` graceful
+shutdown. It has no force-off, reset, pause, save, escalation, or arbitrary
+PowerShell action. Network planning binds exactly one ownership-verified
+primary NIC and the already-recorded baseline switch; no input accepts an
+adapter or switch identity. Disconnect planning atomically creates a linked
+24-hour baseline-recovery plan before returning the 15-minute change plan.
+
+The first well-formed apply that resolves a power or network plan consumes it.
+Apply then compares host, VM, ownership-record, state, adapter, baseline, and
+operation fingerprints. Expiry, consumption, drift, unsupported state, or
+failed preconditions fail closed without a new mutation. If a network change
+may have taken effect, recovery is required evidence; an unverified recovery
+cannot be hidden by successful UI or package assertions.
+
+### Portable archive confusion or extraction escape
+
+A matching outer ZIP hash is necessary but insufficient. The schema-v2
+manifest and implementation contract bound entry count, expanded size, and
+compression ratio, and reject absolute/drive/traversal paths, alternate data
+streams, percent ambiguity, trailing dot/space segments, links, reparse
+points, undeclared or missing entries, and case-insensitive path collisions.
+Extraction goes only to a new operation-owned directory. Every extracted
+regular file is reopened and checked against the declared size and SHA-256
+before atomic slot publication.
+
+The active deployment and recorded `data` directory are never deleted by this
+surface. Data preservation copies only from a rebound prior deployment into a
+new slot, rejects links/reparse points/ADS/unsafe or colliding paths, applies
+the archive entry/byte bounds, and compares canonical source/destination
+inventory hashes. It is itself an evidence fact. Failure leaves the previous
+slot and data intact and returns a bounded partial/indeterminate result when an
+effect cannot be excluded.
+
+### WebDriver supply chain and browser-control escape
+
+The schema-v2 driver manifest binds fixed WebView2 and EdgeDriver versions,
+Microsoft fixed-endpoint acquisition policy, archive name/size/hash,
+`msedgedriver.exe` size/hash, x64 PE identity, Microsoft Authenticode
+publisher, and complete file inventory. Redirects remain on a Microsoft HTTPS
+allowlist. Any provenance or version mismatch fails closed.
+
+The server owns a `127.0.0.1` ephemeral listener, fixed process arguments,
+session lifetime, and retained process identity. Profiles cannot provide a URL,
+port, browser argument, executable, endpoint, selector, JavaScript, navigation,
+or raw WebDriver payload. UI targets are closed `data-testid` values and file
+upload can refer only to a declared, server-staged and dual-hashed fixture ID.
+Screenshots and observations are bounded evidence, not a channel for protocol
+or environment dumps.
+
+Fixture source paths resolve only beneath the canonical, non-reparse profile
+directory. Every parent and final regular file is rebound, size/hash checked,
+and copied to operation-owned staging. The caller cannot provide a fixture root
+or guest destination, preventing the UI upload step from becoming a host or
+guest file-read primitive.
+
+### Schema downgrade or fabricated migration
+
+Profile and evidence readers dispatch once on the exact integer
+`schemaVersion`; an unknown value returns `UNSUPPORTED_SCHEMA_VERSION` and is
+never retried as v1. V1 profiles retain v1 semantics. Explicit v1-to-v2 profile
+migration creates a new document only when the mapping is lossless and
+deterministic; ambiguous package kinds require authoring. V1 evidence is never
+upgraded because candidate, fixture, driver, UI, deployment, and recovery
+provenance cannot be reconstructed. These rules prevent validation through a
+weaker schema and prohibit invented success evidence.
 
 ### Credential disclosure
 

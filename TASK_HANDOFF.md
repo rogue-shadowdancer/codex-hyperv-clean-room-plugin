@@ -1,216 +1,183 @@
-# TaskHandoff - Gate 5.2 marketplace GitHub link
+# TaskHandoff - Gate 6/H1 automation contract freeze
 
 `relayProtocolVersion: 1`
 
-`relayAttempt: 1`
-
-`projectPath: E:\study\great_projects\codex-hyperv-clean-room-plugin`
-
 ## Objective
 
-Complete Gate 5.2 only: add one canonical GitHub repository link to the Codex
-plugin install surface, keep the existing OpenAI Platform listing aligned with
-that URL, preserve base version `0.1.1` and every runtime/schema contract, and
-stop before Gate 6.
+Freeze, review, and validate the plugin `0.2.0`, schema-v2 automation contract
+needed by the Birdsgone private `v0.1.0-rc.1` route. H1 is contract, schema,
+fixture, static-test, and documentation work only. It does not implement or run
+any new mutation.
 
 ## Specification paths
 
 `specificationPaths[]`:
 
 - `AGENTS.md`
-- `docs/specification.md`
-- `docs/README.md`
-- `README.md`
-- `CHANGELOG.md`
-- `docs/maintenance.md`
-- `docs/release-process.md`
 - `TASK_HANDOFF.md`
+- `docs/specification.md`
+- `docs/architecture.md`
+- `docs/security.md`
+- `docs/profile-authoring.md`
+- `docs/evidence.md`
+- `contracts/v2/README.md`
+- `contracts/v2/tool-catalog.json`
+- `contracts/v2/compatibility.json`
+- `contracts/v2/schemas/*.schema.json`
+- `tests/gate6_contract_tests.py`
+- `tests/fixtures/v2/**`
+- `scripts/validate-gate6.ps1`
+- `hyperv-clean-room/skills/manage-hyperv-clean-room/SKILL.md`
 
 ## Completed work
 
 `completedWork[]`:
 
-- Gate 5.1 is complete at
-  `4bed14c8a7df068fcd8e827418e7c20527a2f271`: the repository is public,
-  `master` and annotated tag `v0.1.1` point at that release SHA, the source-only
-  GitHub Release is published, and both the branch and tag
-  `public-release-validation` runs succeeded.
-- GitHub GPL detection, anonymous public readback, repository settings, and
-  protected `master` were accepted by Gate 5.1. The protection requires strict
-  `public-release-validation`, one approving review, resolved conversations,
-  no force push, and no deletion. `validate-public-github-settings.ps1`
-  remains the exact settings readback.
-- Gate 5.2 adds
-  `https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin` as
-  `interface.websiteURL` and requires it to match the existing manifest
-  `homepage` and `repository` fields exactly.
-- The `plugin-creator` cachebuster helper was invoked exactly once for Gate
-  5.2, replacing the release build with
-  `0.1.1+codex.20260715084043`. No marketplace or Codex config file was
-  hand-edited.
-- The public-release contract now rejects a missing or divergent plugin URL.
-  Documentation distinguishes the immutable `v0.1.1` Release build
-  `0.1.1+codex.20260715064728` from the current `master` metadata build.
-- Static quality and publication hygiene permit the mandatory absolute
-  `projectPath` only in the single structured `TASK_HANDOFF.md` contract field;
-  every other Markdown or repository absolute Windows/workspace path remains
-  forbidden, with focused policy regressions covering the exception boundary.
-- Source commit `c5f0bd8114de182642c9d39204afed995fa41d0f` was merged by PR
-  #4 as the ordinary two-parent merge commit
-  `ff5765c2b4626c43c5de8b6444553a2408785920`. The exact source SHA passed
-  both push and pull-request CI with no unresolved review conversations.
-- The first post-merge `master` run exposed a publication-policy gap: GitHub's
-  signed web-flow merge uses the public user noreply email for the author and
-  the GitHub web-flow committer identity. The fail-closed repair accepts only
-  two-distinct-parent, GitHub-signature-envelope merges from this repository's
-  `rogue-shadowdancer/codex/*` branches, while preserving message scanning,
-  ordinary noreply identity checks, and the eight legacy raw-object digest
-  allowlist.
-- No MCP runtime file, tool name, tool input/output, schema-v1 semantic,
-  production adapter, evidence derivation, or mutation path is changed.
+- The target plugin version is `0.2.0`, public schema version is 2, and the
+  target tool catalog contains exactly 20 tools.
+- All 16 shipped schema-v1 tool names, input schemas, annotations, envelope
+  behavior, profile/evidence behavior, and five public schema files are frozen
+  without semantic change.
+- Four additive tools are frozen: `plan_vm_power`, `apply_vm_power`,
+  `plan_vm_network`, and `apply_vm_network`.
+- Power transitions are limited to start and graceful shutdown. Network
+  transitions are limited to the verified primary NIC's recorded baseline or
+  disconnected state, with a pre-created paired recovery plan.
+- Portable ZIP manifest/path/hash/limit/atomic-slot/data-preservation rules,
+  exact Microsoft EdgeDriver provenance, the closed `data-testid` UI DSL,
+  evidence-v2 derivation, and exact-version dispatch/migration are frozen.
+- Seven stable Draft 2020-12 target schemas plus valid, invalid,
+  semantic-invalid, compatibility, and deterministic migration fixtures are
+  present outside the installable plugin payload.
+- The current executable plugin remains `0.1.1`, schema v1, exactly 16 tools,
+  and five public schemas. `ToolSchemas.ps1`, the runtime, production adapter,
+  installer, manifest, tags, and Releases are unchanged.
 
 ## Changed areas
 
 `changedFiles[]`:
 
-- Plugin metadata: `hyperv-clean-room/.codex-plugin/plugin.json`.
-- Contract regressions: `tests/public_release_contract_tests.py`,
-  `tests/static_quality_tests.py`, `tests/publication_hygiene_tests.py`, and
-  `tests/publication_hygiene_policy_tests.py`.
-- Release/current-state documentation: `README.md`, `CHANGELOG.md`,
-  `docs/README.md`, `docs/specification.md`, and this handoff.
+- `contracts/v2/**`
+- `tests/gate6_contract_tests.py`
+- `tests/fixtures/v2/**`
+- `scripts/validate-gate6.ps1`
+- `.github/workflows/ci.yml`
+- `docs/specification.md`
+- `docs/architecture.md`
+- `docs/security.md`
+- `docs/profile-authoring.md`
+- `docs/evidence.md`
+- `docs/README.md`
+- `README.md`
+- `CHANGELOG.md`
+- `hyperv-clean-room/skills/manage-hyperv-clean-room/SKILL.md`
+- `TASK_HANDOFF.md`
 
 ## Repository state
 
 `repositoryState`:
 
-- Branch: `codex/fix-gate5-2-merge-validation`.
-- Current pre-fix-commit HEAD and remote baseline:
-  `ff5765c2b4626c43c5de8b6444553a2408785920` on `origin/master`.
-- The fix candidate is limited to `TASK_HANDOFF.md`,
-  `tests/publication_hygiene_tests.py`, and
-  `tests/publication_hygiene_policy_tests.py`; there are no unrelated,
-  untracked, or pre-existing user changes.
-- The worktree was clean before Gate 5.2. There was no pre-existing user work,
-  same-name local/remote branch, or same-head pull request; therefore no
-  existing change in this worktree belongs to the user outside this gate.
-- The required Gate 5.2 source commit is
-  `feat: link plugin listing to GitHub repository`; the repair commit is
-  `fix: validate GitHub web-flow merge commits`. Protected `master` changes
-  only through pull requests and ordinary merge commits.
-- The immutable `v0.1.1` tag and GitHub Release are not moved, replaced, or
-  recreated. No `v0.1.2` release is part of this gate.
+`projectPath: E:\study\great_projects\codex-hyperv-clean-room-plugin-gate6`
+
+- Branch: `codex/gate6-automation-contract`.
+- H1 started from public `origin/master` commit
+  `3234daea726ebd6685b5dfef20f99aaab152b279` after a clean, ancestor-verified
+  `--ff-only` update.
+- The H1 commit is the branch HEAD containing this handoff; obtain its exact
+  SHA with `git rev-parse HEAD` rather than copying a pre-commit placeholder.
+- The saved root `master` workspace is read-only and remained outside H1.
+- No pre-existing user changes were present in the dedicated H1 worktree.
+- Ignored `.artifacts/test-python` contains only the prepared test runtime and
+  logs; it is not committed.
 
 ## Verification
 
 `verification[]`:
 
-- Before Gate 5.2 edits, `scripts/prepare-test-python.ps1` and
-  `scripts/validate-public-release.ps1` passed all 13 checks with zero real
-  guest operations and zero real Hyper-V mutations.
-- The final Gate 5.2 candidate passed all 13 checks through
-  `scripts/validate-public-release.ps1`: PowerShell parsing, repository
-  formats, `git diff --check`, plugin validation, skill validation, Gate 1,
-  Gate 2, documentation, publication-policy regressions, Actions-log
-  regressions, full tree/history/identity hygiene, public-release contracts,
-  and CI-safe Gate 4. It reported zero real guest operations and zero real
-  Hyper-V mutations.
-- `scripts/validate-github-actions-history.ps1` scanned 16 authoritative runs,
-  3,728 log lines, and 597,833 log bytes with zero sensitive findings,
-  credentialed URLs, private paths, or forbidden state files.
-- Initial source push run `29403897567` and pull-request run `29403915224`
-  succeeded on exact SHA `c5f0bd8114de182642c9d39204afed995fa41d0f`.
-  Post-merge run `29404039585` failed only because the history policy rejected
-  GitHub's web-flow author/committer combination for merge SHA
-  `ff5765c2b4626c43c5de8b6444553a2408785920`; it was not bypassed or rerun.
-- Focused repair validation passes 12 publication-hygiene policy regressions
-  and the full local history scan, which recognizes one structurally bounded
-  GitHub web-flow merge and reports zero sensitive findings.
-- Pull-request and post-merge `master` Actions must pass
-  `public-release-validation` on their exact SHAs, strict status checks must
-  remain satisfied, and all conversations must be resolved. The user explicitly
-  authorized administrator bypass only for the otherwise unattainable approving
-  review because the repository's sole collaborator is also the PR author; the
-  bypass must not replace, skip, or weaken CI or conversation resolution.
-- After merge, reinstall from the final clean `master` without another
-  cachebuster. `validate-install-source.ps1 -RequireCachebuster`,
-  `install_plugin.ps1`, `check_install.ps1`, and `validate-gate4.ps1` must
-  prove source/install version, commit, inventory, hashes, personal marketplace
-  visibility, exactly 16 tools, read-only `inspect_host`, `INVALID_ISO`, and
-  zero real mutations.
-- Local UI acceptance requires the plugin details link to resolve to the exact
-  canonical GitHub URL. Portal acceptance requires the existing listing's
-  Website field to read back the same URL with no other listing-field drift.
+- `scripts/prepare-test-python.ps1` prepared the pinned ABI-isolated test
+  runtime under ignored `.artifacts`.
+- `tests/gate6_contract_tests.py` passed with 16 preserved v1 tools, 20 target
+  tools, five preserved v1 schemas, seven v2 schemas, eight valid fixtures,
+  five schema-invalid fixtures, three semantic-invalid fixtures, two migration
+  fixtures, 15 dynamic compatibility/safety checks, and zero real operations.
+- `scripts/validate-gate6.ps1` passed the complete H1 mock/static/docs gate and
+  recorded target plugin `0.2.0`, current runtime `0.1.1`, 20/16 tool counts,
+  seven/five schema counts, 16 contract fixtures, two migration fixtures, 15
+  dynamic contract checks, and zero real operations.
+- Strict documentation validation passed 17 documents and 97 local links with
+  UTF-8/no-BOM and zero mojibake findings.
+- The three publication policy/tree/release contract tests and
+  `scripts/validate-gate4-ci.ps1` passed, matching the remaining CI-safe
+  workflow checks affected by H1.
+- `git diff --cached --check` passed. Substantive review of the exact 43-path
+  staged candidate found zero production runtime/schema/manifest changes, zero
+  added mutation primitives, zero unstaged drift, and ZERO ACTIONABLE FINDINGS.
+- Clean-machine testing, credential enrollment, real PowerShell Direct work,
+  VM/checkpoint/power/network mutation, package or portable deployment,
+  WebDriver/UI execution, evidence collection, and manual attestation remain
+  `notPerformed`.
 
 ## Unresolved issues
 
 `unresolvedIssues[]`:
 
-- The merge-policy repair still requires complete local validation, a protected
-  fix PR, exact-SHA CI, approval-only administrator bypass, ordinary merge, and
-  successful post-merge `master` CI before reinstall may begin.
-- The OpenAI Platform portal requires the user to sign in. Only the existing
-  plugin entry may be updated; if it is missing, Gate 5.2 stops rather than
-  creating a new public submission or hosted MCP service.
-- If a Website edit requires review, the public directory update remains
-  externally pending until OpenAI approves it. External portal evidence does
-  not trigger a source-only bookkeeping commit.
+- Gate 7/H2 must implement the frozen target in production code and mock tests.
+- H2 must decide internal file/module placement without changing any frozen
+  public tool, schema, compatibility, expiry, recovery, path, hash, driver, UI,
+  evidence, or migration semantic.
+- Real clean-room acceptance is a later, separately authorized gate after H2;
+  it is not implied by contract or mock success.
 
 ## Blockers
 
-`blockers[]`: none.
+`blockers[]`: none for H1 contract completion. Any real mutation remains
+authorization-blocked by design.
 
 ## Next gate
 
-`nextGate`:
+`nextGate`: Gate 7/H2 implementation only.
 
-- Name: Gate 6 clean-machine and real-guest validation.
-- State: `notPerformed` and not authorized.
-- No credential initialization, live PowerShell Direct guest operation,
-  package lifecycle run, VM/checkpoint mutation, clean-machine validation, or
-  manual GUI attestation may be inferred from Gate 5.2.
+H2 owns executable integration of the already-frozen contract. It must not
+perform clean-machine or real Hyper-V/guest/package automation.
 
 ## Next commands
 
 `nextCommands[]`:
 
-1. Run the complete local validator and inspect the three-file repair diff for
-   identity-policy, publication-hygiene, and safety-boundary drift.
-2. Commit with `fix: validate GitHub web-flow merge commits`, push
-   `codex/fix-gate5-2-merge-validation`, and open a protected fix PR.
-3. Require exact-commit fix-PR CI and resolved conversations; use the
-   user-authorized administrator bypass only for the unavailable independent
-   approval, create a normal merge commit, and require green post-merge
-   `master` CI.
-4. Sync the final clean `master`, reinstall without another cachebuster, and
-   run source/install/hash/runtime readback plus local plugin-details UI
-   verification.
-5. Sign in to the OpenAI Platform in the in-app browser, update only the
-   existing entry's Website field after action-time confirmation, and read the
-   result back. Stop if the existing entry is absent.
-6. Report any externally pending portal review honestly and leave Gate 6 as
-   `notPerformed`.
+1. Read `AGENTS.md`, `TASK_HANDOFF.md`, `docs/specification.md`, and every file
+   under `contracts/v2` before editing.
+2. Verify the H1 branch/PR exact HEAD and checks, then use that exact candidate
+   as the H2 baseline without rewriting H1 history.
+3. Add v2 exact-version validation and the four tool registrations while
+   preserving the 16-tool v1 snapshot.
+4. Implement fixed adapter/worker seams only through mock-backed tests: plan
+   consumption/drift/expiry/recovery, portable staging, driver provenance,
+   closed UI dispatch, evidence derivation, and migration.
+5. Run scoped tests while iterating, then the full exact-HEAD Gate 7 validation
+   and staged review to ZERO ACTIONABLE FINDINGS.
+6. Update this handoff, commit/push the H2 gate on the existing draft PR, sync
+   GitHub trackers, and relay the next separately authorized gate.
 
 ## Safety constraints
 
 `safetyConstraints[]`:
 
-- Preserve the repository URL, protected `master`, `v0.1.1` tag/Release, GPL
-  license, existing history, and all historical object IDs.
-- Never publish or modify Birdsgone; its name appears only as a separation
-  boundary.
-- Never commit VM/VHDX/checkpoint/ISO, credential/DPAPI, evidence, cache, log,
-  installed-control, or machine-specific state.
-- Tests use mock adapters. Installed smoke remains read-only host inspection
-  plus nonexistent-ISO rejection with zero real guest operations and zero real
-  Hyper-V mutations.
-- Do not hand-edit the personal marketplace or `config.toml`, do not run the
-  cachebuster helper again, and do not create a tag or GitHub Release.
-- The administrator bypass is authorized only to replace the impossible
-  independent approval. Never use it to bypass a failed or pending CI check,
-  an unresolved conversation, force-push protection, or any other safety gate.
+- Do not execute a real VM, VHDX, checkpoint, power, network, credential,
+  guest, package, portable, WebDriver, UI, evidence, or manual-attestation
+  operation in H2.
+- Tests use the mock adapter. Do not add or expose deletion tools for a VM,
+  VHDX, checkpoint, guest file, deployment data, or host path.
+- Never accept plaintext credentials, arbitrary command/script/shell/URL,
+  CSS/XPath selector, JavaScript, raw WebDriver payload, raw uninstall string,
+  caller-selected executable argument, adapter, or switch.
+- Dispatch profile/evidence by exact schema version and fail closed. Preserve
+  v1 semantics; never synthesize v2 evidence from v1.
+- Do not move or replace `v0.1.1`, publish `0.2.0`, install a cachebuster,
+  force-push, rewrite history, or push `master` directly.
 
 ## Ownership
 
-- `ownership.previousTask: read-only-after-relay`
-- `ownership.successorTask: owns-next-gate`
+`ownership`:
+
+- `previousTask: read-only-after-relay`
+- `successorTask: owns-Gate-7-H2`

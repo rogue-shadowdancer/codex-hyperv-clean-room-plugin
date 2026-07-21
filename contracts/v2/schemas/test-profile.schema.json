@@ -1,0 +1,620 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/test-profile.schema.json",
+  "title": "Hyper-V clean-room schema-v2 declarative test profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "workflowKind",
+    "platform",
+    "baselineType",
+    "artifact",
+    "fixtures",
+    "applications",
+    "steps",
+    "cleanupSteps",
+    "manualAssertions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "id": { "$ref": "#/$defs/id" },
+    "description": { "type": "string", "maxLength": 1000 },
+    "workflowKind": {
+      "enum": ["legacyPackageLifecycle", "portableAutomation"]
+    },
+    "platform": { "const": "windows-x64" },
+    "baselineType": {
+      "enum": ["stock-clean", "webview2-absent-derived"]
+    },
+    "artifact": {
+      "oneOf": [
+        { "$ref": "#/$defs/installerArtifact" },
+        { "$ref": "#/$defs/portableArtifact" }
+      ]
+    },
+    "fixtures": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/fixture" }
+    },
+    "webDriver": {
+      "$ref": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/webdriver-manifest.schema.json"
+    },
+    "applications": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/installerApplication" },
+          { "$ref": "#/$defs/portableApplication" }
+        ]
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 512,
+      "items": { "$ref": "#/$defs/step" }
+    },
+    "cleanupSteps": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/cleanupStep" }
+    },
+    "manualAssertions": {
+      "type": "array",
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/manualAssertion" }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "workflowKind": { "const": "portableAutomation" } },
+        "required": ["workflowKind"]
+      },
+      "then": {
+        "required": ["webDriver"],
+        "properties": {
+          "artifact": { "$ref": "#/$defs/portableArtifact" },
+          "applications": {
+            "items": { "$ref": "#/$defs/portableApplication" }
+          },
+          "steps": {
+            "contains": {
+              "properties": { "type": { "const": "deployPortable" } },
+              "required": ["type"]
+            },
+            "minContains": 1,
+            "maxContains": 1
+          }
+        }
+      },
+      "else": {
+        "not": { "required": ["webDriver"] },
+        "properties": {
+          "artifact": { "$ref": "#/$defs/installerArtifact" },
+          "applications": {
+            "items": { "$ref": "#/$defs/installerApplication" }
+          },
+          "steps": {
+            "not": {
+              "contains": {
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "deployPortable",
+                      "acquireWebDriver",
+                      "startUiSession",
+                      "stopUiSession",
+                      "uiClick",
+                      "uiSetText",
+                      "uiPressKey",
+                      "uiSelectOption",
+                      "uiUploadFixture",
+                      "assertUiElement",
+                      "captureUiScreenshot"
+                    ]
+                  }
+                },
+                "required": ["type"]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "applicationId": {
+      "type": "string",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9-]*$"
+    },
+    "testId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "safeRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?![A-Za-z]:)(?![\\\\/])(?!.*:)(?!.*%)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$))(?!.*[. ](?:[\\\\/]|$)).+$"
+    },
+    "installerArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageKind", "fileNamePattern", "architecture"],
+      "properties": {
+        "packageKind": { "enum": ["nsis", "msi"] },
+        "fileNamePattern": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 260,
+          "pattern": "^[^\\\\/]+$"
+        },
+        "architecture": { "const": "x64" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "sizeBytes": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "portableArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageKind",
+        "fileNamePattern",
+        "architecture",
+        "sha256",
+        "sizeBytes",
+        "portableManifestEntryPath",
+        "portableManifestSha256"
+      ],
+      "properties": {
+        "packageKind": { "const": "portableZip" },
+        "fileNamePattern": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 260,
+          "pattern": "^(?!.*[<>:\"|?*%])[^\\\\/]+\\.zip$"
+        },
+        "architecture": { "const": "x64" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "sizeBytes": { "type": "integer", "minimum": 1, "maximum": 8589934592 },
+        "portableManifestEntryPath": { "const": "portable-manifest.json" },
+        "portableManifestSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sourceRelativePath", "sizeBytes", "sha256", "mediaType"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "sourceRelativePath": { "$ref": "#/$defs/safeRelativePath" },
+        "sizeBytes": { "type": "integer", "minimum": 1, "maximum": 1073741824 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "mediaType": {
+          "enum": [
+            "image/png",
+            "image/jpeg",
+            "application/json",
+            "text/plain",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          ]
+        }
+      }
+    },
+    "installerApplication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "packageKind",
+        "installMode",
+        "executableRelativePath",
+        "uninstallerDiscovery"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/applicationId" },
+        "packageKind": { "enum": ["nsis", "msi"] },
+        "installMode": { "const": "currentUser" },
+        "executableRelativePath": { "$ref": "#/$defs/safeRelativePath" },
+        "uninstallerDiscovery": { "enum": ["hkcuUninstall", "msiProduct"] },
+        "processName": { "type": "string", "pattern": "^[a-zA-Z0-9._-]+$" }
+      }
+    },
+    "portableApplication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "packageKind",
+        "executableRelativePath",
+        "dataDirectoryRelativePath",
+        "processName"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/applicationId" },
+        "packageKind": { "const": "portableZip" },
+        "executableRelativePath": { "$ref": "#/$defs/safeRelativePath" },
+        "dataDirectoryRelativePath": { "const": "data" },
+        "processName": { "type": "string", "pattern": "^[a-zA-Z0-9._-]+$" }
+      }
+    },
+    "stepBase": {
+      "type": "object",
+      "required": ["id", "type", "timeoutSeconds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "type": { "type": "string" },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 900 },
+        "required": { "type": "boolean", "default": true }
+      }
+    },
+    "actionRequired": {
+      "properties": { "required": { "const": true } }
+    },
+    "stageArtifactStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        { "$ref": "#/$defs/actionRequired" },
+        { "properties": { "type": { "const": "stageArtifact" } } }
+      ],
+      "unevaluatedProperties": false
+    },
+    "applicationActionStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        { "$ref": "#/$defs/actionRequired" },
+        {
+          "required": ["application"],
+          "properties": {
+            "type": {
+              "enum": [
+                "installPackage",
+                "deployPortable",
+                "launchApplication",
+                "stopApplication",
+                "uninstallPackage"
+              ]
+            },
+            "application": { "$ref": "#/$defs/applicationId" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "pathAssertionStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        {
+          "required": ["path"],
+          "properties": {
+            "type": { "enum": ["assertFile", "assertShortcut"] },
+            "path": { "$ref": "#/$defs/safeRelativePath" },
+            "expected": { "type": ["string", "number", "integer", "boolean", "null"] }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "registryAssertionStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        {
+          "required": ["registryPath"],
+          "properties": {
+            "type": { "const": "assertRegistry" },
+            "registryPath": { "$ref": "#/$defs/safeRelativePath" },
+            "registryName": { "type": "string", "maxLength": 255 },
+            "expected": { "type": ["string", "number", "integer", "boolean", "null"] }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "processAssertionStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        {
+          "properties": {
+            "type": { "const": "assertProcess" },
+            "application": { "$ref": "#/$defs/applicationId" },
+            "processName": { "type": "string", "pattern": "^[a-zA-Z0-9._-]+$" },
+            "expected": { "type": ["string", "number", "integer", "boolean", "null"] }
+          },
+          "oneOf": [
+            { "required": ["application"] },
+            { "required": ["processName"] }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "moduleAssertionStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        {
+          "required": ["application", "moduleRelativePath"],
+          "properties": {
+            "type": { "const": "assertModule" },
+            "application": { "$ref": "#/$defs/applicationId" },
+            "moduleRelativePath": { "$ref": "#/$defs/safeRelativePath" },
+            "expected": { "type": ["string", "number", "integer", "boolean", "null"] }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "portAssertionStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        {
+          "required": ["port"],
+          "properties": {
+            "type": { "const": "assertPort" },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "expected": { "type": ["string", "number", "integer", "boolean", "null"] }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "sentinelStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        {
+          "required": ["sentinelId"],
+          "properties": {
+            "type": { "enum": ["writeSentinel", "assertSentinel"] },
+            "sentinelId": { "$ref": "#/$defs/id" },
+            "expected": { "type": ["string", "number", "integer", "boolean", "null"] }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "waitStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        { "$ref": "#/$defs/actionRequired" },
+        { "properties": { "type": { "const": "wait" } } }
+      ],
+      "unevaluatedProperties": false
+    },
+    "uiLifecycleStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        { "$ref": "#/$defs/actionRequired" },
+        {
+          "properties": {
+            "type": { "enum": ["acquireWebDriver", "stopUiSession"] }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "startUiSessionStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        { "$ref": "#/$defs/actionRequired" },
+        {
+          "required": ["application"],
+          "properties": {
+            "type": { "const": "startUiSession" },
+            "application": { "$ref": "#/$defs/applicationId" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "uiClickStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        { "$ref": "#/$defs/actionRequired" },
+        {
+          "required": ["testId"],
+          "properties": {
+            "type": { "const": "uiClick" },
+            "testId": { "$ref": "#/$defs/testId" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "uiSetTextStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        { "$ref": "#/$defs/actionRequired" },
+        {
+          "required": ["testId", "text"],
+          "properties": {
+            "type": { "const": "uiSetText" },
+            "testId": { "$ref": "#/$defs/testId" },
+            "text": { "type": "string", "maxLength": 4096 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "uiPressKeyStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        { "$ref": "#/$defs/actionRequired" },
+        {
+          "required": ["testId", "key"],
+          "properties": {
+            "type": { "const": "uiPressKey" },
+            "testId": { "$ref": "#/$defs/testId" },
+            "key": {
+              "enum": ["Enter", "Escape", "Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "uiSelectOptionStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        { "$ref": "#/$defs/actionRequired" },
+        {
+          "required": ["testId", "value"],
+          "properties": {
+            "type": { "const": "uiSelectOption" },
+            "testId": { "$ref": "#/$defs/testId" },
+            "value": { "type": "string", "minLength": 1, "maxLength": 512 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "uiUploadFixtureStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        { "$ref": "#/$defs/actionRequired" },
+        {
+          "required": ["testId", "fixtureId"],
+          "properties": {
+            "type": { "const": "uiUploadFixture" },
+            "testId": { "$ref": "#/$defs/testId" },
+            "fixtureId": { "$ref": "#/$defs/id" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "assertUiElementStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        {
+          "required": ["testId", "state"],
+          "properties": {
+            "type": { "const": "assertUiElement" },
+            "testId": { "$ref": "#/$defs/testId" },
+            "state": {
+              "enum": [
+                "visible",
+                "hidden",
+                "enabled",
+                "disabled",
+                "checked",
+                "unchecked",
+                "textEquals",
+                "textContains",
+                "valueEquals"
+              ]
+            },
+            "expected": { "type": "string", "maxLength": 4096 }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "state": { "enum": ["textEquals", "textContains", "valueEquals"] }
+                },
+                "required": ["state"]
+              },
+              "then": { "required": ["expected"] },
+              "else": { "not": { "required": ["expected"] } }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "captureUiScreenshotStep": {
+      "allOf": [
+        { "$ref": "#/$defs/stepBase" },
+        { "$ref": "#/$defs/actionRequired" },
+        {
+          "required": ["evidenceName"],
+          "properties": {
+            "type": { "const": "captureUiScreenshot" },
+            "evidenceName": { "$ref": "#/$defs/id" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "step": {
+      "oneOf": [
+        { "$ref": "#/$defs/stageArtifactStep" },
+        { "$ref": "#/$defs/applicationActionStep" },
+        { "$ref": "#/$defs/pathAssertionStep" },
+        { "$ref": "#/$defs/registryAssertionStep" },
+        { "$ref": "#/$defs/processAssertionStep" },
+        { "$ref": "#/$defs/moduleAssertionStep" },
+        { "$ref": "#/$defs/portAssertionStep" },
+        { "$ref": "#/$defs/sentinelStep" },
+        { "$ref": "#/$defs/waitStep" },
+        { "$ref": "#/$defs/uiLifecycleStep" },
+        { "$ref": "#/$defs/startUiSessionStep" },
+        { "$ref": "#/$defs/uiClickStep" },
+        { "$ref": "#/$defs/uiSetTextStep" },
+        { "$ref": "#/$defs/uiPressKeyStep" },
+        { "$ref": "#/$defs/uiSelectOptionStep" },
+        { "$ref": "#/$defs/uiUploadFixtureStep" },
+        { "$ref": "#/$defs/assertUiElementStep" },
+        { "$ref": "#/$defs/captureUiScreenshotStep" }
+      ]
+    },
+    "cleanupStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "timeoutSeconds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "type": {
+          "enum": [
+            "stopApplication",
+            "stopUiSession",
+            "captureUiScreenshot",
+            "wait",
+            "assertFile",
+            "assertRegistry",
+            "assertProcess",
+            "assertModule",
+            "assertShortcut",
+            "assertPort",
+            "assertSentinel"
+          ]
+        },
+        "application": { "$ref": "#/$defs/applicationId" },
+        "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 120 },
+        "path": { "$ref": "#/$defs/safeRelativePath" },
+        "registryPath": { "$ref": "#/$defs/safeRelativePath" },
+        "registryName": { "type": "string", "maxLength": 255 },
+        "expected": { "type": ["string", "number", "integer", "boolean", "null"] },
+        "processName": { "type": "string", "pattern": "^[a-zA-Z0-9._-]+$" },
+        "moduleRelativePath": { "$ref": "#/$defs/safeRelativePath" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "sentinelId": { "$ref": "#/$defs/id" },
+        "evidenceName": { "$ref": "#/$defs/id" },
+        "required": { "type": "boolean", "default": true }
+      }
+    },
+    "manualAssertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "required"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "required": { "type": "boolean" }
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 2,
+  "id": "edge-driver-138-0-3351-121",
+  "provider": "microsoftEdgeDriver",
+  "browserKind": "fixedVersionWebView2",
+  "browserVersion": "138.0.3351.121",
+  "driverVersion": "138.0.3351.121",
+  "architecture": "x64",
+  "acquisition": {
+    "source": "microsoftFixedEndpoint",
+    "archiveFileName": "edgedriver_win64.zip",
+    "archiveSizeBytes": 10485760,
+    "archiveSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "redirectPolicy": "microsoftHttpsAllowlist"
+  },
+  "executable": {
+    "relativePath": "msedgedriver.exe",
+    "sizeBytes": 15728640,
+    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "peArchitecture": "x64",
+    "authenticodePublisher": "Microsoft Corporation"
+  },
+  "sessionPolicy": {
+    "listenAddress": "127.0.0.1",
+    "portPolicy": "serverAllocatedEphemeral",
+    "browserArguments": [],
+    "allowNavigation": false,
+    "allowExecuteScript": false,
+    "allowArbitrarySelector": false
+  },
+  "files": [
+    {
+      "path": "msedgedriver.exe",
+      "sizeBytes": 15728640,
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "path": "Driver_Notes\\credits.html",
+      "sizeBytes": 2048,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ]
+}

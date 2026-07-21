@@ -1,0 +1,452 @@
+{
+  "contractVersion": 2,
+  "targetPluginVersion": "0.2.0",
+  "currentRuntimeVersion": "0.1.1",
+  "schemaVersion": 2,
+  "toolCount": 20,
+  "resultEnvelopes": {
+    "exactV1Tools": "hyperv-clean-room/schemas/operation-envelope.schema.json",
+    "schemaV2Tools": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/operation-envelope.schema.json"
+  },
+  "dispatch": {
+    "profileAndEvidenceVersionField": "schemaVersion",
+    "strategy": "exactInteger",
+    "unknownVersionError": "UNSUPPORTED_SCHEMA_VERSION",
+    "fallback": false
+  },
+  "tools": [
+    {
+      "name": "inspect_host",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/0"
+    },
+    {
+      "name": "list_vms",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/1"
+    },
+    {
+      "name": "inspect_vm",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/2"
+    },
+    {
+      "name": "validate_test_profile",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/3"
+    },
+    {
+      "name": "validate_evidence",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/4"
+    },
+    {
+      "name": "plan_vm_create",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/5"
+    },
+    {
+      "name": "apply_vm_create",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/6"
+    },
+    {
+      "name": "plan_checkpoint_create",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/7"
+    },
+    {
+      "name": "apply_checkpoint_create",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/8"
+    },
+    {
+      "name": "plan_checkpoint_restore",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/9"
+    },
+    {
+      "name": "apply_checkpoint_restore",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/10"
+    },
+    {
+      "name": "inspect_guest",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/11"
+    },
+    {
+      "name": "stage_artifact",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/12"
+    },
+    {
+      "name": "run_test_profile",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/13"
+    },
+    {
+      "name": "collect_evidence",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/14"
+    },
+    {
+      "name": "record_manual_attestation",
+      "introducedIn": "0.1.0",
+      "compatibility": "exactV1",
+      "compatibilityRef": "tests/fixtures/v2/compatibility/tool-catalog-v1.json#/15"
+    },
+    {
+      "name": "plan_vm_power",
+      "introducedIn": "0.2.0",
+      "description": "Create a 15-minute, non-mutating plan to start or gracefully shut down a verified managed VM.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vmName", "action"],
+        "properties": {
+          "vmName": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "action": { "type": "string", "enum": ["start", "gracefulShutdown"] }
+        }
+      },
+      "annotations": {
+        "title": "plan_vm_power",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "resultContract": {
+        "envelopeSchema": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/operation-envelope.schema.json",
+        "successChanged": false,
+        "successDataSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["plan"],
+          "properties": {
+            "plan": {
+              "$ref": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/vm-power-plan.schema.json"
+            }
+          }
+        },
+        "failureCodes": [
+          "HYPERV_UNAVAILABLE",
+          "INVALID_ARGUMENT",
+          "OWNERSHIP_UNVERIFIED",
+          "STATE_BUSY",
+          "VM_NOT_FOUND",
+          "VM_STATE_UNSUPPORTED"
+        ]
+      }
+    },
+    {
+      "name": "apply_vm_power",
+      "introducedIn": "0.2.0",
+      "description": "Consume and revalidate a VM-power plan, then perform only its guarded start or graceful shutdown.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["planId"],
+        "properties": {
+          "planId": { "type": "string", "format": "uuid" }
+        }
+      },
+      "annotations": {
+        "title": "apply_vm_power",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "resultContract": {
+        "envelopeSchema": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/operation-envelope.schema.json",
+        "successChanged": true,
+        "successDataSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "planId",
+            "vmId",
+            "vmName",
+            "action",
+            "previousState",
+            "currentState",
+            "effectState"
+          ],
+          "properties": {
+            "planId": { "type": "string", "format": "uuid" },
+            "vmId": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "vmName": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "action": { "enum": ["start", "gracefulShutdown"] },
+            "previousState": { "enum": ["Off", "Running"] },
+            "currentState": { "enum": ["Off", "Running"] },
+            "effectState": { "const": "confirmed" }
+          },
+          "oneOf": [
+            {
+              "properties": {
+                "action": { "const": "start" },
+                "previousState": { "const": "Off" },
+                "currentState": { "const": "Running" }
+              }
+            },
+            {
+              "properties": {
+                "action": { "const": "gracefulShutdown" },
+                "previousState": { "const": "Running" },
+                "currentState": { "const": "Off" }
+              }
+            }
+          ]
+        },
+        "failureCodes": [
+          "ELEVATION_REQUIRED",
+          "HYPERV_UNAVAILABLE",
+          "INVALID_ARGUMENT",
+          "OWNERSHIP_UNVERIFIED",
+          "PLAN_ALREADY_CONSUMED",
+          "PLAN_DRIFT",
+          "PLAN_EXPIRED",
+          "PLAN_INVALID",
+          "PLAN_KIND_MISMATCH",
+          "PLAN_NOT_FOUND",
+          "POWER_TRANSITION_FAILED",
+          "STATE_BUSY",
+          "VM_STATE_UNSUPPORTED"
+        ]
+      }
+    },
+    {
+      "name": "plan_vm_network",
+      "introducedIn": "0.2.0",
+      "description": "Create guarded change and recovery plans for the verified managed primary NIC and its recorded baseline switch.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vmName", "target"],
+        "properties": {
+          "vmName": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "target": { "type": "string", "enum": ["baseline", "disconnected"] }
+        }
+      },
+      "annotations": {
+        "title": "plan_vm_network",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "resultContract": {
+        "envelopeSchema": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/operation-envelope.schema.json",
+        "successChanged": false,
+        "successDataSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["changePlan", "recoveryPlan"],
+          "properties": {
+            "changePlan": {
+              "allOf": [
+                {
+                  "$ref": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/vm-network-plan.schema.json"
+                },
+                { "properties": { "planRole": { "const": "change" } } }
+              ]
+            },
+            "recoveryPlan": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/vm-network-plan.schema.json"
+                    },
+                    { "properties": { "planRole": { "const": "recovery" } } }
+                  ]
+                }
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "changePlan": {
+                    "properties": { "target": { "const": "disconnected" } }
+                  }
+                },
+                "required": ["changePlan"]
+              },
+              "then": {
+                "properties": {
+                  "recoveryPlan": {
+                    "allOf": [
+                      {
+                        "$ref": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/vm-network-plan.schema.json"
+                      },
+                      { "properties": { "planRole": { "const": "recovery" } } }
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "changePlan": {
+                    "properties": { "pairedPlanId": { "type": "null" } }
+                  },
+                  "recoveryPlan": { "type": "null" }
+                }
+              }
+            }
+          ]
+        },
+        "failureCodes": [
+          "BASELINE_UNAVAILABLE",
+          "HYPERV_UNAVAILABLE",
+          "INVALID_ARGUMENT",
+          "OWNERSHIP_UNVERIFIED",
+          "PRIMARY_ADAPTER_UNVERIFIED",
+          "STATE_BUSY",
+          "VM_NOT_FOUND"
+        ]
+      }
+    },
+    {
+      "name": "apply_vm_network",
+      "introducedIn": "0.2.0",
+      "description": "Consume and revalidate one VM-network change or recovery plan, then apply only its baseline or disconnected target.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["planId"],
+        "properties": {
+          "planId": { "type": "string", "format": "uuid" }
+        }
+      },
+      "annotations": {
+        "title": "apply_vm_network",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "resultContract": {
+        "envelopeSchema": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/operation-envelope.schema.json",
+        "successChanged": true,
+        "successDataSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "planId",
+            "pairedPlanId",
+            "planRole",
+            "vmId",
+            "vmName",
+            "adapterId",
+            "target",
+            "previousAttachment",
+            "currentAttachment",
+            "effectState",
+            "recoveryRequired"
+          ],
+          "properties": {
+            "planId": { "type": "string", "format": "uuid" },
+            "pairedPlanId": { "type": ["string", "null"], "format": "uuid" },
+            "planRole": { "enum": ["change", "recovery"] },
+            "vmId": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "vmName": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "adapterId": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "target": { "enum": ["baseline", "disconnected"] },
+            "previousAttachment": {
+              "$ref": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/vm-network-plan.schema.json#/$defs/attachment"
+            },
+            "currentAttachment": {
+              "$ref": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/vm-network-plan.schema.json#/$defs/attachment"
+            },
+            "effectState": { "const": "confirmed" },
+            "recoveryRequired": { "type": "boolean" }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "planRole": { "const": "change" },
+                  "target": { "const": "disconnected" }
+                },
+                "required": ["planRole", "target"]
+              },
+              "then": {
+                "properties": {
+                  "pairedPlanId": { "type": "string", "format": "uuid" },
+                  "previousAttachment": { "$ref": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/vm-network-plan.schema.json#/$defs/connectedAttachment" },
+                  "currentAttachment": { "$ref": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/vm-network-plan.schema.json#/$defs/disconnectedAttachment" },
+                  "recoveryRequired": { "const": true }
+                }
+              },
+              "else": {
+                "properties": {
+                  "previousAttachment": { "$ref": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/vm-network-plan.schema.json#/$defs/disconnectedAttachment" },
+                  "currentAttachment": { "$ref": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/vm-network-plan.schema.json#/$defs/connectedAttachment" },
+                  "recoveryRequired": { "const": false }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": { "planRole": { "const": "recovery" } },
+                "required": ["planRole"]
+              },
+              "then": {
+                "properties": {
+                  "pairedPlanId": { "type": "string", "format": "uuid" },
+                  "target": { "const": "baseline" }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "planRole": { "const": "change" },
+                  "target": { "const": "baseline" }
+                },
+                "required": ["planRole", "target"]
+              },
+              "then": { "properties": { "pairedPlanId": { "type": "null" } } }
+            }
+          ]
+        },
+        "failureCodes": [
+          "BASELINE_UNAVAILABLE",
+          "ELEVATION_REQUIRED",
+          "HYPERV_UNAVAILABLE",
+          "INVALID_ARGUMENT",
+          "NETWORK_RECOVERY_REQUIRED",
+          "NETWORK_TRANSITION_FAILED",
+          "OWNERSHIP_UNVERIFIED",
+          "PLAN_ALREADY_CONSUMED",
+          "PLAN_DRIFT",
+          "PLAN_EXPIRED",
+          "PLAN_INVALID",
+          "PLAN_KIND_MISMATCH",
+          "PLAN_NOT_FOUND",
+          "PRIMARY_ADAPTER_UNVERIFIED",
+          "STATE_BUSY"
+        ]
+      }
+    }
+  ]
+}

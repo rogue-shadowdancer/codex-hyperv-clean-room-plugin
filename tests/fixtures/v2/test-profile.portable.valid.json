@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 2,
+  "id": "portable-ui-smoke",
+  "description": "Stage one portable ZIP and controlled fixture, then exercise only data-testid UI actions.",
+  "workflowKind": "portableAutomation",
+  "platform": "windows-x64",
+  "baselineType": "stock-clean",
+  "artifact": {
+    "packageKind": "portableZip",
+    "fileNamePattern": "SampleProduct_0.1.0_windows-x64-portable.zip",
+    "architecture": "x64",
+    "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "sizeBytes": 104857600,
+    "portableManifestEntryPath": "portable-manifest.json",
+    "portableManifestSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "fixtures": [
+    {
+      "id": "sample-image",
+      "sourceRelativePath": "fixtures\\sample-image.png",
+      "sizeBytes": 4096,
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "mediaType": "image/png"
+    }
+  ],
+  "webDriver": {
+    "schemaVersion": 2,
+    "id": "edge-driver-138-0-3351-121",
+    "provider": "microsoftEdgeDriver",
+    "browserKind": "fixedVersionWebView2",
+    "browserVersion": "138.0.3351.121",
+    "driverVersion": "138.0.3351.121",
+    "architecture": "x64",
+    "acquisition": {
+      "source": "microsoftFixedEndpoint",
+      "archiveFileName": "edgedriver_win64.zip",
+      "archiveSizeBytes": 10485760,
+      "archiveSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "redirectPolicy": "microsoftHttpsAllowlist"
+    },
+    "executable": {
+      "relativePath": "msedgedriver.exe",
+      "sizeBytes": 15728640,
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "peArchitecture": "x64",
+      "authenticodePublisher": "Microsoft Corporation"
+    },
+    "sessionPolicy": {
+      "listenAddress": "127.0.0.1",
+      "portPolicy": "serverAllocatedEphemeral",
+      "browserArguments": [],
+      "allowNavigation": false,
+      "allowExecuteScript": false,
+      "allowArbitrarySelector": false
+    },
+    "files": [
+      {
+        "path": "msedgedriver.exe",
+        "sizeBytes": 15728640,
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ]
+  },
+  "applications": [
+    {
+      "id": "sample-product",
+      "packageKind": "portableZip",
+      "executableRelativePath": "SampleProduct.exe",
+      "dataDirectoryRelativePath": "data",
+      "processName": "SampleProduct.exe"
+    }
+  ],
+  "steps": [
+    {
+      "id": "stage-artifact",
+      "type": "stageArtifact",
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "deploy-portable",
+      "type": "deployPortable",
+      "application": "sample-product",
+      "timeoutSeconds": 300
+    },
+    {
+      "id": "launch-application",
+      "type": "launchApplication",
+      "application": "sample-product",
+      "timeoutSeconds": 60
+    },
+    {
+      "id": "acquire-webdriver",
+      "type": "acquireWebDriver",
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "start-ui-session",
+      "type": "startUiSession",
+      "application": "sample-product",
+      "timeoutSeconds": 60
+    },
+    {
+      "id": "upload-fixture",
+      "type": "uiUploadFixture",
+      "testId": "source-file-input",
+      "fixtureId": "sample-image",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "start-import",
+      "type": "uiClick",
+      "testId": "start-import-button",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "assert-review-visible",
+      "type": "assertUiElement",
+      "testId": "recognition-review",
+      "state": "visible",
+      "timeoutSeconds": 60,
+      "required": true
+    },
+    {
+      "id": "capture-review",
+      "type": "captureUiScreenshot",
+      "evidenceName": "recognition-review",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "stop-ui-session",
+      "type": "stopUiSession",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "stop-application",
+      "type": "stopApplication",
+      "application": "sample-product",
+      "timeoutSeconds": 30
+    }
+  ],
+  "cleanupSteps": [
+    {
+      "id": "cleanup-stop-application",
+      "type": "stopApplication",
+      "application": "sample-product",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "cleanup-assert-stopped",
+      "type": "assertProcess",
+      "application": "sample-product",
+      "expected": false,
+      "timeoutSeconds": 15,
+      "required": true
+    }
+  ],
+  "manualAssertions": [
+    {
+      "id": "visual-dpi-check",
+      "description": "Confirm the portable UI is usable at the declared DPI.",
+      "required": true
+    }
+  ]
+}
