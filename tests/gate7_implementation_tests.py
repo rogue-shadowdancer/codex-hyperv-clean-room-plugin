@@ -49,8 +49,14 @@ def main() -> int:
     compatibility = load(CONTRACT / "compatibility.json")
     catalog = load(CONTRACT / "tool-catalog.json")
     manifest = load(PLUGIN / ".codex-plugin" / "plugin.json")
-    if manifest["version"] != "0.2.0":
-        raise AssertionError("the integrated plugin version must be exactly 0.2.0")
+    if not re.fullmatch(
+        r"0\.2\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?",
+        str(manifest["version"]),
+    ):
+        raise AssertionError(
+            "the integrated plugin version must preserve base 0.2.0 with at "
+            "most one Codex cachebuster"
+        )
     if catalog["currentRuntimeVersion"] != "0.2.0" or compatibility["currentRuntimeVersion"] != "0.2.0":
         raise AssertionError("contract integration metadata is not current")
     if len(catalog["tools"]) != 20:

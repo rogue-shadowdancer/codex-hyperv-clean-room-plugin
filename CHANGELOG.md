@@ -41,9 +41,12 @@ the local plugin cache.
   publication and all machine-backed work remain `notPerformed`.
 - Gate 8/H3 publishes the immutable source-only `v0.2.0` tag and GitHub Release
   from accepted commit `642f20d1d74a54ecbb08115b1a921ca65ef01fb8`.
-  Cachebuster installation, installed-source match, clean-machine validation,
-  and real VM, credential, guest, package, portable, WebDriver, network, UI,
-  and manual-attestation work remain `notPerformed`.
+- Gate 9/H4 creates the single personal build
+  `0.2.0+codex.20260722114845`, preserves the immutable `v0.2.0` tag/Release,
+  and binds the owned 31-file installation, personal marketplace entry, and
+  20-tool installed runtime to its accepted source commit. Only read-only host
+  inspection and a pre-mutation nonexistent-ISO rejection are exercised; all
+  real guest/Hyper-V mutation and clean-machine scopes remain `notPerformed`.
 
 ### Fixed
 
@@ -82,6 +85,8 @@ the local plugin cache.
   strict `public-release-validation` remains mandatory.
 - Anonymous public-source readback now binds README validation to the integrated
   20-tool contract instead of the retired `v0.1.1` release-title wording.
+- The installed-copy aggregate now enforces the integrated 20-tool runtime
+  instead of retaining the historical Gate 4 assertion for 16 tools.
 
 ## 0.1.1 - GPL public release - 2026-07-15
 

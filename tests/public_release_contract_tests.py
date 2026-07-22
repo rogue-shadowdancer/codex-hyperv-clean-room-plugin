@@ -85,8 +85,13 @@ def main() -> int:
                 f"manifest {field} must be the canonical plugin URL: {actual}"
             )
     version = str(manifest.get("version", ""))
-    if version != "0.2.0":
-        raise AssertionError(f"integrated source version must be 0.2.0: {version}")
+    if not re.fullmatch(
+        r"0\.2\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?", version
+    ):
+        raise AssertionError(
+            "integrated source version must preserve base 0.2.0 with at most "
+            f"one Codex cachebuster: {version}"
+        )
 
     server = read_text("hyperv-clean-room/mcp/server.ps1")
     common = read_text("hyperv-clean-room/mcp/lib/Common.ps1")

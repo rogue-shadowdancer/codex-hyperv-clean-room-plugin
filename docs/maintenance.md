@@ -11,12 +11,12 @@ source manifest only through the `plugin-creator` cachebuster helper:
   .\hyperv-clean-room
 ```
 
-For a separately authorized plugin `0.2.0` installation gate, use the helper's
-default UTC token. It preserves base version `0.2.0`, replaces any previous
-build suffix, and produces one version of the form
-`0.2.0+codex.<cachebuster>`. Do not increment the numeric version only to
-refresh Codex, and do not append multiple cachebusters. Gate 7/H2 performs no
-cachebuster update or install.
+Gate 9/H4 uses the helper's default UTC token exactly once. It preserves base
+version `0.2.0`, replaces any previous build suffix, and produces
+`0.2.0+codex.20260722114845`. Do not increment the numeric version only to
+refresh Codex, do not append multiple cachebusters, and do not rerun the helper
+for this accepted build. Gate 7/H2 and Gate 8/H3 performed no cachebuster update
+or install.
 
 The historical `v0.1.1` release used the helper exactly once and produced
 `0.1.1+codex.20260715064728`. Release verification must preserve that value;
@@ -77,7 +77,7 @@ rerun the installer; do not switch to an unrelated or remote marketplace.
 
 `validate-gate4.ps1` reruns the Gate 2 mock/schema/static suite, source and
 installer security tests, plugin-creator manifest validation, install-state
-checks, and an MCP process started only from the installed copy. The real host
+checks, and a 20-tool MCP process started only from the installed copy. The real host
 portion remains limited to read-only `inspect_host` plus a nonexistent-ISO
 plan rejection. It enrolls no credential, opens no guest session, executes no
 package, and performs zero real Hyper-V mutations.

@@ -46,8 +46,10 @@ Assert-Gate4Validation ([string]$installResult.sourceCommit -ceq
 Assert-Gate4Validation (-not [string]::IsNullOrWhiteSpace([string]$installResult.cachebuster) -and
     [string]$installResult.cachebuster -ceq [string]$installResult.installedCachebuster) `
     'Source and installed cachebusters differ or are missing.'
-Assert-Gate4Validation ([int]$smokeResult.toolCount -eq 16) `
-    'Installed-copy smoke did not expose exactly 16 tools.'
+Assert-Gate4Validation ([int]$smokeResult.toolCount -eq 20) `
+    'Installed-copy smoke did not expose exactly 20 tools.'
+Assert-Gate4Validation ([string]$smokeResult.runtimeVersion -ceq '0.2.0') `
+    'Installed-copy smoke did not report the exact 0.2.0 base runtime version.'
 Assert-Gate4Validation ([string]$smokeResult.serverStartedFrom -like
     (Join-Path $HOME 'plugins\hyperv-clean-room\*')) `
     'Installed-copy smoke did not start from the personal plugin path.'
@@ -93,6 +95,7 @@ finally {
     sourceFileCount = [int]$sourceResult.fileCount
     toolCount = [int]$smokeResult.toolCount
     installedCopyServer = [string]$smokeResult.serverStartedFrom
+    runtimeVersion = [string]$smokeResult.runtimeVersion
     inspectHost = [string]$smokeResult.inspectHost
     missingIso = [string]$smokeResult.missingIso
     pluginCreatorValidated = $true
