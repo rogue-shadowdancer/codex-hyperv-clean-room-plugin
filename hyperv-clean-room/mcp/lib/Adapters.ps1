@@ -2380,7 +2380,7 @@ function Invoke-HcrRealSetVmPower {
             [void](Start-VM -VM $verifiedVm -ErrorAction Stop)
         }
         elseif ($action -eq 'gracefulShutdown') {
-            [void](Stop-VM -VM $verifiedVm -Shutdown -ErrorAction Stop)
+            [void](Stop-VM -VM $verifiedVm -ErrorAction Stop)
         }
         else {
             Throw-HcrError 'INVALID_ARGUMENT' 'The VM power action is unsupported.'

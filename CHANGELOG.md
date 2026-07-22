@@ -51,6 +51,8 @@ the local plugin cache.
   copied exports with version-aware dispatch, preserves valid failed evidence
   with absent guest hashes, and supplies operation-scoped process identity to
   cleanup application stops.
+- Guarded graceful VM shutdown now uses the supported default `Stop-VM` guest
+  shutdown path without a nonexistent parameter switch.
 - The durable branch-protection contract retains pull-request review and
   conversation-resolution protection while requiring zero approving reviews;
   strict `public-release-validation` remains mandatory.
