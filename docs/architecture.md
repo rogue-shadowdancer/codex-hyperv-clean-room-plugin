@@ -3,8 +3,9 @@
 ## Status and assurance boundary
 
 Hyper-V Clean Room is a Windows-only Codex plugin whose product surface is a
-PowerShell 5.1 MCP server. Version `0.1.1` exposes exactly 16 tools and five
-public schema-v1 documents. Gate 2 implements both the mock adapter and the
+PowerShell 5.1 MCP server. Version `0.2.0` preserves the exact 16 schema-v1
+tools and five public schema-v1 documents and adds four schema-v2 power/network
+tools plus seven schema-v2 documents. Gate 2 implements both the mock adapter and the
 production Hyper-V/PowerShell Direct adapter, but validates guest execution
 only through mock behavior, parser checks, and closed-dispatch static seams.
 No real guest credential, file transfer, package process, VM mutation, or
@@ -13,6 +14,55 @@ checkpoint mutation was exercised in Gate 2.
 Implementation is therefore not the same as clean-machine validation. A real
 operator must treat guest transfer and lifecycle actions as state-changing and
 obtain explicit authorization for the named VM and operation before use.
+
+Gate 6/H1 additionally freezes the schema-v2 contract under `contracts/v2`.
+Gate 7/H2 integrates exact schema copies and the 20-tool runtime without
+weakening the v1 paths described below. H2 assurance is limited to mock,
+parser, schema, and static production-seam validation; it is not clean-machine
+or real-operation evidence.
+
+## Schema-v2 integrated architecture
+
+The target remains one PowerShell 5.1 MCP server and one closed production
+worker; it does not add a general automation endpoint. H2 adds four registry
+entries (`plan_vm_power`, `apply_vm_power`, `plan_vm_network`, and
+`apply_vm_network`) and version-dispatched validators while preserving the 16
+existing entries exactly. Profile and evidence routing reads the exact integer
+`schemaVersion` once. V1 and v2 have independent validators; there is no
+try-v2-then-v1 fallback.
+
+The future implementation has five new internal, non-public seams:
+
+| Seam | Fixed responsibility | Forbidden responsibility |
+| --- | --- | --- |
+| Power planner/apply | Bind and revalidate managed VM state for start or graceful shutdown | Force-off, reset, pause, or caller-selected cmdlets |
+| Network planner/apply | Bind one recorded primary NIC and baseline switch, with paired recovery | Arbitrary adapter/switch choice or unmanaged adoption |
+| Portable deployment | Stream-validate one manifest-bound ZIP into a new atomic slot and preserve recorded data | General extraction, deletion, or arbitrary copy |
+| Fixed-driver manager | Verify exact Microsoft archive/executable provenance and own a loopback session | Caller URL, arguments, port, navigation, or script |
+| UI dispatcher | Map the closed `data-testid` DSL to fixed WebDriver operations | Raw WebDriver, CSS/XPath selectors, JavaScript, or file paths |
+
+The target operation flow is:
+
+1. validate the exact schema version and closed input;
+2. bind source commit, profile, candidate ZIP, fixture set, driver manifest,
+   VM ownership, baseline, guest identity, and current fingerprints;
+3. for power/network, publish an immutable plan and atomically consume it at
+   apply; for disconnect, publish the change and recovery plans as one pair;
+4. for portable deployment, stream into a new operation-owned staging root,
+   verify every manifest path/size/hash, and atomically publish a deployment
+   slot only after full validation;
+5. run only fixed worker modes, acquire an exact-version loopback driver, and
+   dispatch only the declared UI step types to declared `data-testid` values;
+6. retain operation-scoped processes and resources for bounded containment;
+7. derive schema-v2 machine and overall evidence from immutable observations,
+   including recovery and data-preservation facts.
+
+Power and ordinary network plans expire after 15 minutes; a paired network
+recovery plan expires after 24 hours. The plan ID is the only apply capability
+input. Portable and WebDriver archives never become trusted merely because the
+outer ZIP hash matches: archive policy, manifest membership, extracted file
+identity, PE architecture, publisher, version, and loopback policy are
+independently rebound.
 
 ## Components
 

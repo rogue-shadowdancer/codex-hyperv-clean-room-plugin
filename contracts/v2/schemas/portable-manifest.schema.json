@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/portable-manifest.schema.json",
+  "title": "Hyper-V clean-room schema-v2 portable payload manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "productId",
+    "productVersion",
+    "architecture",
+    "sourceCommit",
+    "sourceDirty",
+    "buildRunId",
+    "unsigned",
+    "distributionMode",
+    "entryPointRelativePath",
+    "dataDirectoryRelativePath",
+    "portableArguments",
+    "archivePolicy",
+    "identities",
+    "files"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "productId": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "productVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "architecture": { "const": "x64" },
+    "sourceCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "sourceDirty": { "const": false },
+    "buildRunId": { "type": "string", "format": "uuid" },
+    "unsigned": { "const": true },
+    "distributionMode": { "const": "portable" },
+    "entryPointRelativePath": { "$ref": "#/$defs/safeRelativePath" },
+    "dataDirectoryRelativePath": { "const": "data" },
+    "portableArguments": {
+      "type": "array",
+      "prefixItems": [{ "const": "--portable" }],
+      "items": false,
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "archivePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maxEntries",
+        "maxExpandedBytes",
+        "maxCompressionRatio",
+        "rejectLinks",
+        "rejectReparsePoints",
+        "rejectAlternateDataStreams",
+        "caseInsensitiveUniquePaths"
+      ],
+      "properties": {
+        "maxEntries": { "const": 4096 },
+        "maxExpandedBytes": { "const": 8589934592 },
+        "maxCompressionRatio": { "const": 200 },
+        "rejectLinks": { "const": true },
+        "rejectReparsePoints": { "const": true },
+        "rejectAlternateDataStreams": { "const": true },
+        "caseInsensitiveUniquePaths": { "const": true }
+      }
+    },
+    "identities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["webView2", "maaFramework"],
+      "properties": {
+        "webView2": { "$ref": "#/$defs/componentIdentity" },
+        "maaFramework": { "$ref": "#/$defs/componentIdentity" }
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": { "$ref": "#/$defs/fileIdentity" }
+    }
+  },
+  "$defs": {
+    "safeRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?![A-Za-z]:)(?![\\\\/])(?!.*:)(?!.*%)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$))(?!.*[. ](?:[\\\\/]|$)).+$"
+    },
+    "componentIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "inventorySha256"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "inventorySha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "fileIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sizeBytes", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/safeRelativePath" },
+        "sizeBytes": { "type": "integer", "minimum": 0, "maximum": 2147483648 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

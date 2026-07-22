@@ -148,9 +148,9 @@ $initialize = $responses[1]
 Assert-InstalledCopy ([string]$initialize.result.protocolVersion -ceq '2025-11-25') `
     'Installed MCP server negotiated the wrong protocol version.'
 $tools = @($responses[2].result.tools)
-Assert-InstalledCopy ($tools.Count -eq 16) `
-    "Installed MCP server exposed $($tools.Count) tools instead of 16."
-Assert-InstalledCopy (@($tools.name | Sort-Object -Unique).Count -eq 16) `
+Assert-InstalledCopy ($tools.Count -eq 20) `
+    "Installed MCP server exposed $($tools.Count) tools instead of 20."
+Assert-InstalledCopy (@($tools.name | Sort-Object -Unique).Count -eq 20) `
     'Installed MCP server exposed duplicate tool names.'
 
 $inspectResponse = $responses[3]

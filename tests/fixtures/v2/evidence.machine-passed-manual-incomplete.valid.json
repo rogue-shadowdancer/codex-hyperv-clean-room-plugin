@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 2,
+  "operationId": "51111111-1111-4111-8111-111111111111",
+  "createdAt": "2026-07-21T08:30:00Z",
+  "profile": {
+    "id": "portable-ui-smoke",
+    "schemaVersion": 2,
+    "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "candidate": {
+    "sourceCommit": "1234567890abcdef1234567890abcdef12345678",
+    "portableZipSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "profileSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "fixtureSetSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "webDriverManifestSha256": "4444444444444444444444444444444444444444444444444444444444444444"
+  },
+  "runtime": {
+    "pluginVersion": "0.2.0",
+    "sourceCommit": "abcdef1234567890abcdef1234567890abcdef12",
+    "adapterMode": "production"
+  },
+  "baselineType": "stock-clean",
+  "vm": {
+    "id": "vm-123",
+    "name": "clean-room-01",
+    "checkpointId": "checkpoint-123",
+    "checkpointName": "stock-clean",
+    "ownershipId": "52222222-2222-4222-8222-222222222222",
+    "ownershipVerified": true,
+    "fingerprint": "5555555555555555555555555555555555555555555555555555555555555555"
+  },
+  "guest": {
+    "windowsBuild": "26100.4652",
+    "architecture": "x64",
+    "userSid": "S-1-5-21-1000-1000-1000-1001",
+    "userName": "standard-test-user",
+    "isAdministrator": false,
+    "isElevated": false,
+    "tokenIntegrity": "medium",
+    "profilePathContainsNonAscii": true
+  },
+  "artifacts": [
+    {
+      "role": "portableZip",
+      "id": "portable-zip",
+      "fileName": "SampleProduct_0.1.0_windows-x64-portable.zip",
+      "sizeBytes": 104857600,
+      "sourceSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "guestSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "status": "passed"
+    },
+    {
+      "role": "portableManifest",
+      "id": "portable-manifest",
+      "fileName": "portable-manifest.json",
+      "sizeBytes": 4096,
+      "sourceSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+      "guestSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+      "status": "passed"
+    },
+    {
+      "role": "fixture",
+      "id": "sample-image",
+      "fileName": "sample-image.png",
+      "sizeBytes": 4096,
+      "sourceSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "guestSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "status": "passed"
+    },
+    {
+      "role": "webDriverArchive",
+      "id": "webdriver-archive",
+      "fileName": "edgedriver_win64.zip",
+      "sizeBytes": 10485760,
+      "sourceSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+      "guestSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+      "status": "passed"
+    },
+    {
+      "role": "webDriverExecutable",
+      "id": "webdriver-executable",
+      "fileName": "msedgedriver.exe",
+      "sizeBytes": 15728640,
+      "sourceSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+      "guestSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+      "status": "passed"
+    },
+    {
+      "role": "deployedPayload",
+      "id": "deployed-payload",
+      "fileName": "payload.inventory.json",
+      "sizeBytes": 8192,
+      "sourceSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+      "guestSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+      "status": "passed"
+    }
+  ],
+  "automation": {
+    "deploymentId": "53333333-3333-4333-8333-333333333333",
+    "deploymentFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "dataPreserved": true,
+    "previousDataInventorySha256": null,
+    "deployedDataInventorySha256": "abababababababababababababababababababababababababababababababab",
+    "webDriverManifestSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+    "fixedWebView2Version": "138.0.3351.121",
+    "webDriverVersion": "138.0.3351.121",
+    "loopbackOnly": true,
+    "uiTrace": [
+      {
+        "stepId": "assert-review-visible",
+        "stepType": "assertUiElement",
+        "testId": "recognition-review",
+        "status": "passed",
+        "summary": "The declared data-testid became visible.",
+        "observations": [
+          { "name": "state", "value": "visible" }
+        ]
+      }
+    ]
+  },
+  "powerOperations": [],
+  "networkOperations": [],
+  "networkRecovery": {
+    "required": false,
+    "changePlanId": null,
+    "recoveryPlanId": null,
+    "recoveryOperationId": null,
+    "status": "notPerformed",
+    "initialFingerprint": null,
+    "finalFingerprint": null
+  },
+  "automaticAssertions": [
+    {
+      "id": "assert-review-visible",
+      "required": true,
+      "status": "passed",
+      "summary": "Machine UI assertion passed.",
+      "observations": [
+        { "name": "test-id", "value": "recognition-review" }
+      ]
+    }
+  ],
+  "manualAssertions": [
+    {
+      "id": "visual-dpi-check",
+      "required": true,
+      "description": "Confirm the portable UI is usable at the declared DPI.",
+      "status": "notPerformed",
+      "attestation": null
+    }
+  ],
+  "cleanupTriggered": false,
+  "cleanupResults": [],
+  "machineStatus": "passed",
+  "overallStatus": "incomplete",
+  "warnings": []
+}

@@ -201,6 +201,12 @@ function Invoke-HcrMockAdapter {
                     'A VM or VHDX may have been created. Inspect only the exact partial identity in error.details; automatic cleanup was not attempted.'
             }
             $vmId = [Guid]::NewGuid().ToString()
+            $mockSwitch = Invoke-HcrMockAdapter 'GetSwitch' ([pscustomobject]@{
+                name = [string](Get-HcrPropertyValue $plan 'switchName')
+            })
+            if ($null -eq $mockSwitch) {
+                Throw-HcrError 'VM_CREATE_FAILED' 'The planned mock switch disappeared before VM creation.'
+            }
             $vm = [pscustomobject][ordered]@{
                 id = $vmId
                 name = $name
@@ -215,6 +221,14 @@ function Invoke-HcrMockAdapter {
                 diskSizeGb = [int](Get-HcrPropertyValue $plan 'diskSizeGb')
                 switchName = [string](Get-HcrPropertyValue $plan 'switchName')
                 switchId = [string](Get-HcrPropertyValue $plan 'switchId')
+                networkAdapters = @([pscustomobject][ordered]@{
+                    id = [Guid]::NewGuid().ToString()
+                    name = 'Network Adapter'
+                    macAddress = '00155D010203'
+                    switchId = [string](Get-HcrPropertyValue $mockSwitch 'id')
+                    switchName = [string](Get-HcrPropertyValue $mockSwitch 'name')
+                    switchType = [string](Get-HcrPropertyValue $mockSwitch 'type')
+                })
                 secureBoot = $true
                 vtpm = $true
                 checkpoints = @()
@@ -232,6 +246,122 @@ function Invoke-HcrMockAdapter {
                     'A VM or VHDX may have been created. Inspect only the exact partial identity in error.details; automatic cleanup was not attempted.'
             }
             return Copy-HcrObject $vm
+        }
+        'SetVmPower' {
+            $vm = Assert-HcrMockDispatchVm $state $Arguments
+            if ((Get-HcrVmFingerprint $vm) -ne
+                    [string](Get-HcrPropertyValue $Arguments 'expectedVmFingerprint') -or
+                [string](Get-HcrPropertyValue $vm 'state') -ne
+                    [string](Get-HcrPropertyValue $Arguments 'expectedState')) {
+                Throw-HcrError 'PLAN_DRIFT' 'The mock VM changed at the power mutation boundary.'
+            }
+            $faultPhase = Get-HcrMockMutationFaultPhase $state 'SetVmPower'
+            $identity = [pscustomobject][ordered]@{
+                resourceType = 'vmPower'
+                vmId = [string](Get-HcrPropertyValue $vm 'id')
+                vmName = [string](Get-HcrPropertyValue $vm 'name')
+                action = [string](Get-HcrPropertyValue $Arguments 'action')
+            }
+            if ($faultPhase -eq 'before') {
+                Throw-HcrError 'POWER_TRANSITION_FAILED' 'The configured power fault occurred before mutation entry.'
+            }
+            if ($faultPhase -eq 'entered') {
+                Throw-HcrPartialMutationError `
+                    'POWER_TRANSITION_FAILED' `
+                    'The configured power fault occurred after mutation entry.' `
+                    'indeterminate' `
+                    $identity `
+                    'The planned power transition may have taken effect. Inspect the exact managed VM before creating a new plan.'
+            }
+            $previous = [string](Get-HcrPropertyValue $vm 'state')
+            $vm.state = [string](Get-HcrPropertyValue $Arguments 'targetState')
+            $vm.currentStateNonce = [Guid]::NewGuid().ToString()
+            Write-HcrMockAdapterState $state
+            if ($faultPhase -eq 'after') {
+                Throw-HcrPartialMutationError `
+                    'POWER_TRANSITION_FAILED' `
+                    'The configured power fault occurred after the target state was confirmed.' `
+                    'confirmed' `
+                    $identity `
+                    'The planned power transition took effect. Inspect the exact managed VM before creating a new plan.'
+            }
+            return [pscustomobject][ordered]@{
+                previousState = $previous
+                currentState = [string](Get-HcrPropertyValue $vm 'state')
+                effectState = 'confirmed'
+            }
+        }
+        'SetVmNetwork' {
+            $vm = Assert-HcrMockDispatchVm $state $Arguments
+            if ((Get-HcrVmNetworkInvariantFingerprint $vm) -ne
+                    [string](Get-HcrPropertyValue $Arguments 'expectedVmFingerprint')) {
+                Throw-HcrError 'PLAN_DRIFT' 'The mock VM changed at the network mutation boundary.'
+            }
+            $primary = Get-HcrVerifiedPrimaryAdapter $vm
+            $expectedAttachment = Get-HcrPropertyValue $Arguments 'expectedAttachment'
+            if ([string]$primary.id -ne
+                    [string](Get-HcrPropertyValue $Arguments 'expectedAdapterId') -or
+                [string]$primary.fingerprint -ne
+                    [string](Get-HcrPropertyValue $Arguments 'expectedAdapterFingerprint') -or
+                -not (Test-HcrBoundObjectEqual $primary.attachment $expectedAttachment)) {
+                Throw-HcrError 'PLAN_DRIFT' 'The mock primary adapter changed at the mutation boundary.'
+            }
+            $faultPhase = Get-HcrMockMutationFaultPhase $state 'SetVmNetwork'
+            $recoveryPlanId = [string](Get-HcrPropertyValue $Arguments 'recoveryPlanId')
+            $identity = [pscustomobject][ordered]@{
+                resourceType = 'vmNetwork'
+                vmId = [string](Get-HcrPropertyValue $vm 'id')
+                vmName = [string](Get-HcrPropertyValue $vm 'name')
+                adapterId = [string]$primary.id
+                target = [string](Get-HcrPropertyValue $Arguments 'target')
+            }
+            $details = if ([string]::IsNullOrWhiteSpace($recoveryPlanId)) {
+                $null
+            }
+            else { [pscustomobject][ordered]@{ recoveryPlanId = $recoveryPlanId } }
+            if ($faultPhase -eq 'before') {
+                Throw-HcrError 'NETWORK_TRANSITION_FAILED' 'The configured network fault occurred before mutation entry.'
+            }
+            if ($faultPhase -eq 'entered') {
+                Throw-HcrPartialMutationError `
+                    $(if ($null -eq $details) { 'NETWORK_TRANSITION_FAILED' } else { 'NETWORK_RECOVERY_REQUIRED' }) `
+                    'The configured network fault occurred after mutation entry.' `
+                    'indeterminate' `
+                    $identity `
+                    'The planned adapter transition may have taken effect. Use only the pre-created recovery plan when recovery is required.' `
+                    $details
+            }
+            $previous = Copy-HcrObject $primary.attachment
+            $targetAttachment = Get-HcrPropertyValue $Arguments 'targetAttachment'
+            if ([string](Get-HcrPropertyValue $targetAttachment 'mode') -eq 'disconnected') {
+                $primary.raw.switchId = $null
+                $primary.raw.switchName = $null
+                $primary.raw.switchType = $null
+                $vm.switchId = $null
+                $vm.switchName = $null
+            }
+            else {
+                $primary.raw.switchId = [string](Get-HcrPropertyValue $targetAttachment 'switchId')
+                $primary.raw.switchName = [string](Get-HcrPropertyValue $targetAttachment 'switchName')
+                $primary.raw.switchType = [string](Get-HcrPropertyValue $targetAttachment 'switchType')
+                $vm.switchId = [string](Get-HcrPropertyValue $targetAttachment 'switchId')
+                $vm.switchName = [string](Get-HcrPropertyValue $targetAttachment 'switchName')
+            }
+            Write-HcrMockAdapterState $state
+            if ($faultPhase -eq 'after') {
+                Throw-HcrPartialMutationError `
+                    $(if ($null -eq $details) { 'NETWORK_TRANSITION_FAILED' } else { 'NETWORK_RECOVERY_REQUIRED' }) `
+                    'The configured network fault occurred after the target attachment was confirmed.' `
+                    'confirmed' `
+                    $identity `
+                    'The planned adapter transition took effect. Use only the pre-created recovery plan when recovery is required.' `
+                    $details
+            }
+            return [pscustomobject][ordered]@{
+                previousAttachment = $previous
+                currentAttachment = Copy-HcrObject $targetAttachment
+                effectState = 'confirmed'
+            }
         }
         'CreateCheckpoint' {
             $vmName = [string](Get-HcrPropertyValue $Arguments 'vmName')
@@ -398,6 +528,32 @@ function Invoke-HcrMockAdapter {
                     executablePath = "C:\Mock\$id.exe"
                     application = [string](Get-HcrPropertyValue $step 'application')
                 })
+            }
+            if ((Get-HcrPropertyValue $step 'type') -eq 'deployPortable') {
+                $result | Add-Member -NotePropertyName evidence -NotePropertyValue ([pscustomobject][ordered]@{
+                    deploymentId = [Guid]::NewGuid().ToString()
+                    deploymentFingerprint = Get-HcrSha256Text "$([string](Get-HcrPropertyValue $Arguments 'operationId'))|mock-portable-deployment"
+                    dataPreserved = $true
+                    previousDataInventorySha256 = Get-HcrSha256Text 'mock-portable-data-inventory'
+                    deployedDataInventorySha256 = Get-HcrSha256Text 'mock-portable-data-inventory'
+                    portableManifestSha256 = [string](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'portableArtifact') 'portableManifestSha256')
+                    fixedWebView2Version = [string](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'webDriver') 'browserVersion')
+                }) -Force
+            }
+            if ((Get-HcrPropertyValue $step 'type') -eq 'acquireWebDriver') {
+                $driver = Get-HcrPropertyValue $Arguments 'webDriver'
+                $result | Add-Member -NotePropertyName evidence -NotePropertyValue ([pscustomobject][ordered]@{
+                    driverVersion = [string](Get-HcrPropertyValue $driver 'driverVersion')
+                    loopbackOnly = $true
+                    archiveSha256 = [string](Get-HcrPropertyValue (Get-HcrPropertyValue $driver 'acquisition') 'archiveSha256')
+                    executableSha256 = [string](Get-HcrPropertyValue (Get-HcrPropertyValue $driver 'executable') 'sha256')
+                }) -Force
+            }
+            if ((Get-HcrPropertyValue $step 'type') -eq 'startUiSession') {
+                $result | Add-Member -NotePropertyName evidence -NotePropertyValue ([pscustomobject][ordered]@{
+                    sessionOwned = $true
+                    loopbackOnly = $true
+                }) -Force
             }
             return $result
         }
@@ -637,7 +793,32 @@ function ConvertTo-HcrRealVmSnapshot {
             parentPath = if ($null -eq $vhd) { $null } else { [string](Get-HcrPropertyValue $vhd 'ParentPath') }
         }
     } | Sort-Object controllerType, controllerNumber, controllerLocation, path)
-    $network = @(Get-VMNetworkAdapter -VM $Vm -ErrorAction SilentlyContinue | Select-Object -First 1)
+    $network = @(Get-VMNetworkAdapter -VM $Vm -ErrorAction SilentlyContinue)
+    $networkAdapters = @($network | ForEach-Object {
+        $adapter = $_
+        $switchId = [string](Get-HcrPropertyValue $adapter 'SwitchId')
+        $switchName = [string](Get-HcrPropertyValue $adapter 'SwitchName')
+        $switchType = $null
+        if (-not [string]::IsNullOrWhiteSpace($switchId)) {
+            try {
+                $switchObject = @(Get-VMSwitch -Id ([Guid]$switchId) -ErrorAction Stop |
+                    Select-Object -First 1)
+                if ($switchObject.Count -eq 1) {
+                    $switchName = [string]$switchObject[0].Name
+                    $switchType = [string]$switchObject[0].SwitchType
+                }
+            }
+            catch { $switchType = $null }
+        }
+        [pscustomobject][ordered]@{
+            id = [string](Get-HcrPropertyValue $adapter 'Id')
+            name = [string](Get-HcrPropertyValue $adapter 'Name')
+            macAddress = ([string](Get-HcrPropertyValue $adapter 'MacAddress')).Replace('-', '').ToUpperInvariant()
+            switchId = if ([string]::IsNullOrWhiteSpace($switchId)) { $null } else { $switchId }
+            switchName = if ([string]::IsNullOrWhiteSpace($switchName)) { $null } else { $switchName }
+            switchType = $switchType
+        }
+    })
     if ($PSBoundParameters.ContainsKey('CheckpointInventory')) {
         $checkpointObjects = @($CheckpointInventory)
     }
@@ -677,6 +858,7 @@ function ConvertTo-HcrRealVmSnapshot {
         diskSizeGb = $null
         switchName = if ($network.Count -eq 0) { $null } else { [string]$network[0].SwitchName }
         switchId = if ($network.Count -eq 0) { $null } else { [string]$network[0].SwitchId }
+        networkAdapters = $networkAdapters
         secureBoot = if ($null -eq $firmware) { $false } else { [string]$firmware.SecureBoot -eq 'On' }
         vtpm = if ($null -eq $security) { $false } else { [bool]$security.TpmEnabled }
         checkpoints = $checkpoints
@@ -794,8 +976,18 @@ function Assert-HcrRealGuestStepContract {
     if ($null -eq $step) {
         Throw-HcrError 'GUEST_STEP_INVALID' 'A declarative guest step is required.'
     }
+    $schemaVersion = [int](Get-HcrPropertyValue $Arguments 'schemaVersion' 1)
+    if (@(1, 2) -notcontains $schemaVersion) {
+        Throw-HcrError 'GUEST_STEP_VERSION_UNSUPPORTED' 'The production guest adapter rejected the step schema version.'
+    }
     $type = [string](Get-HcrPropertyValue $step 'type')
-    $allowedTypes = if ($Cleanup) { $script:HcrCleanupStepTypes } else {
+    $allowedTypes = if ($schemaVersion -eq 2) {
+        if ($Cleanup) { $script:HcrV2CleanupStepTypes } else {
+            @($script:HcrV2ActionStepTypes + $script:HcrV2AssertionStepTypes) |
+                Where-Object { $_ -ne 'stageArtifact' }
+        }
+    }
+    elseif ($Cleanup) { $script:HcrCleanupStepTypes } else {
         @($script:HcrActionStepTypes + $script:HcrAssertionStepTypes) |
             Where-Object { $_ -ne 'stageArtifact' }
     }
@@ -805,7 +997,8 @@ function Assert-HcrRealGuestStepContract {
     $allowedStepProperties = @(
         'id', 'type', 'application', 'timeoutSeconds', 'path', 'registryPath',
         'registryName', 'expected', 'processName', 'moduleRelativePath', 'port',
-        'sentinelId', 'required'
+        'sentinelId', 'required', 'testId', 'text', 'key', 'value',
+        'fixtureId', 'state', 'evidenceName'
     )
     foreach ($property in @($step.PSObject.Properties)) {
         if ($allowedStepProperties -notcontains $property.Name) {
@@ -814,15 +1007,24 @@ function Assert-HcrRealGuestStepContract {
     }
     foreach ($application in @((Get-HcrPropertyValue $Arguments 'applications' @()))) {
         foreach ($property in @($application.PSObject.Properties)) {
-            if (@(
-                'id', 'installerType', 'installMode', 'executableRelativePath',
-                'uninstallerDiscovery', 'processName'
-            ) -notcontains $property.Name) {
+            $allowedApplicationProperties = if ($schemaVersion -eq 2) {
+                @('id', 'packageKind', 'installMode', 'executableRelativePath',
+                    'uninstallerDiscovery', 'dataDirectoryRelativePath', 'processName')
+            }
+            else {
+                @('id', 'installerType', 'installMode', 'executableRelativePath',
+                    'uninstallerDiscovery', 'processName')
+            }
+            if ($allowedApplicationProperties -notcontains $property.Name) {
                 Throw-HcrError 'GUEST_APPLICATION_FIELD_FORBIDDEN' 'The production guest adapter rejected an unknown application field.'
             }
         }
-        if ((Get-HcrPropertyValue $application 'installMode') -ne 'currentUser') {
+        if ($schemaVersion -eq 1 -and (Get-HcrPropertyValue $application 'installMode') -ne 'currentUser') {
             Throw-HcrError 'GUEST_INSTALL_MODE_FORBIDDEN' 'Only the fixed current-user install mode is supported.'
+        }
+        if ($schemaVersion -eq 2 -and
+            @('nsis', 'msi', 'portableZip') -notcontains (Get-HcrPropertyValue $application 'packageKind')) {
+            Throw-HcrError 'GUEST_PACKAGE_KIND_FORBIDDEN' 'The schema-v2 package kind is unsupported.'
         }
     }
 }
@@ -1253,6 +1455,10 @@ function Invoke-HcrFixedGuestWorker {
     $boundInput | Add-Member -NotePropertyName invocationId -NotePropertyValue $invocationId -Force
     $boundInput | Add-Member -NotePropertyName mode -NotePropertyValue $Mode -Force
     $inputJson = ConvertTo-HcrJson $boundInput 50
+    $expectedWorkerSchemaVersion = [int](Get-HcrPropertyValue $boundInput 'schemaVersion' 0)
+    if (@(1, 2) -notcontains $expectedWorkerSchemaVersion) {
+        Throw-HcrError 'GUEST_WORKER_INPUT_INVALID' 'The fixed-worker schema version is unsupported.'
+    }
     if ([Text.Encoding]::UTF8.GetByteCount($inputJson) -gt 1048576) {
         Throw-HcrError 'GUEST_WORKER_INPUT_TOO_LARGE' 'The bounded fixed-worker input exceeds one MiB.'
     }
@@ -1279,7 +1485,7 @@ function Invoke-HcrFixedGuestWorker {
         $absoluteDeadline = ([DateTimeOffset](Get-HcrPropertyValue $Context 'deadlineUtc')).ToString('o')
         $supervision = Invoke-Command `
             -Session $Context.session `
-            -ArgumentList $Context.testUser, $workerPath, $Mode, $inputPath, $Context.operationId, $invocationId, $inputHash, $launchTimeoutSeconds, $absoluteDeadline `
+            -ArgumentList $Context.testUser, $workerPath, $Mode, $inputPath, $Context.operationId, $invocationId, $inputHash, $launchTimeoutSeconds, $absoluteDeadline, $expectedWorkerSchemaVersion `
             -ScriptBlock {
                 param(
                     [pscredential]$StandardUser,
@@ -1290,7 +1496,8 @@ function Invoke-HcrFixedGuestWorker {
                     [string]$InvocationId,
                     [string]$InputSha256,
                     [int]$TimeoutSeconds,
-                    [string]$AbsoluteDeadline
+                    [string]$AbsoluteDeadline,
+                    [int]$ExpectedWorkerSchemaVersion
                 )
                 if (-not ('Hcr.SupervisedProcess' -as [type])) {
                     Add-Type -TypeDefinition @'
@@ -1762,7 +1969,7 @@ namespace Hcr {
                     $null -ne $inputDocument.PSObject.Properties['step'] -and
                     $null -ne $inputDocument.step -and
                     $null -ne $inputDocument.step.PSObject.Properties['type'] -and
-                    [string]$inputDocument.step.type -eq 'launchApplication'
+                    @('launchApplication', 'startUiSession') -contains [string]$inputDocument.step.type
                 $deadline = [DateTimeOffset]::Parse(
                     $AbsoluteDeadline,
                     [Globalization.CultureInfo]::InvariantCulture,
@@ -1849,7 +2056,7 @@ namespace Hcr {
                     )
                     $exitCode = [int]$supervised.ExitCode
                     $bindingValid = $null -ne $preview -and
-                        [int]$preview.workerSchemaVersion -eq 1 -and
+                        [int]$preview.workerSchemaVersion -eq $ExpectedWorkerSchemaVersion -and
                         [string]$preview.operationId -eq $OperationId -and
                         [string]$preview.invocationId -eq $InvocationId -and
                         [string]$preview.mode -eq $WorkerMode -and
@@ -1964,7 +2171,7 @@ namespace Hcr {
         }
         Throw-HcrError 'GUEST_WORKER_FAILED' 'The supervised fixed guest worker did not return a valid bounded result.'
     }
-    if ((Get-HcrPropertyValue $document 'workerSchemaVersion') -ne 1 -or
+    if ((Get-HcrPropertyValue $document 'workerSchemaVersion') -ne $expectedWorkerSchemaVersion -or
         [string](Get-HcrPropertyValue $document 'operationId') -ne $Context.operationId -or
         [string](Get-HcrPropertyValue $document 'invocationId') -ne $invocationId -or
         [string](Get-HcrPropertyValue $document 'mode') -ne $Mode -or
@@ -2116,8 +2323,9 @@ function Invoke-HcrRealGuestStep {
     try {
         $context = New-HcrRealGuestContext $Arguments
         $artifact = Get-HcrPropertyValue $Arguments 'artifact'
+        $workerSchemaVersion = [int](Get-HcrPropertyValue $Arguments 'schemaVersion' 1)
         $input = [ordered]@{
-            schemaVersion = 1
+            schemaVersion = $workerSchemaVersion
             operationId = $context.operationId
             expectedTestUserSid = [string](Get-HcrPropertyValue $context.metadata 'testUserSid')
             step = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'step')
@@ -2132,12 +2340,171 @@ function Invoke-HcrRealGuestStep {
                 }
             }
         }
+        if ($workerSchemaVersion -eq 2) {
+            $input.workflowKind = [string](Get-HcrPropertyValue $Arguments 'workflowKind')
+            $input.fixtures = @(@((Get-HcrPropertyValue $Arguments 'fixtures' @())) |
+                ForEach-Object { Copy-HcrObject $_ })
+            $input.webDriver = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'webDriver')
+            $input.portableArtifact = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'portableArtifact')
+            $input.sourceCommit = [string](Get-HcrPropertyValue $Arguments 'sourceCommit')
+        }
         $mode = if ($Cleanup) { 'RunCleanupStep' } else { 'RunTestStep' }
         $timeout = [int](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'step') 'timeoutSeconds')
         return Invoke-HcrFixedGuestWorker $context $mode ([pscustomobject]$input) $timeout
     }
     finally {
         Close-HcrRealGuestContext $context
+    }
+}
+
+function Invoke-HcrRealSetVmPower {
+    param([Parameter(Mandatory = $true)][object]$Arguments)
+
+    $mutationEntered = $false
+    $verifiedVm = $null
+    try {
+        if (-not (Test-HcrCurrentProcessElevated)) {
+            Throw-HcrError 'ELEVATION_REQUIRED' 'The VM power transition requires an elevated host process.'
+        }
+        $verifiedVm = Assert-HcrRealDispatchVm $Arguments
+        $boundary = ConvertTo-HcrRealVmSnapshot $verifiedVm
+        if ((Get-HcrVmFingerprint $boundary) -ne
+                [string](Get-HcrPropertyValue $Arguments 'expectedVmFingerprint') -or
+            [string](Get-HcrPropertyValue $boundary 'state') -ne
+                [string](Get-HcrPropertyValue $Arguments 'expectedState')) {
+            Throw-HcrError 'PLAN_DRIFT' 'The VM changed at the power mutation boundary.'
+        }
+        $mutationEntered = $true
+        $action = [string](Get-HcrPropertyValue $Arguments 'action')
+        if ($action -eq 'start') {
+            [void](Start-VM -VM $verifiedVm -ErrorAction Stop)
+        }
+        elseif ($action -eq 'gracefulShutdown') {
+            [void](Stop-VM -VM $verifiedVm -ErrorAction Stop)
+        }
+        else {
+            Throw-HcrError 'INVALID_ARGUMENT' 'The VM power action is unsupported.'
+        }
+        $refreshed = Get-VM -Id ([Guid]([string](Get-HcrPropertyValue $Arguments 'expectedVmId'))) -ErrorAction Stop
+        if ([string]$refreshed.State -ne [string](Get-HcrPropertyValue $Arguments 'targetState')) {
+            Throw-HcrError 'POWER_TRANSITION_FAILED' 'The exact target power state was not confirmed.'
+        }
+        return [pscustomobject][ordered]@{
+            previousState = [string](Get-HcrPropertyValue $Arguments 'expectedState')
+            currentState = [string]$refreshed.State
+            effectState = 'confirmed'
+        }
+    }
+    catch {
+        if (-not $mutationEntered -and $_.Exception.Data.Contains('HcrCode')) { throw }
+        $effectState = 'indeterminate'
+        if ($mutationEntered -and $null -ne $verifiedVm) {
+            try {
+                $probe = Get-VM -Id $verifiedVm.Id -ErrorAction Stop
+                if ([string]$probe.State -eq [string](Get-HcrPropertyValue $Arguments 'targetState')) {
+                    $effectState = 'confirmed'
+                }
+            }
+            catch { $effectState = 'indeterminate' }
+        }
+        if (-not $mutationEntered) {
+            Throw-HcrError 'POWER_TRANSITION_FAILED' 'The VM power transition failed before mutation entry.'
+        }
+        Throw-HcrPartialMutationError `
+            'POWER_TRANSITION_FAILED' `
+            'The VM power transition failed after entering the mutation boundary.' `
+            $effectState `
+            ([pscustomobject][ordered]@{
+                resourceType = 'vmPower'
+                vmId = [string](Get-HcrPropertyValue $Arguments 'expectedVmId')
+                vmName = [string](Get-HcrPropertyValue $Arguments 'expectedVmName')
+                action = [string](Get-HcrPropertyValue $Arguments 'action')
+            }) `
+            'The planned VM power transition may have taken effect. Inspect the exact managed VM before creating a new plan.'
+    }
+}
+
+function Invoke-HcrRealSetVmNetwork {
+    param([Parameter(Mandatory = $true)][object]$Arguments)
+
+    $mutationEntered = $false
+    $verifiedVm = $null
+    $recoveryPlanId = [string](Get-HcrPropertyValue $Arguments 'recoveryPlanId')
+    $failureCode = if ([string]::IsNullOrWhiteSpace($recoveryPlanId)) {
+        'NETWORK_TRANSITION_FAILED'
+    }
+    else { 'NETWORK_RECOVERY_REQUIRED' }
+    $additional = if ([string]::IsNullOrWhiteSpace($recoveryPlanId)) {
+        $null
+    }
+    else { [pscustomobject][ordered]@{ recoveryPlanId = $recoveryPlanId } }
+    try {
+        if (-not (Test-HcrCurrentProcessElevated)) {
+            Throw-HcrError 'ELEVATION_REQUIRED' 'The VM network transition requires an elevated host process.'
+        }
+        $verifiedVm = Assert-HcrRealDispatchVm $Arguments
+        $boundary = ConvertTo-HcrRealVmSnapshot $verifiedVm
+        if ((Get-HcrVmNetworkInvariantFingerprint $boundary) -ne
+                [string](Get-HcrPropertyValue $Arguments 'expectedVmFingerprint')) {
+            Throw-HcrError 'PLAN_DRIFT' 'The VM changed at the network mutation boundary.'
+        }
+        $primary = Get-HcrVerifiedPrimaryAdapter $boundary
+        $expectedAttachment = Get-HcrPropertyValue $Arguments 'expectedAttachment'
+        if ([string]$primary.id -ne [string](Get-HcrPropertyValue $Arguments 'expectedAdapterId') -or
+            [string]$primary.fingerprint -ne [string](Get-HcrPropertyValue $Arguments 'expectedAdapterFingerprint') -or
+            -not (Test-HcrBoundObjectEqual $primary.attachment $expectedAttachment)) {
+            Throw-HcrError 'PLAN_DRIFT' 'The primary adapter changed at the network mutation boundary.'
+        }
+        $rawAdapters = @(Get-VMNetworkAdapter -VM $verifiedVm -ErrorAction Stop | Where-Object {
+            [string]$_.Id -eq [string](Get-HcrPropertyValue $Arguments 'expectedAdapterId')
+        })
+        if ($rawAdapters.Count -ne 1) {
+            Throw-HcrError 'PRIMARY_ADAPTER_UNVERIFIED' 'The exact primary adapter is unavailable at the mutation boundary.'
+        }
+        $targetAttachment = Get-HcrPropertyValue $Arguments 'targetAttachment'
+        if ([string](Get-HcrPropertyValue $targetAttachment 'mode') -eq 'disconnected') {
+            $mutationEntered = $true
+            Disconnect-VMNetworkAdapter -VMNetworkAdapter $rawAdapters[0] -ErrorAction Stop
+        }
+        else {
+            $targetSwitches = @(Get-VMSwitch -Id ([Guid]([string](Get-HcrPropertyValue $targetAttachment 'switchId'))) -ErrorAction Stop)
+            if ($targetSwitches.Count -ne 1 -or
+                [string]$targetSwitches[0].Name -ne [string](Get-HcrPropertyValue $targetAttachment 'switchName') -or
+                [string]$targetSwitches[0].SwitchType -ne [string](Get-HcrPropertyValue $targetAttachment 'switchType')) {
+                Throw-HcrError 'PLAN_DRIFT' 'The exact baseline switch changed at the mutation boundary.'
+            }
+            $mutationEntered = $true
+            Connect-VMNetworkAdapter -VMNetworkAdapter $rawAdapters[0] -VMSwitch $targetSwitches[0] -ErrorAction Stop
+        }
+        $refreshed = ConvertTo-HcrRealVmSnapshot (Get-VM -Id $verifiedVm.Id -ErrorAction Stop)
+        $confirmed = Get-HcrVerifiedPrimaryAdapter $refreshed
+        if (-not (Test-HcrBoundObjectEqual $confirmed.attachment $targetAttachment)) {
+            Throw-HcrError $failureCode 'The exact target network attachment was not confirmed.'
+        }
+        return [pscustomobject][ordered]@{
+            previousAttachment = Copy-HcrObject $primary.attachment
+            currentAttachment = Copy-HcrObject $confirmed.attachment
+            effectState = 'confirmed'
+        }
+    }
+    catch {
+        if (-not $mutationEntered -and $_.Exception.Data.Contains('HcrCode')) { throw }
+        if (-not $mutationEntered) {
+            Throw-HcrError 'NETWORK_TRANSITION_FAILED' 'The VM network transition failed before mutation entry.'
+        }
+        Throw-HcrPartialMutationError `
+            $failureCode `
+            'The VM network transition failed after entering the mutation boundary.' `
+            'indeterminate' `
+            ([pscustomobject][ordered]@{
+                resourceType = 'vmNetwork'
+                vmId = [string](Get-HcrPropertyValue $Arguments 'expectedVmId')
+                vmName = [string](Get-HcrPropertyValue $Arguments 'expectedVmName')
+                adapterId = [string](Get-HcrPropertyValue $Arguments 'expectedAdapterId')
+                target = [string](Get-HcrPropertyValue $Arguments 'target')
+            }) `
+            'The planned adapter transition may have taken effect. Use only the pre-created recovery plan when recovery is required.' `
+            $additional
     }
 }
 
@@ -2250,6 +2617,12 @@ function Invoke-HcrRealAdapter {
                     }) `
                     'A VM or VHDX may have been created. Inspect only the exact partial identity in error.details; automatic cleanup was not attempted.'
             }
+        }
+        'SetVmPower' {
+            return Invoke-HcrRealSetVmPower $Arguments
+        }
+        'SetVmNetwork' {
+            return Invoke-HcrRealSetVmNetwork $Arguments
         }
         'CreateCheckpoint' {
             $mutationEntered = $false

@@ -115,7 +115,7 @@ $reviews = $protection.required_pull_request_reviews
 Assert-PublicSetting ($null -ne $reviews -and
     -not [bool]$reviews.dismiss_stale_reviews -and
     -not [bool]$reviews.require_code_owner_reviews -and
-    [int]$reviews.required_approving_review_count -eq 1 -and
+    [int]$reviews.required_approving_review_count -eq 0 -and
     -not [bool]$reviews.require_last_push_approval) `
     'Pull-request review protection differs from the release contract.'
 Assert-PublicSetting ([bool]$protection.required_conversation_resolution.enabled) `
@@ -162,7 +162,7 @@ Assert-PublicSetting $signaturesDisabled `
     privateVulnerabilityReporting = $true
     requiredStatusCheck = $requiredCheck
     strictStatusChecks = $true
-    approvals = 1
+    approvals = 0
     conversationResolution = $true
     enforceAdmins = $false
     forcePushes = $false

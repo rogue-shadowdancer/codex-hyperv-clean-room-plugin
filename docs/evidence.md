@@ -12,6 +12,64 @@ The authoritative portable shape is
 Native PowerShell validation enforces additional operation-binding and status
 derivation rules that JSON Schema alone cannot express.
 
+Gate 6/H1 freezes an additive schema-v2 target at
+[`contracts/v2/schemas/evidence.schema.json`](../contracts/v2/schemas/evidence.schema.json).
+Gate 7/H2 integrates deterministic schema-v2 evidence generation and validates
+it with mock-only operation state. Readers dispatch v1 and v2 by the exact
+integer `schemaVersion`; v1 evidence remains valid v1 and is never
+synthetically upgraded. Mock evidence is not real clean-room evidence.
+
+## Schema-v2 provenance and derivation
+
+In addition to the v1 lifecycle facts below, evidence v2 binds:
+
+- the source commit and the SHA-256 of the portable ZIP, profile, fixture set,
+  and fixed WebDriver manifest that define the candidate;
+- plugin version/source commit and mock or production adapter mode;
+- managed VM, checkpoint, ownership record, baseline, and VM fingerprint;
+- the standard-user SID, elevation, administrator membership, integrity, and
+  non-ASCII-profile-path observation;
+- host and guest hashes for the ZIP, portable manifest, each fixture, driver
+  archive/executable, and deployed payload inventory;
+- deployment ID/fingerprint, equal fixed-WebView2/driver versions,
+  loopback-only session,
+  data-preservation result, canonical prior/deployed data-inventory hashes, and
+  bounded UI trace;
+- each applied power plan/operation and network change/recovery plan/operation,
+  with `none`, `confirmed`, or `indeterminate` effect state and before/after
+  fingerprints; and
+- automatic assertions, manual attestations, cleanup, and warnings as separate
+  sections.
+
+`machineStatus` derives only from required machine-verifiable facts. It is
+`failed` when a required automatic assertion, ownership/user binding, candidate
+hash, deployment/data-preservation fact, fixed-driver/session fact, or required
+network recovery is not passed; otherwise it is `passed`.
+
+When a prior portable data inventory exists, its canonical SHA-256 must equal
+the deployed data-inventory SHA-256. `dataPreserved: true` without that equality
+is invalid and cannot support machine-passed evidence.
+
+A disconnect change with `confirmed` or `indeterminate` effect derives
+`networkRecovery.required: true`; the producer cannot declare it false. Passed
+recovery binds the paired change/recovery plan IDs, the recovery operation ID,
+and an exact final fingerprint equal to the initial baseline fingerprint.
+Failed or unbound recovery forces `machineStatus: failed`.
+
+`overallStatus` is `failed` whenever `machineStatus` is failed. It is
+`incomplete` when machine facts pass but a required manual assertion is
+`notPerformed` or `unsupported`, and it is `passed` only when required machine
+and manual facts all pass. Thus a machine-passed run with unfinished DPI or
+visual inspection remains incomplete. Cleanup status stays independently
+visible and can neither manufacture machine success nor conceal a failed
+required assertion or recovery.
+
+Validation rehashes exported files and recomputes both statuses from immutable
+operation state. Candidate/source/profile/fixture/driver hashes and deployment,
+UI, power, network, and recovery identities must match the operation record.
+Unknown schema versions return `UNSUPPORTED_SCHEMA_VERSION`. V1 evidence is
+never migrated because these v2 facts cannot be inferred honestly.
+
 ## Provenance chain
 
 A valid test evidence document binds:

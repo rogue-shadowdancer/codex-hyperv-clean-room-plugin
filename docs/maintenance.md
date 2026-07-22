@@ -11,12 +11,14 @@ source manifest only through the `plugin-creator` cachebuster helper:
   .\hyperv-clean-room
 ```
 
-Use the helper's default UTC token. It preserves base version `0.1.1`, replaces
-any previous build suffix, and produces one version of the form
-`0.1.1+codex.<cachebuster>`. Do not increment the numeric version only to
-refresh Codex, and do not append multiple cachebusters.
+For a separately authorized plugin `0.2.0` installation gate, use the helper's
+default UTC token. It preserves base version `0.2.0`, replaces any previous
+build suffix, and produces one version of the form
+`0.2.0+codex.<cachebuster>`. Do not increment the numeric version only to
+refresh Codex, and do not append multiple cachebusters. Gate 7/H2 performs no
+cachebuster update or install.
 
-The `v0.1.1` release used the helper exactly once and produced
+The historical `v0.1.1` release used the helper exactly once and produced
 `0.1.1+codex.20260715064728`. Release verification must preserve that value;
 do not run the helper again merely to reinstall the accepted source commit.
 

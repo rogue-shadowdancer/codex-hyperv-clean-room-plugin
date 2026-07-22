@@ -1,0 +1,674 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/evidence.schema.json",
+  "title": "Hyper-V clean-room schema-v2 automation evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "operationId",
+    "createdAt",
+    "profile",
+    "candidate",
+    "runtime",
+    "baselineType",
+    "vm",
+    "guest",
+    "artifacts",
+    "automation",
+    "powerOperations",
+    "networkOperations",
+    "networkRecovery",
+    "automaticAssertions",
+    "manualAssertions",
+    "cleanupTriggered",
+    "cleanupResults",
+    "machineStatus",
+    "overallStatus",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "operationId": { "type": "string", "format": "uuid" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "schemaVersion", "sha256"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "schemaVersion": { "const": 2 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "candidate": { "$ref": "#/$defs/candidateIdentity" },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pluginVersion", "sourceCommit", "adapterMode"],
+      "properties": {
+        "pluginVersion": { "const": "0.2.0" },
+        "sourceCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "adapterMode": { "enum": ["mock", "production"] }
+      }
+    },
+    "baselineType": {
+      "enum": ["stock-clean", "webview2-absent-derived"]
+    },
+    "vm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "checkpointId",
+        "checkpointName",
+        "ownershipId",
+        "ownershipVerified",
+        "fingerprint"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "checkpointId": { "type": ["string", "null"], "maxLength": 256 },
+        "checkpointName": { "type": ["string", "null"], "maxLength": 100 },
+        "ownershipId": { "type": "string", "format": "uuid" },
+        "ownershipVerified": { "type": "boolean" },
+        "fingerprint": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "guest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "windowsBuild",
+        "architecture",
+        "userSid",
+        "userName",
+        "isAdministrator",
+        "isElevated",
+        "tokenIntegrity",
+        "profilePathContainsNonAscii"
+      ],
+      "properties": {
+        "windowsBuild": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "architecture": { "const": "x64" },
+        "userSid": { "type": "string", "pattern": "^S-1-[0-9-]+$" },
+        "userName": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "isAdministrator": { "type": "boolean" },
+        "isElevated": { "type": "boolean" },
+        "tokenIntegrity": { "enum": ["low", "medium", "mediumPlus", "high", "system"] },
+        "profilePathContainsNonAscii": { "type": "boolean" }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/artifactIdentity" }
+    },
+    "automation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deploymentId",
+        "deploymentFingerprint",
+        "dataPreserved",
+        "previousDataInventorySha256",
+        "deployedDataInventorySha256",
+        "webDriverManifestSha256",
+        "fixedWebView2Version",
+        "webDriverVersion",
+        "loopbackOnly",
+        "uiTrace"
+      ],
+      "properties": {
+        "deploymentId": { "type": "string", "format": "uuid" },
+        "deploymentFingerprint": { "$ref": "#/$defs/sha256" },
+        "dataPreserved": { "type": "boolean" },
+        "previousDataInventorySha256": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "deployedDataInventorySha256": { "$ref": "#/$defs/sha256" },
+        "webDriverManifestSha256": { "$ref": "#/$defs/sha256" },
+        "fixedWebView2Version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "webDriverVersion": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "loopbackOnly": { "type": "boolean" },
+        "uiTrace": {
+          "type": "array",
+          "maxItems": 512,
+          "items": { "$ref": "#/$defs/uiTraceResult" }
+        }
+      }
+    },
+    "powerOperations": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/powerOperation" }
+    },
+    "networkOperations": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/networkOperation" }
+    },
+    "networkRecovery": { "$ref": "#/$defs/networkRecovery" },
+    "automaticAssertions": {
+      "type": "array",
+      "maxItems": 1024,
+      "items": { "$ref": "#/$defs/automaticAssertion" }
+    },
+    "manualAssertions": {
+      "type": "array",
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/manualAssertion" }
+    },
+    "cleanupTriggered": { "type": "boolean" },
+    "cleanupResults": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/cleanupResult" }
+    },
+    "machineStatus": { "$ref": "#/$defs/machineStatus" },
+    "overallStatus": { "$ref": "#/$defs/overallStatus" },
+    "warnings": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "type": "string", "maxLength": 1000 }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "machineStatus": { "const": "passed" } },
+        "required": ["machineStatus"]
+      },
+      "then": {
+        "properties": {
+          "vm": {
+            "properties": { "ownershipVerified": { "const": true } }
+          },
+          "guest": {
+            "properties": {
+              "isAdministrator": { "const": false },
+              "isElevated": { "const": false },
+              "tokenIntegrity": { "const": "medium" }
+            }
+          },
+          "automation": {
+            "properties": {
+              "dataPreserved": { "const": true },
+              "loopbackOnly": { "const": true }
+            }
+          },
+          "artifacts": {
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/artifactIdentity" },
+                { "properties": { "status": { "const": "passed" } } }
+              ]
+            }
+          },
+          "powerOperations": {
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/powerOperation" },
+                { "properties": { "status": { "const": "passed" } } }
+              ]
+            }
+          },
+          "networkOperations": {
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/networkOperation" },
+                { "properties": { "status": { "const": "passed" } } }
+              ]
+            }
+          },
+          "automaticAssertions": {
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/automaticAssertion" },
+                {
+                  "if": {
+                    "properties": { "required": { "const": true } },
+                    "required": ["required"]
+                  },
+                  "then": { "properties": { "status": { "const": "passed" } } }
+                }
+              ]
+            }
+          },
+          "networkRecovery": {
+            "if": {
+              "properties": { "required": { "const": true } },
+              "required": ["required"]
+            },
+            "then": { "properties": { "status": { "const": "passed" } } }
+            }
+          }
+        }
+      }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "status": {
+      "enum": ["passed", "failed", "notPerformed", "unsupported"]
+    },
+    "machineStatus": { "enum": ["passed", "failed"] },
+    "overallStatus": { "enum": ["passed", "failed", "incomplete"] },
+    "candidateIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceCommit",
+        "portableZipSha256",
+        "profileSha256",
+        "fixtureSetSha256",
+        "webDriverManifestSha256"
+      ],
+      "properties": {
+        "sourceCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "portableZipSha256": { "$ref": "#/$defs/sha256" },
+        "profileSha256": { "$ref": "#/$defs/sha256" },
+        "fixtureSetSha256": { "$ref": "#/$defs/sha256" },
+        "webDriverManifestSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "value"],
+      "properties": {
+        "name": { "$ref": "#/$defs/id" },
+        "value": { "type": ["string", "number", "integer", "boolean", "null"], "maxLength": 2000 }
+      }
+    },
+    "artifactIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "id",
+        "fileName",
+        "sizeBytes",
+        "sourceSha256",
+        "guestSha256",
+        "status"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "portableZip",
+            "portableManifest",
+            "fixture",
+            "webDriverArchive",
+            "webDriverExecutable",
+            "deployedPayload",
+            "screenshot",
+            "trace",
+            "export"
+          ]
+        },
+        "id": { "$ref": "#/$defs/id" },
+        "fileName": { "type": "string", "minLength": 1, "maxLength": 260 },
+        "sizeBytes": { "type": "integer", "minimum": 0, "maximum": 8589934592 },
+        "sourceSha256": { "$ref": "#/$defs/sha256" },
+        "guestSha256": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "status": { "$ref": "#/$defs/status" }
+      }
+    },
+    "uiTraceResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stepId", "stepType", "testId", "status", "summary", "observations"],
+      "properties": {
+        "stepId": { "$ref": "#/$defs/id" },
+        "stepType": {
+          "enum": [
+            "acquireWebDriver",
+            "startUiSession",
+            "stopUiSession",
+            "uiClick",
+            "uiSetText",
+            "uiPressKey",
+            "uiSelectOption",
+            "uiUploadFixture",
+            "assertUiElement",
+            "captureUiScreenshot"
+          ]
+        },
+        "testId": { "type": ["string", "null"], "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "status": { "$ref": "#/$defs/status" },
+        "summary": { "type": "string", "maxLength": 2000 },
+        "observations": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/observation" }
+        }
+      }
+    },
+    "powerOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operationId",
+        "planId",
+        "action",
+        "fromState",
+        "toState",
+        "beforeFingerprint",
+        "afterFingerprint",
+        "effectState",
+        "status"
+      ],
+      "properties": {
+        "operationId": { "type": "string", "format": "uuid" },
+        "planId": { "type": "string", "format": "uuid" },
+        "action": { "enum": ["start", "gracefulShutdown"] },
+        "fromState": { "enum": ["Off", "Running"] },
+        "toState": { "enum": ["Off", "Running"] },
+        "beforeFingerprint": { "$ref": "#/$defs/sha256" },
+        "afterFingerprint": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "effectState": { "enum": ["none", "confirmed", "indeterminate"] },
+        "status": { "$ref": "#/$defs/status" }
+      },
+      "allOf": [
+        { "$ref": "#/$defs/appliedOperationStatus" },
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "action": { "const": "start" },
+                "fromState": { "const": "Off" },
+                "toState": { "const": "Running" }
+              }
+            },
+            {
+              "properties": {
+                "action": { "const": "gracefulShutdown" },
+                "fromState": { "const": "Running" },
+                "toState": { "const": "Off" }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "networkOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operationId",
+        "planId",
+        "planRole",
+        "target",
+        "beforeFingerprint",
+        "afterFingerprint",
+        "effectState",
+        "status"
+      ],
+      "properties": {
+        "operationId": { "type": "string", "format": "uuid" },
+        "planId": { "type": "string", "format": "uuid" },
+        "planRole": { "enum": ["change", "recovery"] },
+        "target": { "enum": ["baseline", "disconnected"] },
+        "beforeFingerprint": { "$ref": "#/$defs/sha256" },
+        "afterFingerprint": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "effectState": { "enum": ["none", "confirmed", "indeterminate"] },
+        "status": { "$ref": "#/$defs/status" }
+      },
+      "allOf": [{ "$ref": "#/$defs/appliedOperationStatus" }]
+    },
+    "appliedOperationStatus": {
+      "if": {
+        "properties": { "status": { "const": "passed" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "afterFingerprint": { "$ref": "#/$defs/sha256" },
+          "effectState": { "const": "confirmed" }
+        }
+      },
+      "else": {
+        "properties": {
+          "effectState": { "enum": ["none", "indeterminate"] }
+        }
+      }
+    },
+    "networkRecovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "changePlanId",
+        "recoveryPlanId",
+        "recoveryOperationId",
+        "status",
+        "initialFingerprint",
+        "finalFingerprint"
+      ],
+      "properties": {
+        "required": { "type": "boolean" },
+        "changePlanId": { "type": ["string", "null"], "format": "uuid" },
+        "recoveryPlanId": { "type": ["string", "null"], "format": "uuid" },
+        "recoveryOperationId": { "type": ["string", "null"], "format": "uuid" },
+        "status": { "$ref": "#/$defs/status" },
+        "initialFingerprint": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "finalFingerprint": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "required": { "const": false },
+            "changePlanId": { "type": "null" },
+            "recoveryPlanId": { "type": "null" },
+            "recoveryOperationId": { "type": "null" },
+            "status": { "const": "notPerformed" },
+            "initialFingerprint": { "type": "null" },
+            "finalFingerprint": { "type": "null" }
+          }
+        },
+        {
+          "properties": {
+            "required": { "const": true },
+            "changePlanId": { "type": "string", "format": "uuid" },
+            "recoveryPlanId": { "type": "string", "format": "uuid" },
+            "initialFingerprint": { "$ref": "#/$defs/sha256" }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "status": { "const": "passed" } },
+                "required": ["status"]
+              },
+              "then": {
+                "properties": {
+                  "recoveryOperationId": { "type": "string", "format": "uuid" },
+                  "finalFingerprint": { "$ref": "#/$defs/sha256" }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "automaticAssertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "required", "status", "summary", "observations"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "required": { "type": "boolean" },
+        "status": { "$ref": "#/$defs/status" },
+        "summary": { "type": "string", "maxLength": 2000 },
+        "observations": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/observation" }
+        }
+      }
+    },
+    "manualAssertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "required", "description", "status", "attestation"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "required": { "type": "boolean" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "status": { "$ref": "#/$defs/status" },
+        "attestation": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/attestation" }]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "status": { "const": "notPerformed" },
+            "attestation": { "type": "null" }
+          }
+        },
+        {
+          "properties": {
+            "status": { "enum": ["passed", "failed"] },
+            "attestation": {
+              "allOf": [
+                { "$ref": "#/$defs/attestation" },
+                {
+                  "properties": {
+                    "method": {
+                      "enum": ["visualInspection", "interactiveExercise", "externalTool"]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "status": { "const": "unsupported" },
+            "attestation": {
+              "allOf": [
+                { "$ref": "#/$defs/attestation" },
+                { "properties": { "method": { "const": "declaredUnsupported" } } }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operationId",
+        "profileId",
+        "assertionId",
+        "observer",
+        "observedAt",
+        "method",
+        "summary",
+        "candidate",
+        "evidenceReferences"
+      ],
+      "properties": {
+        "operationId": { "type": "string", "format": "uuid" },
+        "profileId": { "$ref": "#/$defs/id" },
+        "assertionId": { "$ref": "#/$defs/id" },
+        "observer": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "observedAt": { "type": "string", "format": "date-time" },
+        "method": {
+          "enum": [
+            "visualInspection",
+            "interactiveExercise",
+            "externalTool",
+            "declaredUnsupported"
+          ]
+        },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "candidate": { "$ref": "#/$defs/candidateIdentity" },
+        "evidenceReferences": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/evidenceReference" }
+        }
+      }
+    },
+    "evidenceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^(?![A-Za-z]:)(?![\\\\/])(?!.*:)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$"
+        },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "cleanupResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operationId",
+        "profileId",
+        "cleanupStepId",
+        "cleanupStepType",
+        "status",
+        "summary",
+        "observations"
+      ],
+      "properties": {
+        "operationId": { "type": "string", "format": "uuid" },
+        "profileId": { "$ref": "#/$defs/id" },
+        "cleanupStepId": { "$ref": "#/$defs/id" },
+        "cleanupStepType": {
+          "enum": [
+            "stopApplication",
+            "stopUiSession",
+            "captureUiScreenshot",
+            "wait",
+            "assertFile",
+            "assertRegistry",
+            "assertProcess",
+            "assertModule",
+            "assertShortcut",
+            "assertPort",
+            "assertSentinel"
+          ]
+        },
+        "status": { "$ref": "#/$defs/status" },
+        "summary": { "type": "string", "maxLength": 2000 },
+        "observations": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/observation" }
+        }
+      }
+    }
+  }
+}

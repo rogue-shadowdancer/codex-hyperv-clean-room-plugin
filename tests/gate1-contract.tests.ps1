@@ -82,7 +82,7 @@ $requiredTools = @(
     'record_manual_attestation'
 )
 if ($requiredTools.Count -ne 16) {
-    throw "Expected exactly 16 frozen MCP tools, found $($requiredTools.Count)."
+    throw "Expected exactly 16 preserved schema-v1 MCP tools, found $($requiredTools.Count)."
 }
 foreach ($tool in $requiredTools) {
     $toolToken = '`{0}`' -f $tool
@@ -95,7 +95,7 @@ $declaredToolHeadings = @(
         ForEach-Object { $_.Groups[1].Value }
 )
 Assert-SetEqual $declaredToolHeadings $requiredTools `
-    'Specification tool headings do not match the exact 16-tool surface.'
+    'Specification schema-v1 tool headings do not match the exact 16-tool surface.'
 
 $forbiddenTools = @(
     'create_checkpoint',
@@ -150,8 +150,8 @@ Assert-SetEqual $protocolVersions @(
     '2025-11-25'
 ) 'Frozen MCP protocol versions changed.'
 
-if ($manifest.version -notmatch '^0\.1\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') {
-    throw "Plugin base version 0.1.1 or its single Codex cachebuster is invalid: $($manifest.version)"
+if ($manifest.version -ne '0.2.0') {
+    throw "Plugin version 0.2.0 is required for Gate 7: $($manifest.version)"
 }
 if ($serverScript -match 'not implemented yet' -or $serverScript -match 'exit\s+78\s*$') {
     throw 'MCP entry point still contains the obsolete Gate 1.1 fail-closed stub.'

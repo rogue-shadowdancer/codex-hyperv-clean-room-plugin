@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 2,
+  "productId": "sample-product",
+  "productVersion": "0.1.0-rc.1",
+  "architecture": "x64",
+  "sourceCommit": "1234567890abcdef1234567890abcdef12345678",
+  "sourceDirty": false,
+  "buildRunId": "41111111-1111-4111-8111-111111111111",
+  "unsigned": true,
+  "distributionMode": "portable",
+  "entryPointRelativePath": "SampleProduct.exe",
+  "dataDirectoryRelativePath": "data",
+  "portableArguments": ["--portable"],
+  "archivePolicy": {
+    "maxEntries": 4096,
+    "maxExpandedBytes": 8589934592,
+    "maxCompressionRatio": 200,
+    "rejectLinks": true,
+    "rejectReparsePoints": true,
+    "rejectAlternateDataStreams": true,
+    "caseInsensitiveUniquePaths": true
+  },
+  "identities": {
+    "webView2": {
+      "version": "138.0.3351.121",
+      "inventorySha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "maaFramework": {
+      "version": "4.5.0",
+      "inventorySha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  },
+  "files": [
+    {
+      "path": "SampleProduct.exe",
+      "sizeBytes": 1024,
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ]
+}

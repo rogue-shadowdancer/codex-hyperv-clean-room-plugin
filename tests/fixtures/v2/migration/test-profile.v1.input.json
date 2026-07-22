@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "legacy-current-user-smoke",
+  "description": "A lossless schema-v1 migration fixture.",
+  "platform": "windows-x64",
+  "baselineType": "stock-clean",
+  "artifact": {
+    "fileNamePattern": "SampleApp-*-x64.exe",
+    "architecture": "x64"
+  },
+  "applications": [
+    {
+      "id": "sample-app",
+      "installerType": "nsis",
+      "installMode": "currentUser",
+      "executableRelativePath": "AppData\\Local\\Programs\\SampleApp\\SampleApp.exe",
+      "uninstallerDiscovery": "hkcuUninstall",
+      "processName": "SampleApp.exe"
+    }
+  ],
+  "steps": [
+    {
+      "id": "stage-artifact",
+      "type": "stageArtifact",
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "install-package",
+      "type": "installPackage",
+      "application": "sample-app",
+      "timeoutSeconds": 300
+    },
+    {
+      "id": "assert-installed-file",
+      "type": "assertFile",
+      "path": "AppData\\Local\\Programs\\SampleApp\\SampleApp.exe",
+      "timeoutSeconds": 30,
+      "required": true
+    }
+  ],
+  "cleanupSteps": [],
+  "manualAssertions": []
+}

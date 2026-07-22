@@ -9,8 +9,8 @@ function Initialize-HcrRuntime {
     [void](Initialize-HcrStateStore)
     $definitions = @(Get-HcrToolDefinitions)
     $names = @($definitions | ForEach-Object { $_.name })
-    if ($names.Count -ne 16 -or @(Compare-Object $script:HcrToolNames $names).Count -ne 0) {
-        Throw-HcrError 'INTERNAL_ERROR' 'The runtime tool registry diverges from the frozen 16-tool surface.'
+    if ($names.Count -ne 20 -or @(Compare-Object $script:HcrToolNames $names).Count -ne 0) {
+        Throw-HcrError 'INTERNAL_ERROR' 'The runtime tool registry diverges from the frozen 20-tool surface.'
     }
     $script:HcrInitialized = $true
 }
@@ -22,6 +22,12 @@ function Invoke-HcrToolCall {
     )
 
     $operationId = [Guid]::NewGuid().ToString()
+    $envelopeSchemaVersion = if (@(
+            'plan_vm_power',
+            'apply_vm_power',
+            'plan_vm_network',
+            'apply_vm_network'
+        ) -contains $ToolName) { 2 } else { 1 }
     try {
         if (-not [bool]$script:HcrInitialized) {
             Throw-HcrError 'SERVER_NOT_INITIALIZED' 'The runtime has not been initialized.'
@@ -44,6 +50,10 @@ function Invoke-HcrToolCall {
             'run_test_profile' { Invoke-HcrRunTestProfile $argumentsValue $operationId; break }
             'collect_evidence' { Invoke-HcrCollectEvidence $argumentsValue; break }
             'record_manual_attestation' { Invoke-HcrRecordManualAttestation $argumentsValue; break }
+            'plan_vm_power' { Invoke-HcrPlanVmPower $argumentsValue; break }
+            'apply_vm_power' { Invoke-HcrApplyVmPower $argumentsValue; break }
+            'plan_vm_network' { Invoke-HcrPlanVmNetwork $argumentsValue; break }
+            'apply_vm_network' { Invoke-HcrApplyVmNetwork $argumentsValue; break }
             default { Throw-HcrError 'METHOD_NOT_FOUND' 'The requested MCP tool does not exist.' }
         }
         $warnings = @()
@@ -59,7 +69,9 @@ function Invoke-HcrToolCall {
             ([bool](Get-HcrPropertyValue $result 'changed' $false)) `
             (Get-HcrPropertyValue $result 'data' ([pscustomobject]@{})) `
             $warnings `
-            (Get-HcrPropertyValue $result 'evidencePath')
+            (Get-HcrPropertyValue $result 'evidencePath') `
+            $null `
+            $envelopeSchemaVersion
     }
     catch {
         $failure = Get-HcrExceptionData $_.Exception
@@ -84,6 +96,7 @@ function Invoke-HcrToolCall {
             ([pscustomobject]@{}) `
             $warnings `
             $null `
-            $failure
+            $failure `
+            $envelopeSchemaVersion
     }
 }

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/vm-power-plan.schema.json",
+  "title": "Hyper-V clean-room schema-v2 VM power plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "planKind",
+    "planId",
+    "createdAt",
+    "expiresAt",
+    "hostFingerprint",
+    "vmId",
+    "vmName",
+    "ownershipId",
+    "ownershipRecordSha256",
+    "vmFingerprint",
+    "currentState",
+    "action",
+    "targetState",
+    "preconditions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "planKind": { "const": "vmPower" },
+    "planId": { "type": "string", "format": "uuid" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "hostFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "vmId": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "vmName": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "ownershipId": { "type": "string", "format": "uuid" },
+    "ownershipRecordSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "vmFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "currentState": { "enum": ["Off", "Running"] },
+    "action": { "enum": ["start", "gracefulShutdown"] },
+    "targetState": { "enum": ["Off", "Running"] },
+    "preconditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ownershipVerified",
+        "vmStateSupported",
+        "noTransitionInProgress"
+      ],
+      "properties": {
+        "ownershipVerified": { "const": true },
+        "vmStateSupported": { "const": true },
+        "noTransitionInProgress": { "const": true }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "action": { "const": "start" },
+        "currentState": { "const": "Off" },
+        "targetState": { "const": "Running" }
+      }
+    },
+    {
+      "properties": {
+        "action": { "const": "gracefulShutdown" },
+        "currentState": { "const": "Running" },
+        "targetState": { "const": "Off" }
+      }
+    }
+  ]
+}

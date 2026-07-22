@@ -62,8 +62,9 @@ file decode.
 
 Run `scripts\validate-install-source.ps1` and use its bounded error. Do not
 install a payload with untracked files, reparse points, forbidden machine-state
-extensions, an unexpected folder/manifest name, or a version outside base
-`0.1.1` plus one optional Codex cachebuster.
+extensions, an unexpected folder/manifest name, or a version outside the
+current source base `0.2.0` plus one optional Codex cachebuster. The immutable
+historical `v0.1.1` Release remains a separate accepted artifact.
 
 ### The target is not owned
 

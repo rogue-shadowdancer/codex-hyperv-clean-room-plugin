@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/vm-network-plan.schema.json",
+  "title": "Hyper-V clean-room schema-v2 VM network plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "planKind",
+    "planRole",
+    "planId",
+    "pairedPlanId",
+    "createdAt",
+    "expiresAt",
+    "hostFingerprint",
+    "vmId",
+    "vmName",
+    "ownershipId",
+    "ownershipRecordSha256",
+    "vmFingerprint",
+    "adapter",
+    "baselineAttachment",
+    "currentAttachment",
+    "target",
+    "targetAttachment",
+    "preconditions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "planKind": { "const": "vmNetwork" },
+    "planRole": { "enum": ["change", "recovery"] },
+    "planId": { "type": "string", "format": "uuid" },
+    "pairedPlanId": { "type": ["string", "null"], "format": "uuid" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "hostFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "vmId": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "vmName": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "ownershipId": { "type": "string", "format": "uuid" },
+    "ownershipRecordSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "vmFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "macAddress", "fingerprint"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "macAddress": { "type": "string", "pattern": "^[A-F0-9]{12}$" },
+        "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "baselineAttachment": { "$ref": "#/$defs/connectedAttachment" },
+    "currentAttachment": { "$ref": "#/$defs/attachment" },
+    "target": { "enum": ["baseline", "disconnected"] },
+    "targetAttachment": { "$ref": "#/$defs/attachment" },
+    "preconditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ownershipVerified",
+        "primaryAdapterVerified",
+        "baselineSwitchPresent",
+        "noAdapterConfigurationDrift"
+      ],
+      "properties": {
+        "ownershipVerified": { "const": true },
+        "primaryAdapterVerified": { "const": true },
+        "baselineSwitchPresent": { "const": true },
+        "noAdapterConfigurationDrift": { "const": true }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "target": { "const": "baseline" } },
+        "required": ["target"]
+      },
+      "then": {
+        "properties": {
+          "currentAttachment": { "$ref": "#/$defs/disconnectedAttachment" },
+          "targetAttachment": { "$ref": "#/$defs/connectedAttachment" }
+        }
+      },
+      "else": {
+        "properties": {
+          "currentAttachment": { "$ref": "#/$defs/connectedAttachment" },
+          "pairedPlanId": { "type": "string", "format": "uuid" },
+          "targetAttachment": { "$ref": "#/$defs/disconnectedAttachment" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "planRole": { "const": "recovery" } },
+        "required": ["planRole"]
+      },
+      "then": {
+        "properties": {
+          "target": { "const": "baseline" },
+          "pairedPlanId": { "type": "string", "format": "uuid" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "planRole": { "const": "change" },
+          "target": { "const": "baseline" }
+        },
+        "required": ["planRole", "target"]
+      },
+      "then": { "properties": { "pairedPlanId": { "type": "null" } } }
+    }
+  ],
+  "$defs": {
+    "attachment": {
+      "oneOf": [
+        { "$ref": "#/$defs/connectedAttachment" },
+        { "$ref": "#/$defs/disconnectedAttachment" }
+      ]
+    },
+    "connectedAttachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "switchId", "switchName", "switchType"],
+      "properties": {
+        "mode": { "const": "connected" },
+        "switchId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "switchName": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "switchType": { "enum": ["Private", "Internal", "External"] }
+      }
+    },
+    "disconnectedAttachment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": { "mode": { "const": "disconnected" } }
+    }
+  }
+}

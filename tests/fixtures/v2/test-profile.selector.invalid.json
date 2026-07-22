@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 2,
+  "id": "portable-selector-rejected",
+  "workflowKind": "portableAutomation",
+  "platform": "windows-x64",
+  "baselineType": "stock-clean",
+  "artifact": {
+    "packageKind": "portableZip",
+    "fileNamePattern": "SampleProduct_0.1.0_windows-x64-portable.zip",
+    "architecture": "x64",
+    "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "sizeBytes": 104857600,
+    "portableManifestEntryPath": "portable-manifest.json",
+    "portableManifestSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "fixtures": [],
+  "webDriver": {
+    "schemaVersion": 2,
+    "id": "edge-driver-138-0-3351-121",
+    "provider": "microsoftEdgeDriver",
+    "browserKind": "fixedVersionWebView2",
+    "browserVersion": "138.0.3351.121",
+    "driverVersion": "138.0.3351.121",
+    "architecture": "x64",
+    "acquisition": {
+      "source": "microsoftFixedEndpoint",
+      "archiveFileName": "edgedriver_win64.zip",
+      "archiveSizeBytes": 10485760,
+      "archiveSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "redirectPolicy": "microsoftHttpsAllowlist"
+    },
+    "executable": {
+      "relativePath": "msedgedriver.exe",
+      "sizeBytes": 15728640,
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "peArchitecture": "x64",
+      "authenticodePublisher": "Microsoft Corporation"
+    },
+    "sessionPolicy": {
+      "listenAddress": "127.0.0.1",
+      "portPolicy": "serverAllocatedEphemeral",
+      "browserArguments": [],
+      "allowNavigation": false,
+      "allowExecuteScript": false,
+      "allowArbitrarySelector": false
+    },
+    "files": [
+      {
+        "path": "msedgedriver.exe",
+        "sizeBytes": 15728640,
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ]
+  },
+  "applications": [
+    {
+      "id": "sample-product",
+      "packageKind": "portableZip",
+      "executableRelativePath": "SampleProduct.exe",
+      "dataDirectoryRelativePath": "data",
+      "processName": "SampleProduct.exe"
+    }
+  ],
+  "steps": [
+    {
+      "id": "stage-artifact",
+      "type": "stageArtifact",
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "deploy-portable",
+      "type": "deployPortable",
+      "application": "sample-product",
+      "timeoutSeconds": 300
+    },
+    {
+      "id": "acquire-webdriver",
+      "type": "acquireWebDriver",
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "start-ui-session",
+      "type": "startUiSession",
+      "application": "sample-product",
+      "timeoutSeconds": 60
+    },
+    {
+      "id": "unsafe-selector",
+      "type": "uiClick",
+      "testId": "safe-id",
+      "selector": "#arbitrary-css",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "stop-ui-session",
+      "type": "stopUiSession",
+      "timeoutSeconds": 30
+    }
+  ],
+  "cleanupSteps": [],
+  "manualAssertions": []
+}

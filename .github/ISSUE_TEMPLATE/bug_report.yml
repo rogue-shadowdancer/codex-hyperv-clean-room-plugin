@@ -12,8 +12,8 @@ body:
     id: version
     attributes:
       label: Plugin version and commit
-      description: Include the v0.1.1 build version and commit SHA when known.
-      placeholder: 0.1.1+codex.<timestamp> at <commit>
+      description: Include the plugin build version and commit SHA when known.
+      placeholder: 0.2.0+codex.<timestamp> at <commit>
     validations:
       required: true
   - type: input
@@ -62,4 +62,3 @@ body:
           required: true
         - label: I did not run or request an unauthorized real Hyper-V or guest mutation.
           required: true
-

@@ -1,0 +1,40 @@
+{
+  "contractVersion": 2,
+  "targetPluginVersion": "0.2.0",
+  "currentRuntimeVersion": "0.2.0",
+  "schemaV1Sha256": {
+    "checkpoint-plan.schema.json": "905373bf634cb74a02fd352bf7c65be8355fbbcb35e92ce61672db5a3a115167",
+    "evidence.schema.json": "3154f1f91781eba0115436245d9c548f0c02542b454640fe170d9e140c5bdfe5",
+    "operation-envelope.schema.json": "0d392e816f91414fea6a957f8bd2551bc40e303d1b6529180dd76012e6fd7b2c",
+    "test-profile.schema.json": "fd7a4e06236b849369a16b69094b39ef07a2268adffef181cb44da9b9ffa638c",
+    "vm-plan.schema.json": "9aaf056f8beace6ba4107627f8028fdc3e74d484179d9bf238b83f4b8138b4fe"
+  },
+  "documents": {
+    "profileV1": {
+      "reader": "validateAndDispatchV1",
+      "migration": "explicitLosslessOnly",
+      "requiresAuthoring": true,
+      "ambiguousPackageKindError": "MIGRATION_AMBIGUOUS_PACKAGE_KIND"
+    },
+    "evidenceV1": {
+      "reader": "validateV1",
+      "migration": "preserveV1",
+      "reason": "schema-v2 candidate, driver, fixture, UI, and recovery provenance cannot be synthesized"
+    },
+    "unknownSchemaVersion": {
+      "behavior": "reject",
+      "errorCode": "UNSUPPORTED_SCHEMA_VERSION"
+    }
+  },
+  "runtimeDispatch": {
+    "strategy": "exactIntegerSchemaVersion",
+    "fallback": false,
+    "tryV2ThenV1": false
+  },
+  "stateV1": {
+    "stateRoot": "%LOCALAPPDATA%\\Codex\\hyperv-clean-room\\v1",
+    "ownershipMarkerPrefix": "hyperv-clean-room/v1:",
+    "rewriteExistingRecords": false,
+    "adoptUnmanagedResources": false
+  }
+}

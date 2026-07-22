@@ -338,21 +338,29 @@ function Write-HcrOperationEvidence {
     return $path
 }
 
-function Invoke-HcrRunTestProfile {
+function Invoke-HcrRunTestProfileV1 {
     param(
         [Parameter(Mandatory = $true)][object]$Arguments,
-        [Parameter(Mandatory = $true)][string]$OperationId
+        [Parameter(Mandatory = $true)][string]$OperationId,
+        [AllowNull()][object]$ValidatedProfile = $null
     )
 
     $vmName = [string](Get-HcrPropertyValue $Arguments 'vmName')
     $profileName = [string](Get-HcrPropertyValue $Arguments 'credentialProfile')
     $owned = Get-HcrRequiredOwnedVm $vmName
-    $profileValidation = Read-AndValidate-HcrProfile ([string](Get-HcrPropertyValue $Arguments 'profilePath'))
-    if (-not $profileValidation.valid) {
-        Throw-HcrError 'PROFILE_INVALID' 'The test profile failed validation before execution.' ([ordered]@{ errors = @($profileValidation.errors) })
+    if ($null -eq $ValidatedProfile) {
+        $profileValidation = Read-AndValidate-HcrProfile ([string](Get-HcrPropertyValue $Arguments 'profilePath'))
+        if (-not $profileValidation.valid) {
+            Throw-HcrError 'PROFILE_INVALID' 'The test profile failed validation before execution.' ([ordered]@{ errors = @($profileValidation.errors) })
+        }
+        $profile = $profileValidation.profile
+    }
+    else {
+        # Only the exact-version schema-v2 legacy dispatcher supplies this
+        # deterministic inverse projection after native v2 validation.
+        $profile = $ValidatedProfile
     }
     $artifactItem = Assert-HcrRegularLocalFile ([string](Get-HcrPropertyValue $Arguments 'artifactPath')) 'INVALID_ARTIFACT'
-    $profile = $profileValidation.profile
     $artifactDeclaration = Get-HcrPropertyValue $profile 'artifact'
     $fileNamePattern = [string](Get-HcrPropertyValue $artifactDeclaration 'fileNamePattern')
     if ($artifactItem.Name -notlike $fileNamePattern) {
@@ -712,7 +720,11 @@ function Invoke-HcrRecordManualAttestation {
             Throw-HcrError 'EVIDENCE_NOT_READY' 'The operation evidence is not ready.'
         }
         $evidence = Read-HcrJsonFile $evidencePath 'EVIDENCE_NOT_READY'
-        $existingValidation = Test-HcrEvidenceDocument $evidence $operation
+        $isV2 = [int](Get-HcrPropertyValue $operation 'schemaVersion' 1) -eq 2
+        $existingValidation = if ($isV2) {
+            Test-HcrEvidenceDocumentV2 $evidence $operation
+        }
+        else { Test-HcrEvidenceDocument $evidence $operation }
         if (-not $existingValidation.valid) {
             Throw-HcrError 'EVIDENCE_INVALID' 'The existing operation evidence was modified or is invalid.' ([ordered]@{
                 errors = @($existingValidation.errors)
@@ -741,14 +753,35 @@ function Invoke-HcrRecordManualAttestation {
             summary = [string](Get-HcrPropertyValue $Arguments 'summary')
             evidenceReferences = @($verifiedReferences)
         }
+        if ($isV2) {
+            $attestation | Add-Member -NotePropertyName candidate -NotePropertyValue `
+                (Copy-HcrObject (Get-HcrPropertyValue $evidence 'candidate')) -Force
+        }
         $assertion.status = $status
         $assertion.attestation = $attestation
-        $evidence.overallStatus = Get-HcrDerivedOverallStatus `
-            @((Get-HcrPropertyValue $evidence 'automaticAssertions')) `
-            @((Get-HcrPropertyValue $evidence 'manualAssertions'))
+        $evidence.overallStatus = if ($isV2) {
+            if ((Get-HcrPropertyValue $evidence 'machineStatus') -eq 'failed' -or
+                @(@((Get-HcrPropertyValue $evidence 'manualAssertions')) | Where-Object {
+                    (Get-HcrPropertyValue $_ 'required') -eq $true -and
+                    (Get-HcrPropertyValue $_ 'status') -eq 'failed'
+                }).Count -gt 0) { 'failed' }
+            elseif (@(@((Get-HcrPropertyValue $evidence 'manualAssertions')) | Where-Object {
+                    (Get-HcrPropertyValue $_ 'required') -eq $true -and
+                    (Get-HcrPropertyValue $_ 'status') -ne 'passed'
+                }).Count -gt 0) { 'incomplete' }
+            else { 'passed' }
+        }
+        else {
+            Get-HcrDerivedOverallStatus `
+                @((Get-HcrPropertyValue $evidence 'automaticAssertions')) `
+                @((Get-HcrPropertyValue $evidence 'manualAssertions'))
+        }
         $operation.manualAttestations = @(@((Get-HcrPropertyValue $operation 'manualAttestations' @())) + $attestation)
         $operation.evidenceSha256 = Get-HcrEvidenceDocumentDigest $evidence
-        $validation = Test-HcrEvidenceDocument $evidence $operation
+        $validation = if ($isV2) {
+            Test-HcrEvidenceDocumentV2 $evidence $operation
+        }
+        else { Test-HcrEvidenceDocument $evidence $operation }
         if (-not $validation.valid) {
             Throw-HcrError 'EVIDENCE_INVALID' 'The attestation would make operation evidence invalid.' ([ordered]@{
                 errors = @($validation.errors)
@@ -827,7 +860,10 @@ function Invoke-HcrCollectEvidence {
         }
         [void](Assert-HcrLocalDirectory $sourceRoot 'EVIDENCE_STAGING_INVALID')
         $evidence = Read-HcrJsonFile $evidencePath 'EVIDENCE_NOT_READY'
-        $validation = Test-HcrEvidenceDocument $evidence $operation
+        $validation = if ([int](Get-HcrPropertyValue $operation 'schemaVersion' 1) -eq 2) {
+            Test-HcrEvidenceDocumentV2 $evidence $operation
+        }
+        else { Test-HcrEvidenceDocument $evidence $operation }
         if (-not $validation.valid) {
             Throw-HcrError 'EVIDENCE_INVALID' 'The staged evidence failed validation and was not exported.' ([ordered]@{
                 errors = @($validation.errors)
@@ -932,7 +968,10 @@ function Invoke-HcrCollectEvidence {
         }
         $copiedEvidencePath = Join-Path $targetRoot 'evidence.json'
         $copiedEvidence = Read-HcrJsonFile $copiedEvidencePath 'EVIDENCE_STAGING_INVALID'
-        $copiedValidation = Test-HcrEvidenceDocument $copiedEvidence $operation
+        $copiedValidation = if ([int](Get-HcrPropertyValue $operation 'schemaVersion' 1) -eq 2) {
+            Test-HcrEvidenceDocumentV2 $copiedEvidence $operation
+        }
+        else { Test-HcrEvidenceDocument $copiedEvidence $operation }
         if (-not $copiedValidation.valid) {
             Throw-HcrError 'EVIDENCE_INVALID' 'The exact copied evidence bytes do not match immutable operation state.' ([ordered]@{
                 errors = @($copiedValidation.errors)

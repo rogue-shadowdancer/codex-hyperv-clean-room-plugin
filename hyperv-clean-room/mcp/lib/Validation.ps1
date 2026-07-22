@@ -527,7 +527,7 @@ function Test-HcrProfileDocument {
     }
 }
 
-function Read-AndValidate-HcrProfile {
+function Read-AndValidate-HcrProfileV1 {
     param([Parameter(Mandatory = $true)][string]$ProfilePath)
 
     $loaded = Read-HcrJsonDocument $ProfilePath 'PROFILE_INVALID' 2MB
@@ -1026,7 +1026,7 @@ function Test-HcrEvidenceDocument {
     }
 }
 
-function Read-AndValidate-HcrEvidence {
+function Read-AndValidate-HcrEvidenceV1 {
     param([Parameter(Mandatory = $true)][string]$EvidencePath)
 
     $loaded = Read-HcrJsonDocument $EvidencePath 'EVIDENCE_INVALID' 8MB

@@ -1,13 +1,13 @@
-# Hyper-V Clean Room v1 specification
+# Hyper-V Clean Room specification
 
-Status: Gate 5.2 marketplace metadata on the Gate 5.1 GPL public release.
-Plugin `0.1.1` preserves the Gate 2 PowerShell 5.1 schema-v1 behavior and the
-Gate 4 source-validated, ownership-marked personal workflow. Gate 5.2 aligns
-the manifest `homepage`, `repository`, and `interface.websiteURL` with the
-canonical public GitHub repository and uses personal-install build
-`0.1.1+codex.20260715084043`. No real guest operation or Hyper-V mutation is
-executed; production guest behavior is still mock/parser/static validated only
-and is not clean-machine validated.
+Status: Gate 6/H1 freezes the additive plugin `0.2.0`, schema-v2 automation
+contract, and Gate 7/H2 integrates it into the Windows PowerShell 5.1 source.
+The implementation exposes exactly 20 MCP tools, preserves the first 16
+schema-v1 tools and five schema-v1 files byte-for-byte, installs seven
+schema-v2 files, and dispatches only by the exact integer `schemaVersion`.
+Gate 7 validation is mock/parser/static only. No real host, VM, checkpoint,
+credential, guest, package, portable, WebDriver, network, UI, installation,
+release, or clean-machine operation was executed or claimed.
 
 ## Purpose and boundary
 
@@ -21,6 +21,249 @@ The plugin does not download Windows, manage licenses, inject plaintext
 credentials, remove WebView2, disable Windows security features, or expose
 arbitrary shell execution. It provides no public operation that deletes a VM,
 VHDX, checkpoint, or host file.
+
+## Plugin 0.2.0 and schema-v2 target contract
+
+The normative H1 artifacts are under `contracts/v2`. H2 installs byte-identical
+copies of their seven Draft 2020-12 schemas under
+`hyperv-clean-room/schemas/v2`; the contract paths and canonical repository
+IDs remain authoritative for:
+
+- `operation-envelope.schema.json`;
+- `vm-power-plan.schema.json`;
+- `vm-network-plan.schema.json`;
+- `portable-manifest.schema.json`;
+- `webdriver-manifest.schema.json`;
+- `test-profile.schema.json`; and
+- `evidence.schema.json`.
+
+`contracts/v2/tool-catalog.json` freezes exactly 20 target tools. The first 16
+are byte-for-byte input-schema and annotation snapshots of the shipped v1
+registry. The four additions are:
+
+| Tool | Closed input | Contract |
+| --- | --- | --- |
+| `plan_vm_power` | `vmName`, `action` | `action` is only `start` or `gracefulShutdown`. Planning is non-mutating. |
+| `apply_vm_power` | `planId` | Consumes and revalidates one power plan; the caller cannot respecify the action. |
+| `plan_vm_network` | `vmName`, `target` | `target` is only the recorded `baseline` or `disconnected` state of the verified primary managed NIC. |
+| `apply_vm_network` | `planId` | Consumes and revalidates one change or recovery plan; the caller cannot select an adapter, switch, or target. |
+
+All four return the schema-v2 operation envelope. The machine-readable
+`resultContract` beside each catalog entry is normative. Power planning returns
+exactly `{ plan }` containing `vm-power-plan`; network planning returns exactly
+`{ changePlan, recoveryPlan }`, where recovery is non-null for a disconnect
+pair. A successful power apply returns the plan/VM identity, action, previous
+and current state, and `effectState: confirmed`. A successful network apply
+returns the plan pair/role, VM and adapter identity, target, previous/current
+attachment, `effectState: confirmed`, and whether recovery is now required.
+Planning success has `changed: false`; apply success has `changed: true`.
+
+The frozen stable failure codes are the applicable subset of the existing
+`INVALID_ARGUMENT`, `HYPERV_UNAVAILABLE`, `ELEVATION_REQUIRED`, `VM_NOT_FOUND`,
+`VM_STATE_UNSUPPORTED`, `OWNERSHIP_UNVERIFIED`, `STATE_BUSY`,
+`PLAN_NOT_FOUND`, `PLAN_ALREADY_CONSUMED`, `PLAN_INVALID`,
+`PLAN_KIND_MISMATCH`, `PLAN_EXPIRED`, and `PLAN_DRIFT`, plus the new typed
+`PRIMARY_ADAPTER_UNVERIFIED`, `BASELINE_UNAVAILABLE`,
+`POWER_TRANSITION_FAILED`, `NETWORK_TRANSITION_FAILED`, and
+`NETWORK_RECOVERY_REQUIRED`, exactly as listed per tool in the catalog. Before
+the mutation boundary, failure has
+`changed: false`. After entry, a confirmed or non-excludable effect has
+`changed: true` and bounded `error.details.effectState` of `confirmed` or
+`indeterminate`; a disconnect failure that may have changed attachment also
+returns the already-created recovery plan ID and
+`NETWORK_RECOVERY_REQUIRED`.
+
+Every input object has `additionalProperties: false`. No v2 tool accepts a
+password, credential, command, script, shell, URL, selector, JavaScript,
+download location, raw uninstall string, caller-selected argument list, host
+path deletion, arbitrary adapter, or arbitrary switch.
+
+### Plan consumption, expiry, drift, and recovery
+
+The v1 single-consumption rule remains authoritative: the first well-formed
+apply request that resolves a stored plan atomically consumes it before any
+expiry, drift, or requested-value check. Power and network apply inputs contain
+only the UUID `planId`; that unpredictable, operation-scoped ID is the sole
+capability token and is never reusable. A malformed input or unknown plan ID
+does not identify a consumable plan. Apply must reject expired or consumed
+plans and any change to host fingerprint, VM ID/name, ownership ID or record
+hash, VM fingerprint, recorded state, adapter identity/fingerprint, baseline
+switch identity, or operation-specific precondition. Drift produces no
+mutation and requires a fresh plan.
+
+For schema-v2 power and network plans, the host fingerprint covers stable host
+identity and Hyper-V availability but excludes the caller process's transient
+elevation state. Planning remains read-only and may run without elevation;
+apply independently requires elevation before drift validation or mutation.
+
+The sole consumption exception is the paired network recovery plan: its stored
+record shape and live VM, ownership, adapter, baseline, and attachment recovery
+preconditions are checked before consumption so an accidental recovery attempt
+before the paired disconnect cannot burn the only recovery capability. A
+disconnect change plan still consumes before checking that its paired recovery
+record remains available; an unavailable recovery fails closed without a
+network mutation and requires a fresh pair.
+
+For network plans, `vmFingerprint` binds all relevant VM configuration except
+the verified primary NIC's attachment, and `adapter.fingerprint` binds the NIC
+identity/configuration except its attachment. `currentAttachment` and
+`targetAttachment` bind that one expected transition separately. This lets the
+pre-created recovery plan accept only the disconnect made by its paired change
+plan without treating that planned attachment difference as unrelated drift;
+every other VM, NIC, ownership, host, or baseline change still rejects apply.
+
+Power plans live exactly 15 minutes. `start` binds `Off -> Running`;
+`gracefulShutdown` binds `Running -> Off`. Forced power-off, reset, save,
+pause, resume, stop-with-force, and automatic escalation after shutdown timeout
+are outside the contract.
+
+Network change plans live exactly 15 minutes. A disconnect plan is published
+only as an atomic pair with a pre-created recovery plan that restores the
+recorded baseline attachment; the two plans cross-reference each other. The
+recovery plan lives exactly 24 hours so it remains usable after the ordinary
+change window. Apply affects only the verified primary NIC of the managed VM.
+Before disconnect mutation, the paired recovery must still be unconsumed and
+unexpired and must bind the exact inverse attachment transition plus the same
+host, VM, ownership, adapter, fingerprint, and baseline identities.
+Disconnect starts only from the exact baseline attachment; baseline change or
+recovery starts only from the disconnected attachment, so successful apply is
+never a no-op and has `changed: true`.
+If change outcome is confirmed or indeterminate, recovery becomes required;
+failed, expired, drifted, or unverified recovery makes machine evidence fail.
+The plugin never adopts an unmanaged VM or invents a new switch binding.
+
+### Portable ZIP lifecycle and fixed WebDriver
+
+A schema-v2 portable candidate is an unsigned Windows x64 ZIP with a clean
+40-hex source commit, a UUID build run, a root
+`portable-manifest.json`, one `--portable` argument, a fixed `data` directory,
+and complete payload-file identities. The manifest binds the entry point, product and
+component versions, WebView2 and MaaFramework inventory SHA-256 values, each
+payload path, size, and SHA-256. The root manifest is bound separately by the
+profile and ZIP hashes and is excluded from its own `files` array to avoid an
+impossible recursive self-hash. The immutable archive limits are: at most
+4,096 entries, 8 GiB expanded bytes, and 200:1 compression ratio.
+The evidence candidate source commit is derived from this hash-bound portable
+manifest; the separate runtime source commit is derived from the installed
+plugin manifest and the two commits are not required to match.
+
+Before extraction, the implementation must verify the host ZIP SHA-256 and
+manifest identity. It must normalize every path as a relative Windows path,
+reject absolute or drive paths, `..`, alternate data streams, percent-encoded
+ambiguity, links, reparse points, trailing dot/space segments, duplicate or
+case-insensitively colliding names, non-NFC names, Windows reserved device
+names, control/invalid filename characters, undeclared entries, missing
+entries, size drift, and hash drift. Extraction must use a new operation-owned staging
+directory, enforce the limits while streaming, re-open and hash every regular
+file, and atomically publish a new deployment slot only after the complete
+inventory passes. Existing portable data is copied forward only from the
+recorded `data` directory after its binding is revalidated. That copy accepts
+only regular files/directories, rejects reparse points, links, ADS, unsafe or
+colliding relative paths, and enforces the same 4,096-entry/8-GiB bounds. It
+hashes a canonical source inventory before copy and a destination inventory
+after copy; a prior inventory must equal the deployed inventory byte-for-byte.
+The portable manifest and ZIP must not declare a `data` entry or any `data/`
+descendant; that mutable directory is created empty for a first deployment or
+copied only from the revalidated prior active deployment.
+Failed deployment must not replace the active slot or delete prior data. No H1
+contract creates a general unzip, copy, delete, or command surface.
+
+The WebDriver manifest fixes Microsoft EdgeDriver x64 to the exact fixed
+WebView2 four-part version. Its Microsoft HTTPS acquisition policy, archive
+name `edgedriver_win64.zip`, archive size/hash, executable path
+`msedgedriver.exe`, executable size/hash, x64 PE identity, Microsoft
+Authenticode publisher, and complete file inventory are all verified before
+use. A mismatch fails closed. The driver listens only on `127.0.0.1` at a
+server-allocated ephemeral port. Navigation, arbitrary browser arguments,
+arbitrary selectors, and script execution are forbidden.
+
+### Closed UI DSL
+
+Schema-v2 portable profiles declare fixtures by ID, safe relative file name,
+size, and SHA-256; fixture bytes are staged and dual-hashed by the server.
+
+Each `fixture.sourceRelativePath` resolves beneath the already-validated local
+directory containing the profile. The server canonicalizes every parent and
+the final file, rejects escape, links/reparse points and non-regular files,
+then checks the declared size/SHA-256 before creating an operation-owned guest
+copy and checking its hash again. The MCP caller cannot supply a separate
+fixture root or guest destination. The existing `artifactPath` input remains
+the sole candidate-ZIP source, and the server—not the profile or caller—derives
+the fixed Microsoft driver acquisition endpoint.
+
+The UI step allowlist is:
+
+- `acquireWebDriver`, `startUiSession`, and `stopUiSession`;
+- `uiClick`, `uiSetText`, `uiPressKey`, and `uiSelectOption`;
+- `uiUploadFixture` using a declared fixture ID;
+- `assertUiElement` with only `visible`, `hidden`, `enabled`, `disabled`,
+  `checked`, `unchecked`, `textEquals`, `textContains`, or `valueEquals`; and
+- `captureUiScreenshot` with a bounded evidence name.
+
+A portable UI profile contains exactly one `launchApplication` after atomic
+deployment and before `startUiSession`; that launch and the UI session must
+reference the same declared application. The fixed driver may be acquired
+before or after application launch, but must also precede session start.
+
+Key presses are restricted to `Enter`, `Escape`, `Tab`, and the four arrow
+keys. There is no CSS/XPath selector, URL/navigation, JavaScript, arbitrary
+WebDriver endpoint, arbitrary file path, caller argument, or shell escape. The
+`text` and option literals are non-secret test data; the profile has no
+credential/secret/reference field and must be rejected if the requested flow
+would enter a password, token, or other credential. The
+worker maps each closed step to fixed code and records the step ID, test ID,
+bounded observation, and screenshot identity without exposing raw protocol
+control. Each UI sequence acquires, starts, and stops exactly one owned session
+in that order, and every interaction occurs between start and stop. If a
+required failure or a failed ordinary stop leaves the owned session active,
+the runner immediately issues one fixed, bounded `stopUiSession` cleanup call
+and records its result as an automatic assertion and UI-trace entry. This
+containment does not depend on an author-declared cleanup step and accepts no
+caller-controlled endpoint or payload. Declared cleanup uses type-specific
+targets, rejects irrelevant fields, and never makes a stop, session,
+screenshot, or wait action optional.
+
+### Evidence v2 and compatibility
+
+Evidence v2 binds the profile hash; candidate source commit plus portable ZIP,
+profile, fixture-set, and WebDriver-manifest hashes; plugin version/source and
+adapter mode; baseline; managed VM/checkpoint/ownership/fingerprint; standard
+user token facts; dual artifact hashes; portable deployment identity; fixed
+driver version and loopback policy; prior/deployed data inventory hashes;
+bounded UI trace; power and network plan
+and operation identities; recovery; automatic/manual assertions; cleanup; and
+warnings. The canonical status derivation is:
+
+- `machineStatus` is `failed` if any required automatic assertion,
+  infrastructure binding, artifact hash, deployment/data-preservation fact,
+  UI session fact, or required network recovery is not passed; otherwise it is
+  `passed`;
+- `overallStatus` is `failed` when `machineStatus` is failed, `incomplete` when
+  machine facts pass but any required manual assertion is `notPerformed` or
+  `unsupported`, and `passed` only when both machine and required manual facts
+  pass; and
+- cleanup failure remains separately visible and cannot manufacture a passed
+  machine or overall result.
+
+Readers dispatch on the exact integer `schemaVersion`; they never try v2 then
+fall back to v1. Unknown versions fail with `UNSUPPORTED_SCHEMA_VERSION`.
+All v1 tool names, inputs, annotations, envelopes, profiles, evidence, and
+semantics remain available. A valid v1 profile is read as v1, or may be copied
+through an explicit deterministic, lossless migration that never rewrites the
+source. A v1 NSIS/MSI profile with an unambiguous package kind maps to
+`legacyPackageLifecycle`; ambiguous input requires authoring and fails with the
+exact `MIGRATION_AMBIGUOUS_PACKAGE_KIND` error. V1 evidence always remains v1 because v2
+candidate, driver, fixture, UI, deployment, and recovery provenance cannot be
+safely synthesized. A validated migrated legacy profile therefore reuses the
+preserved lifecycle runner and its v1 evidence lane; only `portableAutomation`
+produces schema-v2 automation evidence.
+
+Plugin `0.2.0` continues using the existing v1 state root and
+`hyperv-clean-room/v1:<ownership-id>` marker so already-managed resources do
+not require adoption or marker rewrite. New plan kinds and schema-v2 operation
+records carry explicit kind/version fields under the existing atomic
+lock/record rules. H2 must not rewrite valid v1 ownership, plan, operation,
+profile, or evidence files in place; corrupt or unknown records fail closed.
 
 ## Runtime and transport
 
@@ -449,7 +692,10 @@ Cleanup is armed only after `run_test_profile` has completed validation and
 entered the execution phase. Immutable operation state records
 `cleanupTriggered: true` only when that phase encounters a failed
 required assertion, failed action or mutation, step timeout, or guest-adapter
-failure. It does not trigger for pre-execution validation failures or an
+failure. A ZIP or fixture staging adapter exception is converted to a failed
+hash-bound stage assertion, failed/not-performed artifact entries, cleanup,
+and evidence rather than escaping as an unaudited tool error. Cleanup does not
+trigger for pre-execution validation failures or an
 ordinary optional-assertion failure. Once triggered, cleanup steps run in
 declaration order while time remains in the 300-second total budget.
 
@@ -666,3 +912,38 @@ agreement, 16-tool discovery, read-only `inspect_host`, and `INVALID_ISO`
 before mutation. Clean-machine testing, credential enrollment, real guest or
 package work, VM/checkpoint mutation, and manual GUI attestation remain
 `notPerformed` and require a separately authorized Gate 6 task.
+
+## Gate 6/H1 acceptance boundary
+
+Gate 6 accepts only a frozen, internally consistent target contract. The
+contract test must prove seven schema-v2 files with stable IDs, exactly 20
+target tools, the exact 16-tool v1 snapshot, byte-identical five v1 schemas,
+closed new inputs, fixed plan lifetimes and recovery pairing, portable path and
+hash rejection, fixed-driver provenance, closed `data-testid` UI dispatch,
+evidence status derivation, candidate/hash binding, and deterministic migration
+fixtures. Documentation, repository formats, existing mock/runtime tests, and
+the exact staged candidate must also pass review with zero actionable findings.
+
+H1 does not change the executable plugin or claim implementation. Therefore
+the runtime remains `0.1.1`, schema v1, and 16 tools; all real Hyper-V,
+credential, guest, package, portable, WebDriver, network, UI, clean-room, and
+manual-attestation operations remain `notPerformed`. Gate 7/H2 owns the first
+implementation of this contract and must preserve these frozen compatibility
+and fail-closed boundaries.
+
+## Gate 7/H2 acceptance boundary
+
+Gate 7 integrates only the frozen H1 contract. It requires plugin/server source
+version `0.2.0`, exactly 20 registered tools, exact schema-v1 tool and file
+compatibility, exact v1/v2 dispatch without fallback, atomic one-shot
+power/network planning with drift and recovery handling, fail-closed portable
+staging/data preservation, fixed-driver provenance, the closed `data-testid`
+dispatcher, evidence-v2 derivation/binding, and additive deterministic
+migration. The exact candidate must pass inherited compatibility, mock runtime,
+parser, schema, static safety, documentation, publication, and staged-diff
+review with zero actionable findings.
+
+H2 does not publish or install plugin `0.2.0` and does not perform real
+Hyper-V, credential, guest, package, portable, WebDriver, network, UI,
+clean-machine, or manual-attestation work. Those results remain
+`notPerformed` and belong to later, separately authorized gates.

@@ -14,6 +14,14 @@ It does not validate a real guest, credential profile, transfer, package, VM,
 or checkpoint mutation. Do not turn implementation or mock results into claims
 about a real Hyper-V host.
 
+Gate 6/H1 freezes a plugin `0.2.0`, schema-v2 target contract for guarded power
+and network planning, portable ZIP deployment, fixed WebDriver automation, a
+closed `data-testid` UI DSL, and evidence v2. Gate 7/H2 integrates the contract
+as exactly 20 tools while preserving the first 16 schema-v1 tools and five
+schema-v1 files. H2 validation is mock/parser/static only: do not treat the
+implementation, fixtures, or generated mock evidence as proof of a real
+clean-room, guest, portable, driver, network, or UI run.
+
 ## Required workflow
 
 1. Call `inspect_host` before proposing any VM operation.
@@ -45,6 +53,30 @@ about a real Hyper-V host.
 10. Before any production guest transfer or lifecycle call, require explicit
     authorization naming the VM, credential profile, artifact, profile, and
     intended mutation. Gate 2 validation itself authorizes no such call.
+
+After H2 exposes schema v2, extend the same workflow as follows:
+
+1. Validate the exact schema version; never downgrade an unknown version or
+   migrate evidence. Migrate a v1 profile only through the explicit lossless
+   path, and stop for authoring when package kind is ambiguous.
+2. Use `plan_vm_power` then `apply_vm_power` only for `start` or
+   `gracefulShutdown`. Apply accepts only the returned `planId` and consumes
+   the plan before expiry/drift checks.
+3. Use `plan_vm_network` then `apply_vm_network` only for the recorded
+   `baseline` or `disconnected` primary-NIC target. Before disconnect, require
+   the paired baseline recovery plan; if the change may have occurred, recovery
+   is required evidence.
+4. Require the candidate ZIP, root portable manifest, profile, fixture set,
+   and fixed Microsoft EdgeDriver manifest hashes to match. Let the server own
+   extraction, deployment slot, data preservation, driver acquisition,
+   loopback endpoint, and process identities.
+5. Use only declared UI step types and non-empty `data-testid` targets. Upload
+   only a declared fixture ID. Never provide a selector, URL, JavaScript,
+   WebDriver payload, executable argument, credential/secret, or file path
+   through the UI DSL.
+6. Report `machineStatus`, `overallStatus`, manual assertions, cleanup, and
+   network recovery separately. A required manual `notPerformed` result keeps
+   an otherwise machine-passed run `incomplete`.
 
 ## Safety rules
 
@@ -91,6 +123,13 @@ about a real Hyper-V host.
   checkpoint, or roll back a VM.
 - Stop when a plan expires, its host fingerprint changes, or an artifact hash
   differs; create a new plan instead of bypassing the guard.
+- For schema-v2 portable work, reject an archive with traversal, absolute or
+  drive paths, alternate data streams, links/reparse points, undeclared files,
+  size/hash drift, or case-insensitive path collisions. Do not publish a
+  partially verified slot or delete the previous slot/data.
+- Require exact fixed WebView2/EdgeDriver version, archive and executable
+  SHA-256, x64 PE identity, Microsoft publisher, full inventory, and loopback
+  policy. Never substitute a caller URL, driver, endpoint, port, or arguments.
 
 ## Evidence handoff
 

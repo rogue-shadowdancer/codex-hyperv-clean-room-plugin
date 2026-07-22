@@ -4,7 +4,7 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
-## Unreleased - Gate 5.2 marketplace metadata
+## Unreleased - Gate 6/H1 contract and Gate 7/H2 integration
 
 ### Added
 
@@ -13,14 +13,70 @@ the local plugin cache.
   `repository` fields.
 - A public-release contract assertion that rejects any missing or divergent
   plugin listing URL.
+- A design-time plugin `0.2.0`, schema-v2 contract under `contracts/v2` with
+  seven stable Draft 2020-12 schema IDs and an exact 20-tool target catalog.
+- Four additive guarded tool contracts for VM start/graceful shutdown and
+  primary-NIC baseline/disconnected plan/apply transitions.
+- Portable ZIP, fixed Microsoft EdgeDriver, closed `data-testid` UI DSL,
+  evidence-v2, v1 compatibility, deterministic migration, and invalid/drift
+  fixtures plus the Gate 6 static validator.
+- A Windows PowerShell 5.1 plugin `0.2.0` runtime candidate with exact
+  schema-version dispatch, four guarded power/network tools, atomic portable
+  slots and data inventory preservation, fixed-driver provenance, a closed UI
+  dispatcher, evidence-v2 derivation, and additive v1-to-v2 migration.
+- Seven byte-identical installable schema-v2 files and the Gate 7 mock runtime,
+  parser, generated-evidence-schema, and static production-integration checks.
 
 ### Changed
 
 - The current `master` personal-install build is
   `0.1.1+codex.20260715084043`. The immutable `v0.1.1` tag and GitHub Release
   retain their accepted `0.1.1+codex.20260715064728` build.
-- No MCP tool, schema-v1 semantic, runtime behavior, GitHub Release, or Gate 6
-  validation scope changes in this metadata-only gate.
+- The retained Gate 5.2 marketplace metadata changed no MCP tool,
+  schema-v1 semantic, runtime behavior, or GitHub Release.
+- Gate 7 changes the source runtime candidate to `0.2.0` and exactly 20 MCP
+  tools while preserving the exact 16-tool schema-v1 snapshot and byte hashes
+  of all five public schema-v1 files. CI now validates the Gate 7 integration.
+- Gate 7 executes mock/parser/static checks only. Plugin release, cachebuster
+  install, clean-machine validation, and real VM, credential, guest, package,
+  portable, WebDriver, network, UI, and manual-attestation work remain
+  `notPerformed`.
+
+### Fixed
+
+- The standalone schema-v1-to-v2 migration CLI now loads its atomic JSON writer,
+  and the native schema-v2 validator accepts the contract-defined optional
+  legacy artifact identity fields and optional legacy `processName`.
+- Schema-v2 evidence now retains immutable operation-digest binding, validates
+  copied exports with version-aware dispatch, preserves valid failed evidence
+  with absent guest hashes, and supplies operation-scoped process identity to
+  cleanup application stops.
+- Guarded graceful VM shutdown now uses the supported default `Stop-VM` guest
+  shutdown path without a nonexistent parameter switch.
+- Paired network recovery plans remain unconsumed until their attachment and
+  ownership preconditions pass, and atomic consumption is bound to the exact
+  prevalidated plan digest before any adapter mutation. Change plans retain
+  one-shot consume-on-drift semantics and require an available paired recovery
+  before a guarded disconnect.
+- Portable evidence now derives candidate source provenance from the hash-bound
+  ZIP manifest while keeping installed-plugin runtime provenance separate, and
+  profile validation requires the bound application launch before UI session
+  creation.
+- Disconnect requires an unexpired exact-inverse paired recovery plan, and the
+  portable worker rejects packaged `data` entries so mutable state can only be
+  created empty or copied from a revalidated prior deployment.
+- A required UI failure or failed ordinary session stop now triggers one fixed,
+  bounded automatic `stopUiSession` containment call, even when the profile
+  declares no matching cleanup step; the result remains bound to evidence.
+- Schema-v2 power/network plans no longer self-drift when the read-only planner
+  was non-elevated and the guarded apply process is elevated, and native profile
+  validation now rejects non-integer or out-of-range `assertPort` values.
+- Schema-v2 staging adapter failures now produce bound failure evidence and
+  cleanup state; UI session stop always contains the revalidated driver after a
+  bounded DELETE attempt; malformed cleanup timeouts fail profile validation.
+- The durable branch-protection contract retains pull-request review and
+  conversation-resolution protection while requiring zero approving reviews;
+  strict `public-release-validation` remains mandatory.
 
 ## 0.1.1 - GPL public release - 2026-07-15
 

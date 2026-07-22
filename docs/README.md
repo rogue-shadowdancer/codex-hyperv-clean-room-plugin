@@ -11,6 +11,14 @@ Gate 5.2 adds one canonical GitHub repository link to the plugin install
 surface while preserving base version `0.1.1`, every runtime contract, and the
 immutable `v0.1.1` Release. The current `master` personal-install build is
 `0.1.1+codex.20260715084043`.
+Gate 6/H1 freezes the additive `0.2.0`/schema-v2 target under
+[`contracts/v2`](../contracts/v2/README.md), including four guarded
+power/network tools, portable automation, fixed WebDriver provenance, a closed
+UI DSL, evidence v2, and compatibility fixtures. Gate 7/H2 integrates that
+contract into plugin source `0.2.0` as 20 MCP tools, preserving the exact first
+16 tools and five public schema-v1 files while installing seven schema-v2
+files. H2 validation is mock/parser/static only; release, installation,
+clean-machine, and every real operation remain `notPerformed`.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.
@@ -43,8 +51,8 @@ Read in this order:
    execution-surface, and evidence controls.
 5. [Troubleshooting](troubleshooting.md) — bounded actions for stable error
    codes and development failures.
-6. [Frozen v1 specification](specification.md) — authoritative tool, state,
-   profile, cleanup, credential, and evidence semantics.
+6. [Specification](specification.md) — authoritative v1 behavior and frozen
+   `0.2.0`/schema-v2 target semantics.
 7. [Test profile authoring guide (Simplified Chinese)](profile-authoring.md) —
    field-by-field profile guidance and execution boundaries.
 
@@ -58,10 +66,12 @@ Related repository entry points:
 - [Gate handoff](../TASK_HANDOFF.md) — completed verification and the exact
   next-gate boundary.
 
-The five public Draft 2020-12 schemas live in
+The five current public Draft 2020-12 schemas live in
 [`hyperv-clean-room/schemas`](../hyperv-clean-room/schemas). Python is isolated
 development/CI machinery only; the production runtime remains Windows
-PowerShell 5.1 based.
+PowerShell 5.1 based. Seven authoritative schema-v2 contracts live under
+[`contracts/v2/schemas`](../contracts/v2/schemas), with byte-identical
+installable copies under `hyperv-clean-room/schemas/v2`.
 
 ## 简体中文
 
@@ -72,6 +82,13 @@ installed-copy、real-host、guest 与 Hyper-V mutation 全部为零的 SHA-pinn
 Gate 5.2 只在 plugin install surface 增加统一的 GitHub 仓库链接，保持 base
 version `0.1.1`、全部 runtime contract 与不可变的 `v0.1.1` Release；当前
 `master` personal-install build 为 `0.1.1+codex.20260715084043`。
+Gate 6/H1 在 [`contracts/v2`](../contracts/v2/README.md) 冻结增量
+`0.2.0`/schema-v2 目标，包括四个受保护的 power/network tools、portable
+automation、固定 WebDriver provenance、闭合 UI DSL、evidence v2 与兼容 fixture。
+Gate 7/H2 已将合同集成到 plugin `0.2.0` source：保留精确 16 个 v1 tools 与五个
+public schema-v1 文件，新增四个 tools，合计 20 MCP tools，并安装 seven schema-v2
+文件。H2 只执行 mock、parser 与 static 验证；发布、安装、clean-machine 与全部真实
+operation 仍为 `notPerformed`。
 继承的 Gate 2 测试仍在 Windows PowerShell 5.1 下使用 mock
 adapter、parser、production-adapter static seam、严格文档
 检查和有界真实 host 只读 smoke。Production guest adapter 已包含固定的 administrator-supervised
@@ -97,8 +114,8 @@ PowerShell Direct、standard-user execution、operation-scoped staging/PID ident
 4. [Security design](security.md)：credential、ownership、path、process、执行面与
    evidence 控制。
 5. [Troubleshooting](troubleshooting.md)：稳定错误码和开发环境故障的有界处理。
-6. [v1 合同规范](specification.md)：工具、状态、profile、cleanup、凭据和 evidence
-   语义的权威来源。
+6. [合同规范](specification.md)：v1 当前行为与已冻结的
+   `0.2.0`/schema-v2 目标语义。
 7. [测试 profile 编写指南](profile-authoring.md)：逐字段说明与执行边界。
 
 仓库相关入口：
@@ -109,6 +126,8 @@ PowerShell Direct、standard-user execution、operation-scoped staging/PID ident
 - [安全报告策略](../SECURITY.md)：支持版本与私密报告规则。
 - [Gate 交接](../TASK_HANDOFF.md)：验证结论与下一 gate 的精确边界。
 
-五个 Draft 2020-12 public schemas 位于
+五个当前 Draft 2020-12 public schemas 位于
 [`hyperv-clean-room/schemas`](../hyperv-clean-room/schemas)。Python 只用于隔离的开发
-与 CI 检查；production runtime 仍基于 Windows PowerShell 5.1。
+与 CI 检查；production runtime 仍基于 Windows PowerShell 5.1。七个权威
+schema-v2 合同位于 [`contracts/v2/schemas`](../contracts/v2/schemas)，其逐字节相同的
+可安装副本位于 `hyperv-clean-room/schemas/v2`。

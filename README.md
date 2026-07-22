@@ -6,7 +6,7 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: v0.1.1 GPL public release with Gate 5.2 metadata
+### Status: integrated 0.2.0/schema-v2 runtime candidate
 
 Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,
 profile, evidence, plan, and credential contracts. The public release uses
@@ -32,6 +32,20 @@ URL to `homepage`, `repository`, and `interface.websiteURL` for Codex plugin
 details. The current `master` personal-install build is
 `0.1.1+codex.20260715084043`; build metadata does not change the public plugin
 or schema version, and no new GitHub Release is created.
+
+Gate 6/H1 freezes the additive plugin `0.2.0`, schema-v2 automation contract
+under [`contracts/v2`](contracts/v2/README.md). It preserves the exact 16 v1
+tools and five v1 schemas while specifying four guarded power/network tools,
+portable ZIP deployment, fixed Microsoft EdgeDriver verification, a closed
+`data-testid` UI DSL, evidence v2, and deterministic compatibility fixtures.
+Gate 7/H2 integrates that frozen contract into the PowerShell 5.1 production
+source: plugin `0.2.0`, exact schema-version dispatch, the preserved 16 MCP
+tools plus four guarded power/network tools (20 MCP tools total), five public
+schema-v1 files plus seven schema-v2 files, atomic portable slots/data
+preservation, fixed-driver provenance, the closed UI dispatcher, evidence v2,
+and deterministic migration. H2 validation used only mock adapters, parsers,
+and static checks. Real VM, guest, package, portable, WebDriver, network, UI,
+installation, release, and clean-machine operations remain `notPerformed`.
 
 [![public-release-validation](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
@@ -117,7 +131,7 @@ checkpoint success.
 `hyperv-clean-room` 是一个仅面向 Windows 的 Codex plugin 设计，用于受保护的
 Hyper-V VM 操作、声明式 current-user package lifecycle 测试和结构化 evidence。
 
-### 状态：v0.1.1 GPL public release 与 Gate 5.2 metadata
+### 状态：已集成的 0.2.0/schema-v2 runtime candidate
 
 Gate 2 已依据冻结的 v1 cleanup、profile、evidence、plan 和 credential 合同实现
 PowerShell 5.1 MCP runtime。当前 public plugin base version 为 `0.1.1`，
@@ -142,6 +156,17 @@ Gate 5.2 保持 base version `0.1.1`，并让 manifest 的 `homepage`、`reposit
 与 `interface.websiteURL` 统一指向规范 GitHub 仓库地址。当前 `master` 的
 personal-install build 为 `0.1.1+codex.20260715084043`；该 build metadata 不改变
 public plugin semver 或 schema version，也不创建新的 GitHub Release。
+
+Gate 6/H1 在 [`contracts/v2`](contracts/v2/README.md) 冻结 plugin `0.2.0`、
+schema-v2 目标合同：精确保留 16 个 v1 tools 与五个 v1 schemas，并定义四个受保护的
+power/network tools、portable ZIP、固定 Microsoft EdgeDriver、闭合 `data-testid`
+UI DSL、evidence v2 与确定性兼容 fixture。Gate 7/H2 已把该冻结合同集成到
+PowerShell 5.1 production source：plugin `0.2.0`、精确 schema-version 分派、保留的
+16 个 tools 加四个新 tools（合计 20 MCP tools）、五个 public schema-v1 文件加
+seven schema-v2 文件，以及对应的 portable、driver、UI、evidence 和 migration
+路径。H2 只执行 mock adapter、parser 与 static 验证；真实 VM、guest、package、
+portable、WebDriver、network、UI、安装、发布与 clean-machine operation 均为
+`notPerformed`。
 
 JSON-RPC transport、common envelope、持久 ownership 与原子 plan guard、原生
 profile/evidence validation、mock-backed guest/test flow、evidence export 和交互式

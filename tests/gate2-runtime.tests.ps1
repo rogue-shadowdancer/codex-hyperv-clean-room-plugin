@@ -249,9 +249,12 @@ foreach ($runtimeFile in @(
         'State.ps1',
         'ToolSchemas.ps1',
         'Validation.ps1',
+        'Validation.V2.ps1',
         'Adapters.ps1',
         'Tools.Host.ps1',
+        'Tools.Host.V2.ps1',
         'Tools.Guest.ps1',
+        'Tools.Guest.V2.ps1',
         'Runtime.ps1'
     )) {
     . (Join-Path (Join-Path (Join-Path $pluginRoot 'mcp') 'lib') $runtimeFile)
@@ -415,10 +418,11 @@ $expectedTools = @(
     'plan_checkpoint_create', 'apply_checkpoint_create',
     'plan_checkpoint_restore', 'apply_checkpoint_restore', 'inspect_guest',
     'stage_artifact', 'run_test_profile', 'collect_evidence',
-    'record_manual_attestation'
+    'record_manual_attestation', 'plan_vm_power', 'apply_vm_power',
+    'plan_vm_network', 'apply_vm_network'
 )
 $definitions = @(Get-HcrToolDefinitions)
-Assert-Equal $definitions.Count 16 'Runtime tool count changed.'
+Assert-Equal $definitions.Count 20 'Runtime tool count changed.'
 Assert-Equal (@(Compare-Object $expectedTools @($definitions.name)).Count) 0 `
     'Runtime tool names changed.'
 Assert-Equal (@($definitions | Where-Object { $_.name -match 'delete|remove|shell|command' }).Count) 0 `
@@ -1825,10 +1829,10 @@ foreach ($invalidListMessage in @(
 }
 $server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}}')
 $toolListResponse = $server.StandardOutput.ReadLine() | ConvertFrom-Json
-Assert-Equal (@($toolListResponse.result.tools).Count) 16 'MCP tools/list count changed.'
+Assert-Equal (@($toolListResponse.result.tools).Count) 20 'MCP tools/list count changed.'
 $server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":37,"method":"tools/list"}')
 $omittedListResponse = $server.StandardOutput.ReadLine() | ConvertFrom-Json
-Assert-Equal (@($omittedListResponse.result.tools).Count) 16 `
+Assert-Equal (@($omittedListResponse.result.tools).Count) 20 `
     'tools/list rejected omitted parameters.'
 
 foreach ($invalidToolCallMessage in @(
