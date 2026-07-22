@@ -153,7 +153,9 @@ $isoPath = Join-Path $testRoot 'source.iso'
 $portablePath = Join-Path $testRoot 'SampleProduct_0.2.0_windows-x64-portable.zip'
 $fixtureDirectory = Join-Path $testRoot 'fixtures'
 $fixturePath = Join-Path $fixtureDirectory 'sample-image.png'
+$portableManifestPath = Join-Path $repoRoot 'tests\fixtures\v2\portable-manifest.valid.json'
 $profilePath = Join-Path $testRoot 'portable-profile.json'
+$manifestMismatchProfilePath = Join-Path $testRoot 'portable-manifest-mismatch-profile.json'
 $unknownPath = Join-Path $testRoot 'unknown-profile.json'
 $legacyV2ProfilePath = Join-Path $testRoot 'legacy-v2-profile.json'
 $legacyArtifactPath = Join-Path $testRoot 'SampleApp-0.2.0-x64.exe'
@@ -163,7 +165,49 @@ foreach ($directory in @($vmRoot, $fixtureDirectory)) {
     [void](New-Item -ItemType Directory -Path $directory -Force)
 }
 [IO.File]::WriteAllBytes($isoPath, [byte[]](1..128))
-[IO.File]::WriteAllBytes($portablePath, [byte[]](1..96))
+$portableManifestBytes = [IO.File]::ReadAllBytes($portableManifestPath)
+$portableManifestDocument = [Text.Encoding]::UTF8.GetString($portableManifestBytes) |
+    ConvertFrom-Json -ErrorAction Stop
+$portableCandidateSourceCommit = [string]$portableManifestDocument.sourceCommit
+$portableManifestSha = [Security.Cryptography.SHA256]::Create()
+try {
+    $portableManifestHash = ([BitConverter]::ToString(
+            $portableManifestSha.ComputeHash($portableManifestBytes)
+        )).Replace('-', '').ToLowerInvariant()
+}
+finally {
+    $portableManifestSha.Dispose()
+}
+[void](Add-Type -AssemblyName System.IO.Compression -ErrorAction Stop)
+$portableStream = [IO.File]::Open(
+    $portablePath,
+    [IO.FileMode]::Create,
+    [IO.FileAccess]::ReadWrite,
+    [IO.FileShare]::None
+)
+try {
+    $portableArchive = New-Object IO.Compression.ZipArchive(
+        $portableStream,
+        [IO.Compression.ZipArchiveMode]::Create,
+        $true
+    )
+    try {
+        $portableEntry = $portableArchive.CreateEntry('portable-manifest.json')
+        $portableEntryStream = $portableEntry.Open()
+        try {
+            $portableEntryStream.Write($portableManifestBytes, 0, $portableManifestBytes.Length)
+        }
+        finally {
+            $portableEntryStream.Dispose()
+        }
+    }
+    finally {
+        $portableArchive.Dispose()
+    }
+}
+finally {
+    $portableStream.Dispose()
+}
 [IO.File]::WriteAllBytes($fixturePath, [byte[]](1..64))
 [IO.File]::WriteAllBytes($legacyArtifactPath, [byte[]](1..80))
 
@@ -430,7 +474,7 @@ $profile = [ordered]@{
         sha256 = $portableHash
         sizeBytes = [int64](Get-Item -LiteralPath $portablePath).Length
         portableManifestEntryPath = 'portable-manifest.json'
-        portableManifestSha256 = ('2' * 64)
+        portableManifestSha256 = $portableManifestHash
     }
     fixtures = @([ordered]@{
         id = 'sample-image'
@@ -531,6 +575,27 @@ $outsideSessionProfile.steps[5] = $temporaryStep
 $outsideSessionValidation = Test-HcrProfileDocumentV2 $outsideSessionProfile
 Assert-Gate7 (-not $outsideSessionValidation.valid) `
     'The native schema-v2 validator accepted a UI interaction outside the owned session.'
+$missingLaunchProfile = Copy-HcrObject ([pscustomobject]$profile)
+$missingLaunchProfile.steps = @($missingLaunchProfile.steps | Where-Object {
+        [string](Get-HcrPropertyValue $_ 'type') -ne 'launchApplication'
+    })
+$missingLaunchValidation = Test-HcrProfileDocumentV2 $missingLaunchProfile
+Assert-Gate7 (-not $missingLaunchValidation.valid) `
+    'The native schema-v2 validator accepted a UI session without launching its application.'
+$mismatchedApplicationProfile = Copy-HcrObject ([pscustomobject]$profile)
+$secondApplication = Copy-HcrObject $mismatchedApplicationProfile.applications[0]
+$secondApplication.id = 'other-product'
+$mismatchedApplicationProfile.applications = @(
+    $mismatchedApplicationProfile.applications[0],
+    $secondApplication
+)
+$mismatchedStart = @($mismatchedApplicationProfile.steps | Where-Object {
+        [string](Get-HcrPropertyValue $_ 'type') -eq 'startUiSession'
+    })
+$mismatchedStart[0].application = 'other-product'
+$mismatchedApplicationValidation = Test-HcrProfileDocumentV2 $mismatchedApplicationProfile
+Assert-Gate7 (-not $mismatchedApplicationValidation.valid) `
+    'The native schema-v2 validator accepted a UI session bound to a different application.'
 $optionalAssertionProfile = Copy-HcrObject ([pscustomobject]$profile)
 $optionalAssertionProfile.steps[6].required = $false
 $optionalAssertionProfile.manualAssertions[0].required = $false
@@ -545,6 +610,18 @@ $unknownValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@
 })
 Assert-Gate7Error $unknownValidation 'UNSUPPORTED_SCHEMA_VERSION' `
     'An unknown profile schema version did not fail closed.'
+
+$manifestMismatchProfile = Copy-HcrObject ([pscustomobject]$profile)
+$manifestMismatchProfile.artifact.portableManifestSha256 = ('0' * 64)
+Write-Gate7Json $manifestMismatchProfilePath $manifestMismatchProfile
+$manifestMismatchRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $manifestMismatchProfilePath
+    artifactPath = $portablePath
+})
+Assert-Gate7Error $manifestMismatchRun 'PORTABLE_MANIFEST_HASH_MISMATCH' `
+    'The controller accepted candidate provenance from a manifest with the wrong hash.'
 
 $portableRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
     vmName = 'cleanroom-v2'
@@ -563,6 +640,15 @@ $portableOperation = Get-HcrOperationRecord ([string]$portableRun.data.testOpera
 $portableEvidence = Read-HcrJsonFile ([string]$portableOperation.evidenceFile) 'EVIDENCE_NOT_READY'
 Assert-Gate7Equal ([int]$portableEvidence.schemaVersion) 2 `
     'The schema-v2 workflow did not emit evidence v2.'
+Assert-Gate7Equal ([string]$portableEvidence.candidate.sourceCommit) `
+    $portableCandidateSourceCommit `
+    'Evidence candidate provenance did not come from the portable manifest.'
+Assert-Gate7Equal ([string]$portableEvidence.runtime.sourceCommit) `
+    ([string]$env:HCR_TEST_SOURCE_COMMIT) `
+    'Evidence runtime provenance did not come from the installed plugin manifest.'
+Assert-Gate7 ([string]$portableEvidence.candidate.sourceCommit -ne
+        [string]$portableEvidence.runtime.sourceCommit) `
+    'Candidate and runtime source provenance were incorrectly collapsed.'
 $evidenceValidation = Invoke-Gate7Tool 'validate_evidence' ([pscustomobject]@{
     evidencePath = [string]$portableOperation.evidenceFile
 })

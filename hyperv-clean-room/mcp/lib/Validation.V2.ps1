@@ -279,11 +279,23 @@ function Test-HcrProfileDocumentV2 {
     if ($stepTypes.Count -lt 1 -or $stepTypes[0] -ne 'stageArtifact' -or @($stepTypes | Where-Object { $_ -eq 'stageArtifact' }).Count -ne 1) { Add-HcrValidationError $errors '$.steps must begin with exactly one stageArtifact.' }
     if ($workflow -eq 'portableAutomation') {
         if ($fixtures.Count -lt 1) { Add-HcrValidationError $errors '$.fixtures requires at least one hash-bound fixture for portable evidence.' }
-        foreach ($requiredType in @('deployPortable', 'acquireWebDriver', 'startUiSession', 'stopUiSession')) {
+        foreach ($requiredType in @('deployPortable', 'launchApplication', 'acquireWebDriver', 'startUiSession', 'stopUiSession')) {
             if (@($stepTypes | Where-Object { $_ -eq $requiredType }).Count -ne 1) { Add-HcrValidationError $errors "$.steps requires exactly one $requiredType." }
         }
         $positions = @{}; for ($index = 0; $index -lt $stepTypes.Count; $index++) { if (-not $positions.ContainsKey($stepTypes[$index])) { $positions[$stepTypes[$index]] = $index } }
-        if ($positions['deployPortable'] -le $positions['stageArtifact'] -or $positions['acquireWebDriver'] -le $positions['deployPortable'] -or $positions['startUiSession'] -le $positions['acquireWebDriver'] -or $positions['stopUiSession'] -le $positions['startUiSession']) { Add-HcrValidationError $errors '$.steps violates the closed portable/UI lifecycle order.' }
+        if ($positions['deployPortable'] -le $positions['stageArtifact'] -or
+            $positions['launchApplication'] -le $positions['deployPortable'] -or
+            $positions['acquireWebDriver'] -le $positions['deployPortable'] -or
+            $positions['startUiSession'] -le $positions['launchApplication'] -or
+            $positions['startUiSession'] -le $positions['acquireWebDriver'] -or
+            $positions['stopUiSession'] -le $positions['startUiSession']) {
+            Add-HcrValidationError $errors '$.steps violates the closed portable/UI lifecycle order.'
+        }
+        if ($positions.ContainsKey('launchApplication') -and $positions.ContainsKey('startUiSession') -and
+            [string](Get-HcrPropertyValue $steps[$positions['launchApplication']] 'application') -ne
+                [string](Get-HcrPropertyValue $steps[$positions['startUiSession']] 'application')) {
+            Add-HcrValidationError $errors '$.steps must launch the application bound to the UI session.'
+        }
         $uiInteractionTypes = @('uiClick', 'uiSetText', 'uiPressKey', 'uiSelectOption', 'uiUploadFixture', 'assertUiElement', 'captureUiScreenshot')
         for ($index = 0; $index -lt $stepTypes.Count; $index++) {
             if ($uiInteractionTypes -contains $stepTypes[$index] -and

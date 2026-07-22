@@ -119,7 +119,18 @@ def main() -> int:
     if not loader_match or "'State.ps1'" not in loader_match.group(1):
         raise AssertionError("the standalone migration loader omits the atomic JSON writer")
     if "HCR_TEST_SOURCE_COMMIT" not in guest_v2 or "RUNTIME_PROVENANCE_INVALID" not in guest_v2:
-        raise AssertionError("runtime candidate provenance is not fail closed")
+        raise AssertionError("runtime plugin provenance is not fail closed")
+    for token in (
+        "Get-HcrV2PortableCandidateSourceCommit",
+        "$candidateSourceCommit",
+        "$runtimeSourceCommit",
+        "sourceCommit=$candidateSourceCommit",
+        "sourceCommit=$runtimeSourceCommit",
+    ):
+        if token not in guest_v2:
+            raise AssertionError(f"candidate/runtime provenance separation is missing: {token}")
+    if "'deployPortable', 'launchApplication', 'acquireWebDriver'" not in validation:
+        raise AssertionError("portable UI validation does not require application launch")
     if not re.search(
         r"\$copiedValidation = if \([\s\S]+?Test-HcrEvidenceDocumentV2",
         guest_v1,

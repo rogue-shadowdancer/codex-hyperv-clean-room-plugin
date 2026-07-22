@@ -495,6 +495,21 @@ def validate_profile_semantics(profile: dict[str, Any]) -> list[str]:
             }
         ):
             errors.append("portable launch/UI work cannot precede atomic deployment")
+        launch_indexes = [
+            index for index, step in enumerate(steps) if step.get("type") == "launchApplication"
+        ]
+        if len(launch_indexes) != 1:
+            errors.append("portable automation must launch exactly one application")
+        elif (
+            len(deploy_indexes) == 1
+            and len(start_indexes) == 1
+            and (
+                not deploy_indexes[0] < launch_indexes[0] < start_indexes[0]
+                or steps[launch_indexes[0]].get("application")
+                != steps[start_indexes[0]].get("application")
+            )
+        ):
+            errors.append("portable UI session is not bound to its launched application")
 
     cleanup_timeout = sum(
         item.get("timeoutSeconds", 0)
@@ -1194,6 +1209,12 @@ def main() -> int:
     profile_probe["steps"].insert(1, click)
     if not validate_profile_semantics(profile_probe):
         raise AssertionError("UI interaction outside the owned session was accepted")
+    missing_launch_probe = load_json(FIXTURE_ROOT / "test-profile.portable.valid.json")
+    missing_launch_probe["steps"] = [
+        step for step in missing_launch_probe["steps"] if step["type"] != "launchApplication"
+    ]
+    if not validate_profile_semantics(missing_launch_probe):
+        raise AssertionError("portable UI profile without application launch was accepted")
     cleanup_probe = load_json(FIXTURE_ROOT / "test-profile.portable.valid.json")
     del cleanup_probe["cleanupSteps"][0]["application"]
     if not validate_profile_semantics(cleanup_probe):

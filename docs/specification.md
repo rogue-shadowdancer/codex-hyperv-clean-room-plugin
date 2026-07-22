@@ -135,6 +135,9 @@ payload path, size, and SHA-256. The root manifest is bound separately by the
 profile and ZIP hashes and is excluded from its own `files` array to avoid an
 impossible recursive self-hash. The immutable archive limits are: at most
 4,096 entries, 8 GiB expanded bytes, and 200:1 compression ratio.
+The evidence candidate source commit is derived from this hash-bound portable
+manifest; the separate runtime source commit is derived from the installed
+plugin manifest and the two commits are not required to match.
 
 Before extraction, the implementation must verify the host ZIP SHA-256 and
 manifest identity. It must normalize every path as a relative Windows path,
@@ -185,6 +188,11 @@ The UI step allowlist is:
 - `assertUiElement` with only `visible`, `hidden`, `enabled`, `disabled`,
   `checked`, `unchecked`, `textEquals`, `textContains`, or `valueEquals`; and
 - `captureUiScreenshot` with a bounded evidence name.
+
+A portable UI profile contains exactly one `launchApplication` after atomic
+deployment and before `startUiSession`; that launch and the UI session must
+reference the same declared application. The fixed driver may be acquired
+before or after application launch, but must also precede session start.
 
 Key presses are restricted to `Enter`, `Escape`, `Tab`, and the four arrow
 keys. There is no CSS/XPath selector, URL/navigation, JavaScript, arbitrary

@@ -58,6 +58,10 @@ the local plugin cache.
   prevalidated plan digest before any adapter mutation. Change plans retain
   one-shot consume-on-drift semantics and require an available paired recovery
   before a guarded disconnect.
+- Portable evidence now derives candidate source provenance from the hash-bound
+  ZIP manifest while keeping installed-plugin runtime provenance separate, and
+  profile validation requires the bound application launch before UI session
+  creation.
 - The durable branch-protection contract retains pull-request review and
   conversation-resolution protection while requiring zero approving reviews;
   strict `public-release-validation` remains mandatory.
