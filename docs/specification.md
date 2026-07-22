@@ -209,9 +209,14 @@ would enter a password, token, or other credential. The
 worker maps each closed step to fixed code and records the step ID, test ID,
 bounded observation, and screenshot identity without exposing raw protocol
 control. Each UI sequence acquires, starts, and stops exactly one owned session
-in that order, and every interaction occurs between start and stop. Cleanup
-uses type-specific targets, rejects irrelevant fields, and never makes a stop,
-session, screenshot, or wait action optional.
+in that order, and every interaction occurs between start and stop. If a
+required failure or a failed ordinary stop leaves the owned session active,
+the runner immediately issues one fixed, bounded `stopUiSession` cleanup call
+and records its result as an automatic assertion and UI-trace entry. This
+containment does not depend on an author-declared cleanup step and accepts no
+caller-controlled endpoint or payload. Declared cleanup uses type-specific
+targets, rejects irrelevant fields, and never makes a stop, session,
+screenshot, or wait action optional.
 
 ### Evidence v2 and compatibility
 

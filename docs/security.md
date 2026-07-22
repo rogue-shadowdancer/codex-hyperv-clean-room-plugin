@@ -294,6 +294,12 @@ install, launch, uninstall, write a sentinel, delete, restore a checkpoint, or
 run a command/script/shell/URL. A cleanup failure does not recursively trigger
 cleanup and does not block later steps while budget remains.
 
+The portable UI runner separately contains an owned UI session that survives a
+required failure or failed ordinary stop. It makes one internal, fixed
+`stopUiSession` cleanup call with a 30-second bound, records the outcome, and
+does not accept a profile-supplied WebDriver endpoint, method, or payload for
+that recovery action.
+
 ## Diagnostics and redaction
 
 Stdout is reserved for one JSON-RPC response per line. The server suppresses

@@ -384,11 +384,20 @@ function Invoke-HcrRunTestProfileV2 {
     $portableManifestGuestHash = $null; $driverArchiveGuestHash = $null; $driverExecutableGuestHash = $null
     $fixedWebView2Version = [string](Get-HcrPropertyValue $webDriver 'browserVersion')
     $driverVerified = $false; $loopbackOnly = $false; $deployStatus = 'notPerformed'
+    $uiSessionStarted = $false; $uiSessionStopped = $false
+    $uiSessionStopSummary = $null; $uiSessionStopEvidence = $null
     for ($index=1; $index -lt $steps.Count; $index++) {
         $step=$steps[$index]; $required=[bool](Get-HcrPropertyValue $step 'required' $true); $type=[string](Get-HcrPropertyValue $step 'type')
         if ($cleanupTriggered) { $result=[pscustomobject]@{status='notPerformed';summary='A prior required failure stopped ordinary steps.';evidence=$null} }
         else { $result=Invoke-HcrV2StepSafely $step $context }
         $status=[string](Get-HcrPropertyValue $result 'status' 'failed'); $summary=[string](Get-HcrPropertyValue $result 'summary' 'The step returned no summary.'); $machineEvidence=Get-HcrPropertyValue $result 'evidence'
+        $workerStepPassed = $status -eq 'passed'
+        if ($workerStepPassed -and $type -eq 'startUiSession') { $uiSessionStarted = $true; $uiSessionStopped = $false }
+        if ($workerStepPassed -and $type -eq 'stopUiSession') {
+            $uiSessionStopped = $true
+            $uiSessionStopSummary = $summary
+            $uiSessionStopEvidence = $machineEvidence
+        }
         if ($status -eq 'passed' -and $type -eq 'deployPortable') {
             $portableManifestGuestHash = [string](Get-HcrPropertyValue $machineEvidence 'portableManifestSha256')
             $fixedWebView2Version = [string](Get-HcrPropertyValue $machineEvidence 'fixedWebView2Version')
@@ -424,6 +433,40 @@ function Invoke-HcrRunTestProfileV2 {
         if ($script:HcrV2UiStepTypes -contains $type) { $uiTrace.Add([pscustomobject][ordered]@{ stepId=[string](Get-HcrPropertyValue $step 'id'); stepType=$type; testId=$(if(Test-HcrProperty $step 'testId'){[string](Get-HcrPropertyValue $step 'testId')}else{$null}); status=$status; summary=$summary; observations=@(ConvertTo-HcrV2Observations $machineEvidence) }) }
         if ($status -eq 'failed' -and ($required -or $script:HcrV2ActionStepTypes -contains $type)) { $cleanupTriggered=$true }
     }
+    if ($uiSessionStarted -and -not $uiSessionStopped) {
+        $cleanupTriggered = $true
+        $containmentOrdinal = 1
+        do {
+            $containmentId = "automatic-ui-session-containment-$containmentOrdinal"
+            $containmentOrdinal++
+        } while (@($automatic | Where-Object {
+                    [string](Get-HcrPropertyValue $_ 'id') -eq $containmentId
+                }).Count -gt 0)
+        $containmentStep = [pscustomobject][ordered]@{
+            id = $containmentId
+            type = 'stopUiSession'
+            timeoutSeconds = 30
+            required = $true
+        }
+        $containmentResult = Invoke-HcrV2StepSafely $containmentStep $context -Cleanup
+        $containmentStatus = [string](Get-HcrPropertyValue $containmentResult 'status' 'failed')
+        $containmentSummary = [string](Get-HcrPropertyValue $containmentResult 'summary' 'UI-session containment returned no summary.')
+        $containmentEvidence = Get-HcrPropertyValue $containmentResult 'evidence'
+        $automatic.Add((New-HcrV2AutomaticAssertion $containmentStep.id $true $containmentStatus $containmentSummary $containmentEvidence))
+        $uiTrace.Add([pscustomobject][ordered]@{
+            stepId = $containmentStep.id
+            stepType = $containmentStep.type
+            testId = $null
+            status = $containmentStatus
+            summary = $containmentSummary
+            observations = @(ConvertTo-HcrV2Observations $containmentEvidence)
+        })
+        if ($containmentStatus -eq 'passed') {
+            $uiSessionStopped = $true
+            $uiSessionStopSummary = $containmentSummary
+            $uiSessionStopEvidence = $containmentEvidence
+        }
+    }
     $manifestHash=[string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSha256')
     $driverStatus = if ($driverVerified) { 'passed' } else { 'notPerformed' }
     $artifactEvidence.Add([pscustomobject][ordered]@{ role='portableManifest'; id='portable-manifest'; fileName='portable-manifest.json'; sizeBytes=0; sourceSha256=$manifestHash; guestSha256=$(if($deployStatus -eq 'passed'){$portableManifestGuestHash}else{$null}); status=$deployStatus })
@@ -436,7 +479,15 @@ function Invoke-HcrRunTestProfileV2 {
     Save-HcrOperationRecord $operation
     $cleanupResults=New-Object System.Collections.Generic.List[object]
     foreach($step in @((Get-HcrPropertyValue $profile 'cleanupSteps' @()))){
-        if($cleanupTriggered){$result=Invoke-HcrV2StepSafely $step $context -Cleanup; $cleanupResults.Add((New-HcrV2CleanupResult $OperationId $operation.profileId $step ([string](Get-HcrPropertyValue $result 'status' 'failed')) ([string](Get-HcrPropertyValue $result 'summary' 'Cleanup returned no summary.')) (Get-HcrPropertyValue $result 'evidence')))}
+        if($cleanupTriggered){
+            if ([string](Get-HcrPropertyValue $step 'type') -eq 'stopUiSession' -and $uiSessionStopped) {
+                $cleanupResults.Add((New-HcrV2CleanupResult $OperationId $operation.profileId $step 'passed' ('The owned UI session was already contained: ' + $uiSessionStopSummary) $uiSessionStopEvidence))
+            }
+            else {
+                $result=Invoke-HcrV2StepSafely $step $context -Cleanup
+                $cleanupResults.Add((New-HcrV2CleanupResult $OperationId $operation.profileId $step ([string](Get-HcrPropertyValue $result 'status' 'failed')) ([string](Get-HcrPropertyValue $result 'summary' 'Cleanup returned no summary.')) (Get-HcrPropertyValue $result 'evidence')))
+            }
+        }
         else{$cleanupResults.Add((New-HcrV2CleanupResult $OperationId $operation.profileId $step 'notPerformed' 'Cleanup was not triggered.' $null))}
     }
     $manual=@(@((Get-HcrPropertyValue $profile 'manualAssertions'))|ForEach-Object{[pscustomobject][ordered]@{id=[string](Get-HcrPropertyValue $_ 'id');required=[bool](Get-HcrPropertyValue $_ 'required');description=[string](Get-HcrPropertyValue $_ 'description');status='notPerformed';attestation=$null}})

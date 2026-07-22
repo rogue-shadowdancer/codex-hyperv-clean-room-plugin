@@ -65,6 +65,9 @@ the local plugin cache.
 - Disconnect requires an unexpired exact-inverse paired recovery plan, and the
   portable worker rejects packaged `data` entries so mutable state can only be
   created empty or copied from a revalidated prior deployment.
+- A required UI failure or failed ordinary session stop now triggers one fixed,
+  bounded automatic `stopUiSession` containment call, even when the profile
+  declares no matching cleanup step; the result remains bound to evidence.
 - The durable branch-protection contract retains pull-request review and
   conversation-resolution protection while requiring zero approving reviews;
   strict `public-release-validation` remains mandatory.

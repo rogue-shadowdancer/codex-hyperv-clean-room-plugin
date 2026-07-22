@@ -183,8 +183,10 @@ def main() -> int:
         raise AssertionError("Gate 7 runtime evidence is unavailable")
     evidence_paths = list(artifact_roots[0].glob("state/evidence-staging/*/evidence.json"))
     v2_evidence_paths = [path for path in evidence_paths if load(path).get("schemaVersion") == 2]
-    if len(v2_evidence_paths) != 2:
-        raise AssertionError("Gate 7 runtime must emit passed and failed schema-v2 evidence")
+    if len(v2_evidence_paths) != 4:
+        raise AssertionError(
+            "Gate 7 runtime must emit one passed and three failed schema-v2 evidence documents"
+        )
     schemas = {name: load(CONTRACT / "schemas" / name) for name in V2_NAMES}
     registry = Registry()
     for schema in schemas.values():
@@ -205,6 +207,8 @@ def main() -> int:
     if any(evidence["runtime"]["adapterMode"] != "mock" for evidence in evidence_documents):
         raise AssertionError("Gate 7 runtime evidence escaped its mock-only boundary")
     if sorted(evidence["machineStatus"] for evidence in evidence_documents) != [
+        "failed",
+        "failed",
         "failed",
         "passed",
     ]:

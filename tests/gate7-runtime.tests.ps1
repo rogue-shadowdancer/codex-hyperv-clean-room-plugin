@@ -807,6 +807,97 @@ $restoredState = Read-HcrMockAdapterState
 $restoredState.stepResults.PSObject.Properties.Remove('acquire-webdriver')
 Write-HcrMockAdapterState $restoredState
 
+$uiContainmentProfile = Copy-HcrObject ([pscustomobject]$cleanupFailureProfile)
+$uiContainmentProfile.id = 'portable-ui-session-containment'
+$uiContainmentProfilePath = Join-Path $testRoot 'portable-ui-session-containment.json'
+Write-Gate7Json $uiContainmentProfilePath $uiContainmentProfile
+$uiFailureState = Read-HcrMockAdapterState
+$uiFailureState.stepResults | Add-Member -NotePropertyName 'assert-review-visible' `
+    -NotePropertyValue ([pscustomobject][ordered]@{
+        status = 'failed'
+        summary = 'The configured post-session UI failure triggered containment.'
+        evidence = [pscustomobject]@{ matched = $false }
+    }) -Force
+Write-HcrMockAdapterState $uiFailureState
+$uiContainmentRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $uiContainmentProfilePath
+    artifactPath = $portablePath
+})
+Assert-Gate7 $uiContainmentRun.ok `
+    'The mock post-session UI failure did not produce auditable containment evidence.'
+Assert-Gate7 ([bool]$uiContainmentRun.data.cleanupTriggered) `
+    'The mock post-session UI failure did not trigger cleanup.'
+$uiContainmentAssertions = @($uiContainmentRun.data.automaticAssertions | Where-Object {
+        [string]$_.id -eq 'automatic-ui-session-containment-1'
+    })
+Assert-Gate7Equal $uiContainmentAssertions.Count 1 `
+    'The runner did not record exactly one automatic UI-session containment result.'
+Assert-Gate7Equal ([string]$uiContainmentAssertions[0].status) 'passed' `
+    'The automatic UI-session containment stop did not pass.'
+$ordinaryUiStop = @($uiContainmentRun.data.automaticAssertions | Where-Object {
+        [string]$_.id -eq 'stop-ui-session'
+    })
+Assert-Gate7Equal $ordinaryUiStop.Count 1 `
+    'The ordinary UI-session stop result is missing from failure evidence.'
+Assert-Gate7Equal ([string]$ordinaryUiStop[0].status) 'notPerformed' `
+    'The regression did not exercise containment after the ordinary UI-session stop was skipped.'
+$uiContainmentOperation = Get-HcrOperationRecord `
+    ([string]$uiContainmentRun.data.testOperationId)
+$uiContainmentEvidence = Read-HcrJsonFile `
+    ([string]$uiContainmentOperation.evidenceFile) 'EVIDENCE_NOT_READY'
+Assert-Gate7 (Test-HcrEvidenceDocumentV2 `
+        $uiContainmentEvidence $uiContainmentOperation).valid `
+    'The native validator rejected failure evidence with automatic UI-session containment.'
+Assert-Gate7 (@($uiContainmentEvidence.automation.uiTrace | Where-Object {
+            [string]$_.stepId -eq 'automatic-ui-session-containment-1' -and
+            [string]$_.stepType -eq 'stopUiSession' -and
+            [string]$_.status -eq 'passed'
+        }).Count -eq 1) `
+    'The UI trace did not bind the automatic containment stop.'
+$restoredUiState = Read-HcrMockAdapterState
+$restoredUiState.stepResults.PSObject.Properties.Remove('assert-review-visible')
+Write-HcrMockAdapterState $restoredUiState
+
+$failedStopState = Read-HcrMockAdapterState
+$failedStopState.stepResults | Add-Member -NotePropertyName 'stop-ui-session' `
+    -NotePropertyValue ([pscustomobject][ordered]@{
+        status = 'failed'
+        summary = 'The configured ordinary UI-session stop failed.'
+        evidence = $null
+    }) -Force
+Write-HcrMockAdapterState $failedStopState
+$failedStopContainmentRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $uiContainmentProfilePath
+    artifactPath = $portablePath
+})
+Assert-Gate7 $failedStopContainmentRun.ok `
+    'The mock failed ordinary UI-session stop did not produce auditable evidence.'
+Assert-Gate7 ([bool]$failedStopContainmentRun.data.cleanupTriggered) `
+    'A failed ordinary UI-session stop did not trigger containment and cleanup.'
+Assert-Gate7Equal (@($failedStopContainmentRun.data.automaticAssertions | Where-Object {
+            [string]$_.id -eq 'stop-ui-session' -and [string]$_.status -eq 'failed'
+        }).Count) 1 `
+    'The failed ordinary UI-session stop was not preserved in evidence.'
+Assert-Gate7Equal (@($failedStopContainmentRun.data.automaticAssertions | Where-Object {
+            [string]$_.id -eq 'automatic-ui-session-containment-1' -and
+            [string]$_.status -eq 'passed'
+        }).Count) 1 `
+    'The failed ordinary UI-session stop did not receive a successful containment attempt.'
+$failedStopOperation = Get-HcrOperationRecord `
+    ([string]$failedStopContainmentRun.data.testOperationId)
+$failedStopEvidence = Read-HcrJsonFile `
+    ([string]$failedStopOperation.evidenceFile) 'EVIDENCE_NOT_READY'
+Assert-Gate7 (Test-HcrEvidenceDocumentV2 `
+        $failedStopEvidence $failedStopOperation).valid `
+    'The native validator rejected failed-stop evidence with automatic containment.'
+$restoredFailedStopState = Read-HcrMockAdapterState
+$restoredFailedStopState.stepResults.PSObject.Properties.Remove('stop-ui-session')
+Write-HcrMockAdapterState $restoredFailedStopState
+
 $migrationInput = Get-Content `
     -LiteralPath (Join-Path $PSScriptRoot 'fixtures\v2\migration\test-profile.v1.input.json') `
     -Raw -Encoding UTF8 | ConvertFrom-Json
