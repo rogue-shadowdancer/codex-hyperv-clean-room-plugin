@@ -13,6 +13,20 @@ function Test-HcrBoundObjectEqual {
     return (ConvertTo-HcrJson $Left 50) -ceq (ConvertTo-HcrJson $Right 50)
 }
 
+function Get-HcrV2HostInvariantFingerprint {
+    param([Parameter(Mandatory = $true)][object]$HostSnapshot)
+
+    $fingerprintInput = [ordered]@{
+        computerName = [string](Get-HcrPropertyValue $HostSnapshot 'computerName')
+        windowsEdition = [string](Get-HcrPropertyValue $HostSnapshot 'windowsEdition')
+        windowsBuild = [string](Get-HcrPropertyValue $HostSnapshot 'windowsBuild')
+        architecture = [string](Get-HcrPropertyValue $HostSnapshot 'architecture')
+        hyperVCommandsAvailable = [bool](Get-HcrPropertyValue $HostSnapshot 'hyperVCommandsAvailable' $false)
+        hypervisorPresent = [bool](Get-HcrPropertyValue $HostSnapshot 'hypervisorPresent' $false)
+    }
+    return Get-HcrSha256Text (ConvertTo-HcrJson $fingerprintInput 10)
+}
+
 function Get-HcrNetworkAttachment {
     param([Parameter(Mandatory = $true)][object]$Adapter)
 
@@ -144,7 +158,7 @@ function Invoke-HcrPlanVmPower {
         planId = [Guid]::NewGuid().ToString()
         createdAt = $created.ToString('o')
         expiresAt = $created.AddMinutes(15).ToString('o')
-        hostFingerprint = Get-HcrHostFingerprint $hostSnapshot
+        hostFingerprint = Get-HcrV2HostInvariantFingerprint $hostSnapshot
         vmId = [string](Get-HcrPropertyValue $owned.vm 'id')
         vmName = [string](Get-HcrPropertyValue $owned.vm 'name')
         ownershipId = [string](Get-HcrPropertyValue $owned.ownership 'ownershipId')
@@ -171,7 +185,7 @@ function Assert-HcrVmPowerPlanDriftFree {
     param([Parameter(Mandatory = $true)][object]$Plan)
 
     $hostSnapshot = Assert-HcrV2HostAvailable -RequireElevation
-    if ((Get-HcrHostFingerprint $hostSnapshot) -ne
+    if ((Get-HcrV2HostInvariantFingerprint $hostSnapshot) -ne
         [string](Get-HcrPropertyValue $Plan 'hostFingerprint')) {
         Throw-HcrError 'PLAN_DRIFT' 'The host fingerprint changed after power planning.'
     }
@@ -486,7 +500,7 @@ function Invoke-HcrPlanVmNetwork {
         Throw-HcrError 'INVALID_ARGUMENT' 'The network target is not supported.'
     }
     $created = [DateTimeOffset]::UtcNow
-    $hostFingerprint = Get-HcrHostFingerprint $hostSnapshot
+    $hostFingerprint = Get-HcrV2HostInvariantFingerprint $hostSnapshot
     $changeId = [Guid]::NewGuid().ToString()
     $recoveryId = if ($target -eq 'disconnected') { [Guid]::NewGuid().ToString() } else { $null }
     $change = New-HcrVmNetworkPlan `
@@ -514,7 +528,7 @@ function Assert-HcrVmNetworkPlanDriftFree {
     param([Parameter(Mandatory = $true)][object]$Plan)
 
     $hostSnapshot = Assert-HcrV2HostAvailable -RequireElevation
-    if ((Get-HcrHostFingerprint $hostSnapshot) -ne
+    if ((Get-HcrV2HostInvariantFingerprint $hostSnapshot) -ne
         [string](Get-HcrPropertyValue $Plan 'hostFingerprint')) {
         Throw-HcrError 'PLAN_DRIFT' 'The host fingerprint changed after network planning.'
     }

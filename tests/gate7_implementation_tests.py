@@ -142,6 +142,12 @@ def main() -> int:
         raise AssertionError("schema-v2 evidence is not bound to its operation digest")
     if "launchedProcess = $launchedProcess" not in guest_v2:
         raise AssertionError("schema-v2 cleanup does not pass operation-scoped process identity")
+    if host_v2.count("Get-HcrV2HostInvariantFingerprint") != 5:
+        raise AssertionError("schema-v2 plans do not consistently use the elevation-invariant host fingerprint")
+    if "Get-HcrHostFingerprint $hostSnapshot" in host_v2:
+        raise AssertionError("schema-v2 plan drift remains bound to caller elevation")
+    if "$Path.port is outside 1..65535." not in validation:
+        raise AssertionError("schema-v2 assertPort lacks native integer/range validation")
     if "Stop-VM -VM $verifiedVm -ErrorAction Stop" not in adapters:
         raise AssertionError("graceful shutdown does not use the default Stop-VM path")
     if "Stop-VM -VM $verifiedVm -Shutdown" in adapters:

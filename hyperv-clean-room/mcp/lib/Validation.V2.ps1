@@ -127,6 +127,12 @@ function Test-HcrV2ProfileStep {
         $processBindings = @(@('application', 'processName') | Where-Object { Test-HcrProperty $Step $_ })
         if ($processBindings.Count -ne 1) { Add-HcrValidationError $Errors "$Path must bind exactly one application or processName." }
     }
+    if ($type -eq 'assertPort') {
+        $port = Get-HcrPropertyValue $Step 'port'
+        if (-not (Test-HcrInteger $port) -or [int64]$port -lt 1 -or [int64]$port -gt 65535) {
+            Add-HcrValidationError $Errors "$Path.port is outside 1..65535."
+        }
+    }
     if ($type -eq 'uiSetText' -and ([string](Get-HcrPropertyValue $Step 'text')).Length -gt 4096) {
         Add-HcrValidationError $Errors "$Path.text exceeds the fixed UI text bound."
     }

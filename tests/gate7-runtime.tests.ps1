@@ -326,6 +326,9 @@ $vmCreate = Invoke-Gate7Tool 'apply_vm_create' ([pscustomobject]@{
 })
 Assert-Gate7 $vmCreate.ok 'The mock VM baseline apply failed.'
 
+$nonElevatedPowerState = Read-HcrMockAdapterState
+$nonElevatedPowerState.host.elevated = $false
+Write-HcrMockAdapterState $nonElevatedPowerState
 $powerPlan = Invoke-Gate7Tool 'plan_vm_power' ([pscustomobject]@{
     vmName = 'cleanroom-v2'
     action = 'start'
@@ -333,6 +336,9 @@ $powerPlan = Invoke-Gate7Tool 'plan_vm_power' ([pscustomobject]@{
 Assert-Gate7 $powerPlan.ok 'Power planning failed.'
 Assert-Gate7Equal ([string]$powerPlan.data.plan.planKind) 'vmPower' `
     'Power planning returned the wrong plan kind.'
+$elevatedPowerState = Read-HcrMockAdapterState
+$elevatedPowerState.host.elevated = $true
+Write-HcrMockAdapterState $elevatedPowerState
 $powerApply = Invoke-Gate7Tool 'apply_vm_power' ([pscustomobject]@{
     planId = [string]$powerPlan.data.plan.planId
 }) -EnvelopeSchemaVersion 2
@@ -344,6 +350,9 @@ $powerReplay = Invoke-Gate7Tool 'apply_vm_power' ([pscustomobject]@{
 }) -EnvelopeSchemaVersion 2
 Assert-Gate7Error $powerReplay 'PLAN_ALREADY_CONSUMED' 'A power plan was reusable.'
 
+$nonElevatedNetworkState = Read-HcrMockAdapterState
+$nonElevatedNetworkState.host.elevated = $false
+Write-HcrMockAdapterState $nonElevatedNetworkState
 $networkPlan = Invoke-Gate7Tool 'plan_vm_network' ([pscustomobject]@{
     vmName = 'cleanroom-v2'
     target = 'disconnected'
@@ -363,6 +372,9 @@ Assert-Gate7 `
     ([string]$networkPlan.data.changePlan.pairedPlanId -eq
         [string]$networkPlan.data.recoveryPlan.planId) `
     'The disconnect plan was not paired to its recovery plan.'
+$elevatedNetworkState = Read-HcrMockAdapterState
+$elevatedNetworkState.host.elevated = $true
+Write-HcrMockAdapterState $elevatedNetworkState
 $prematureRecovery = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
     planId = [string]$networkPlan.data.recoveryPlan.planId
 }) -EnvelopeSchemaVersion 2
@@ -650,6 +662,35 @@ $optionalAssertionProfile.manualAssertions[0].required = $false
 $optionalAssertionValidation = Test-HcrProfileDocumentV2 $optionalAssertionProfile
 Assert-Gate7 $optionalAssertionValidation.valid `
     'The native schema-v2 validator rejected contract-valid optional assertions.'
+$invalidPortProfile = Copy-HcrObject ([pscustomobject]$profile)
+$invalidPortStep = [pscustomobject][ordered]@{
+    id = 'assert-port-bound'
+    type = 'assertPort'
+    port = 70000
+    timeoutSeconds = 30
+}
+$invalidPortProfile.steps = @(
+    @($invalidPortProfile.steps | Select-Object -First 4)
+    $invalidPortStep
+    @($invalidPortProfile.steps | Select-Object -Skip 4)
+)
+$invalidPortProfilePath = Join-Path $testRoot 'portable-invalid-port.json'
+Write-Gate7Json $invalidPortProfilePath $invalidPortProfile
+$invalidPortToolValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $invalidPortProfilePath
+})
+Assert-Gate7Error $invalidPortToolValidation 'PROFILE_INVALID' `
+    'validate_test_profile accepted a schema-v2 assertPort above 65535.'
+$stringPortProfile = Copy-HcrObject $invalidPortProfile
+$stringPortProfile.steps[4].port = '443'
+$stringPortValidation = Test-HcrProfileDocumentV2 $stringPortProfile
+Assert-Gate7 (-not $stringPortValidation.valid) `
+    'The native schema-v2 validator accepted a string assertPort value.'
+$validPortProfile = Copy-HcrObject $invalidPortProfile
+$validPortProfile.steps[4].port = 443
+$validPortValidation = Test-HcrProfileDocumentV2 $validPortProfile
+Assert-Gate7 $validPortValidation.valid `
+    'The native schema-v2 validator rejected an in-range integer assertPort value.'
 $unknown = Copy-HcrObject ([pscustomobject]$profile)
 $unknown.schemaVersion = 3
 Write-Gate7Json $unknownPath $unknown

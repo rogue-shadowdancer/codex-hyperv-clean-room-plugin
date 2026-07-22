@@ -68,6 +68,9 @@ the local plugin cache.
 - A required UI failure or failed ordinary session stop now triggers one fixed,
   bounded automatic `stopUiSession` containment call, even when the profile
   declares no matching cleanup step; the result remains bound to evidence.
+- Schema-v2 power/network plans no longer self-drift when the read-only planner
+  was non-elevated and the guarded apply process is elevated, and native profile
+  validation now rejects non-integer or out-of-range `assertPort` values.
 - The durable branch-protection contract retains pull-request review and
   conversation-resolution protection while requiring zero approving reviews;
   strict `public-release-validation` remains mandatory.

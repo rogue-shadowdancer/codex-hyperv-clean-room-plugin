@@ -91,6 +91,11 @@ hash, VM fingerprint, recorded state, adapter identity/fingerprint, baseline
 switch identity, or operation-specific precondition. Drift produces no
 mutation and requires a fresh plan.
 
+For schema-v2 power and network plans, the host fingerprint covers stable host
+identity and Hyper-V availability but excludes the caller process's transient
+elevation state. Planning remains read-only and may run without elevation;
+apply independently requires elevation before drift validation or mutation.
+
 The sole consumption exception is the paired network recovery plan: its stored
 record shape and live VM, ownership, adapter, baseline, and attachment recovery
 preconditions are checked before consumption so an accidental recovery attempt
