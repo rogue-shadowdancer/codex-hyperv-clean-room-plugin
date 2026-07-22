@@ -204,10 +204,21 @@ function Test-HcrProfileDocumentV2 {
         if ($name -notmatch '^[^\\/:*?"<>|%]+\.zip$') { Add-HcrValidationError $errors '$.artifact.fileNamePattern is invalid.' }
     }
     else {
-        $installerFields = @('packageKind', 'fileNamePattern', 'architecture')
-        [void](Test-HcrV2ClosedObject $artifact $installerFields $installerFields '$.artifact' $errors)
+        $installerFields = @('packageKind', 'fileNamePattern', 'architecture', 'sha256', 'sizeBytes')
+        $installerRequiredFields = @('packageKind', 'fileNamePattern', 'architecture')
+        [void](Test-HcrV2ClosedObject $artifact $installerFields $installerRequiredFields '$.artifact' $errors)
         if (@('nsis', 'msi') -notcontains $packageKind -or (Get-HcrPropertyValue $artifact 'architecture') -ne 'x64') {
             Add-HcrValidationError $errors '$.artifact is not a supported legacy package contract.'
+        }
+        if ((Test-HcrProperty $artifact 'sha256') -and
+            -not (Test-HcrV2Sha256 (Get-HcrPropertyValue $artifact 'sha256'))) {
+            Add-HcrValidationError $errors '$.artifact.sha256 is invalid.'
+        }
+        if (Test-HcrProperty $artifact 'sizeBytes') {
+            $size = Get-HcrPropertyValue $artifact 'sizeBytes'
+            if (-not (Test-HcrInteger $size) -or [int64]$size -lt 1) {
+                Add-HcrValidationError $errors '$.artifact.sizeBytes is invalid.'
+            }
         }
     }
 
@@ -244,13 +255,17 @@ function Test-HcrProfileDocumentV2 {
         }
         else {
             $fields = @('id', 'packageKind', 'installMode', 'executableRelativePath', 'uninstallerDiscovery', 'processName')
-            [void](Test-HcrV2ClosedObject $application $fields $fields $path $errors)
+            $requiredFields = @('id', 'packageKind', 'installMode', 'executableRelativePath', 'uninstallerDiscovery')
+            [void](Test-HcrV2ClosedObject $application $fields $requiredFields $path $errors)
             if ((Get-HcrPropertyValue $application 'packageKind') -ne $packageKind -or
                 (Get-HcrPropertyValue $application 'installMode') -ne 'currentUser' -or
                 @('hkcuUninstall', 'msiProduct') -notcontains (Get-HcrPropertyValue $application 'uninstallerDiscovery')) { Add-HcrValidationError $errors "$path is not a supported legacy application." }
         }
         if (-not (Test-HcrSafeRelativePath ([string](Get-HcrPropertyValue $application 'executableRelativePath')))) { Add-HcrValidationError $errors "$path.executableRelativePath is unsafe." }
-        if ([string](Get-HcrPropertyValue $application 'processName') -notmatch '^[a-zA-Z0-9._-]+$') { Add-HcrValidationError $errors "$path.processName is invalid." }
+        if ((Test-HcrProperty $application 'processName') -and
+            [string](Get-HcrPropertyValue $application 'processName') -notmatch '^[a-zA-Z0-9._-]+$') {
+            Add-HcrValidationError $errors "$path.processName is invalid."
+        }
     }
 
     $steps = @((Get-HcrPropertyValue $Profile 'steps' @()))

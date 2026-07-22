@@ -174,6 +174,21 @@ def main() -> int:
     ):
         if fragment not in settings_source or fragment not in release_process:
             raise AssertionError(f"public protection contract is missing: {fragment}")
+    for source_name, source, fragment in (
+        (
+            "release runbook",
+            release_process,
+            '"required_approving_review_count": 0',
+        ),
+        (
+            "settings validator assertion",
+            settings_source,
+            "[int]$reviews.required_approving_review_count -eq 0",
+        ),
+        ("settings validator report", settings_source, "approvals = 0"),
+    ):
+        if fragment not in source:
+            raise AssertionError(f"{source_name} does not freeze zero required approvals")
 
     docs = "\n".join(
         read_text(relative)

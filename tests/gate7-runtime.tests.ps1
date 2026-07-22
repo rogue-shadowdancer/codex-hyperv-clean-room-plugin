@@ -75,6 +75,35 @@ function Write-Gate7Json {
     )
 }
 
+function Invoke-Gate7MigrationCli {
+    param(
+        [Parameter(Mandatory = $true)][string]$ScriptPath,
+        [Parameter(Mandatory = $true)][string]$SourcePath,
+        [Parameter(Mandatory = $true)][string]$DestinationPath
+    )
+
+    $windowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $windowsPowerShell
+    $startInfo.Arguments = ('-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass ' +
+        '-File "{0}" -SourceProfilePath "{1}" -DestinationProfilePath "{2}"' -f
+        $ScriptPath, $SourcePath, $DestinationPath)
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    [void]$process.Start()
+    $standardOutput = $process.StandardOutput.ReadToEnd()
+    $standardError = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+    return [pscustomobject][ordered]@{
+        exitCode = [int]$process.ExitCode
+        output = (($standardOutput, $standardError) -join "`n").Trim()
+    }
+}
+
 function Invoke-Gate7Tool {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -415,6 +444,11 @@ $profileValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@
 Assert-Gate7 $profileValidation.ok `
     ('The valid schema-v2 profile failed exact-version validation: ' +
         ((Get-HcrPropertyValue $profileValidation 'error') | ConvertTo-Json -Depth 10 -Compress))
+$portableWithoutProcess = Copy-HcrObject ([pscustomobject]$profile)
+$portableWithoutProcess.applications[0].PSObject.Properties.Remove('processName')
+$portableWithoutProcessValidation = Test-HcrProfileDocumentV2 $portableWithoutProcess
+Assert-Gate7 (-not $portableWithoutProcessValidation.valid) `
+    'The native schema-v2 validator accepted a portable application without processName.'
 $openStepProfile = Copy-HcrObject ([pscustomobject]$profile)
 $openStepProfile.steps[0] | Add-Member -NotePropertyName arguments -NotePropertyValue @('--forbidden')
 $openStepValidation = Test-HcrProfileDocumentV2 $openStepProfile
@@ -482,6 +516,69 @@ $migrationInput = Get-Content `
 $migrationExpected = Get-Content `
     -LiteralPath (Join-Path $PSScriptRoot 'fixtures\v2\migration\test-profile.v2.expected.json') `
     -Raw -Encoding UTF8 | ConvertFrom-Json
+$migrationScript = Join-Path $pluginRoot 'mcp\Migrate-TestProfile.ps1'
+$standaloneInput = Copy-HcrObject $migrationInput
+$standaloneInput.applications[0].PSObject.Properties.Remove('processName')
+$standaloneInput.artifact | Add-Member -NotePropertyName sha256 `
+    -NotePropertyValue (Get-HcrSha256File $legacyArtifactPath)
+$standaloneSourcePath = Join-Path $testRoot 'migration-source.v1.json'
+$standaloneDestinationPath = Join-Path $testRoot 'migration-destination.v2.json'
+Write-Gate7Json $standaloneSourcePath $standaloneInput
+$standaloneSourceHash = Get-HcrSha256File $standaloneSourcePath
+$standaloneResult = Invoke-Gate7MigrationCli $migrationScript `
+    $standaloneSourcePath $standaloneDestinationPath
+Assert-Gate7Equal $standaloneResult.exitCode 0 `
+    ('The standalone Windows PowerShell 5.1 migration CLI failed: ' + $standaloneResult.output)
+Assert-Gate7 (Test-Path -LiteralPath $standaloneDestinationPath -PathType Leaf) `
+    'The standalone migration CLI did not create its destination.'
+Assert-Gate7Equal (Get-HcrSha256File $standaloneSourcePath) $standaloneSourceHash `
+    'The standalone migration CLI modified its source bytes.'
+$standaloneActual = Get-Content -LiteralPath $standaloneDestinationPath `
+    -Raw -Encoding UTF8 | ConvertFrom-Json
+$standaloneExpected = Convert-HcrProfileV1ToV2 $standaloneInput
+Assert-Gate7Equal (ConvertTo-Gate7CanonicalJson $standaloneActual) `
+    (ConvertTo-Gate7CanonicalJson $standaloneExpected) `
+    'The standalone migration CLI did not emit the deterministic schema-v2 destination.'
+$standaloneBytes = [IO.File]::ReadAllBytes($standaloneDestinationPath)
+Assert-Gate7 ($standaloneBytes.Length -lt 3 -or -not (
+        $standaloneBytes[0] -eq 0xEF -and $standaloneBytes[1] -eq 0xBB -and
+        $standaloneBytes[2] -eq 0xBF)) `
+    'The standalone migration CLI emitted a UTF-8 BOM.'
+
+$standaloneDestinationHash = Get-HcrSha256File $standaloneDestinationPath
+$existingDestinationResult = Invoke-Gate7MigrationCli $migrationScript `
+    $standaloneSourcePath $standaloneDestinationPath
+Assert-Gate7 ($existingDestinationResult.exitCode -ne 0 -and
+        $existingDestinationResult.output -match 'never overwrites an existing destination') `
+    'The standalone migration CLI did not fail closed for an existing destination.'
+Assert-Gate7Equal (Get-HcrSha256File $standaloneSourcePath) $standaloneSourceHash `
+    'The existing-destination rejection modified the source bytes.'
+Assert-Gate7Equal (Get-HcrSha256File $standaloneDestinationPath) $standaloneDestinationHash `
+    'The existing-destination rejection modified the destination bytes.'
+
+$missingParentDestination = Join-Path $testRoot 'missing-parent\migration.v2.json'
+$missingParentResult = Invoke-Gate7MigrationCli $migrationScript `
+    $standaloneSourcePath $missingParentDestination
+Assert-Gate7 ($missingParentResult.exitCode -ne 0 -and
+        $missingParentResult.output -match 'destination parent directory does not exist') `
+    'The standalone migration CLI did not fail closed for a missing destination parent.'
+Assert-Gate7 (-not (Test-Path -LiteralPath $missingParentDestination)) `
+    'The missing-parent migration rejection created a destination.'
+
+$invalidSourcePath = Join-Path $testRoot 'migration-source.invalid.json'
+[IO.File]::WriteAllText($invalidSourcePath, '{', (New-Object System.Text.UTF8Encoding($false)))
+$invalidSourceHash = Get-HcrSha256File $invalidSourcePath
+$invalidSourceDestination = Join-Path $testRoot 'invalid-source-destination.v2.json'
+$invalidSourceResult = Invoke-Gate7MigrationCli $migrationScript `
+    $invalidSourcePath $invalidSourceDestination
+Assert-Gate7 ($invalidSourceResult.exitCode -ne 0 -and
+        $invalidSourceResult.output -match 'file is not valid UTF-8 JSON') `
+    'The standalone migration CLI did not fail closed for invalid source JSON.'
+Assert-Gate7Equal (Get-HcrSha256File $invalidSourcePath) $invalidSourceHash `
+    'The invalid-source rejection modified the source bytes.'
+Assert-Gate7 (-not (Test-Path -LiteralPath $invalidSourceDestination)) `
+    'The invalid-source rejection created a destination.'
+
 $migrationActual = Convert-HcrProfileV1ToV2 $migrationInput
 Assert-Gate7Equal `
     ($migrationActual | ConvertTo-Json -Depth 50 -Compress) `
@@ -492,6 +589,63 @@ Assert-Gate7Equal `
     (ConvertTo-Gate7CanonicalJson $migrationRoundTrip) `
     (ConvertTo-Gate7CanonicalJson $migrationInput) `
     'The deterministic legacy migration cannot return to the preserved v1 lifecycle without semantic drift.'
+$migrationWithIdentity = Copy-HcrObject $migrationActual
+$migrationWithIdentity.artifact | Add-Member -NotePropertyName sha256 `
+    -NotePropertyValue (Get-HcrSha256File $legacyArtifactPath)
+$migrationWithIdentity.artifact | Add-Member -NotePropertyName sizeBytes `
+    -NotePropertyValue ([int64](Get-Item -LiteralPath $legacyArtifactPath).Length)
+$migrationWithIdentityValidation = Test-HcrProfileDocumentV2 $migrationWithIdentity
+Assert-Gate7 $migrationWithIdentityValidation.valid `
+    'The native schema-v2 validator rejected contract-valid legacy artifact identity fields.'
+$invalidLegacyHash = Copy-HcrObject $migrationWithIdentity
+$invalidLegacyHash.artifact.sha256 = ('A' * 64)
+Assert-Gate7 (-not (Test-HcrProfileDocumentV2 $invalidLegacyHash).valid) `
+    'The native schema-v2 validator accepted a non-lowercase legacy artifact hash.'
+foreach ($invalidSize in @(0, -1)) {
+    $invalidLegacySize = Copy-HcrObject $migrationWithIdentity
+    $invalidLegacySize.artifact.sizeBytes = $invalidSize
+    Assert-Gate7 (-not (Test-HcrProfileDocumentV2 $invalidLegacySize).valid) `
+        "The native schema-v2 validator accepted legacy artifact sizeBytes=$invalidSize."
+}
+$mismatchedLegacyProfile = Copy-HcrObject $migrationWithIdentity
+$mismatchedLegacyProfile.artifact.sizeBytes = `
+    ([int64](Get-Item -LiteralPath $legacyArtifactPath).Length + 1)
+$mismatchedLegacyProfilePath = Join-Path $testRoot 'legacy-v2-size-mismatch.json'
+Write-Gate7Json $mismatchedLegacyProfilePath $mismatchedLegacyProfile
+$mismatchedLegacyRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $mismatchedLegacyProfilePath
+    artifactPath = $legacyArtifactPath
+})
+Assert-Gate7Error $mismatchedLegacyRun 'ARTIFACT_PROFILE_MISMATCH' `
+    'The legacy schema-v2 runtime did not reject an artifact size mismatch.'
+
+$migrationWithoutProcessInput = Copy-HcrObject $migrationInput
+$migrationWithoutProcessInput.applications[0].PSObject.Properties.Remove('processName')
+$migrationWithoutProcess = Convert-HcrProfileV1ToV2 $migrationWithoutProcessInput
+Assert-Gate7 (Test-HcrProfileDocumentV2 $migrationWithoutProcess).valid `
+    'The native schema-v2 validator rejected a migrated legacy application without processName.'
+$migrationWithoutProcessRoundTrip = Convert-HcrLegacyProfileV2ToV1 $migrationWithoutProcess
+Assert-Gate7Equal (ConvertTo-Gate7CanonicalJson $migrationWithoutProcessRoundTrip) `
+    (ConvertTo-Gate7CanonicalJson $migrationWithoutProcessInput) `
+    'A legacy application without processName did not preserve v1 round-trip semantics.'
+$invalidLegacyProcess = Copy-HcrObject $migrationWithoutProcess
+$invalidLegacyProcess.applications[0] | Add-Member -NotePropertyName processName `
+    -NotePropertyValue 'invalid process.exe'
+Assert-Gate7 (-not (Test-HcrProfileDocumentV2 $invalidLegacyProcess).valid) `
+    'The native schema-v2 validator accepted an invalid non-empty legacy processName.'
+$migrationWithoutProcessPath = Join-Path $testRoot 'legacy-v2-without-process.json'
+Write-Gate7Json $migrationWithoutProcessPath $migrationWithoutProcess
+$migrationWithoutProcessRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $migrationWithoutProcessPath
+    artifactPath = $legacyArtifactPath
+})
+Assert-Gate7 $migrationWithoutProcessRun.ok `
+    ('The preserved v1 runner rejected a migrated legacy application without processName: ' +
+        ((Get-HcrPropertyValue $migrationWithoutProcessRun 'error') | ConvertTo-Json -Depth 10 -Compress))
 Write-Gate7Json $legacyV2ProfilePath $migrationActual
 $legacyV2Validation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
     profilePath = $legacyV2ProfilePath

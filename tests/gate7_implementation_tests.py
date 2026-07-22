@@ -114,6 +114,9 @@ def main() -> int:
         raise AssertionError("exact-version routing or deterministic migration is missing")
     if "MIGRATION_DESTINATION_EXISTS" not in migration or "Write-HcrJsonFile" not in migration:
         raise AssertionError("the standalone migration is not additive and fail closed")
+    loader_match = re.search(r"foreach \(\$file in @\(([^)]+)\)\)", migration)
+    if not loader_match or "'State.ps1'" not in loader_match.group(1):
+        raise AssertionError("the standalone migration loader omits the atomic JSON writer")
     if "HCR_TEST_SOURCE_COMMIT" not in guest_v2 or "RUNTIME_PROVENANCE_INVALID" not in guest_v2:
         raise AssertionError("runtime candidate provenance is not fail closed")
 

@@ -42,6 +42,15 @@ the local plugin cache.
   portable, WebDriver, network, UI, and manual-attestation work remain
   `notPerformed`.
 
+### Fixed
+
+- The standalone schema-v1-to-v2 migration CLI now loads its atomic JSON writer,
+  and the native schema-v2 validator accepts the contract-defined optional
+  legacy artifact identity fields and optional legacy `processName`.
+- The durable branch-protection contract retains pull-request review and
+  conversation-resolution protection while requiring zero approving reviews;
+  strict `public-release-validation` remains mandatory.
+
 ## 0.1.1 - GPL public release - 2026-07-15
 
 ### Added

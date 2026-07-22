@@ -8,7 +8,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $libRoot = Join-Path $PSScriptRoot 'lib'
-foreach ($file in @('Common.ps1', 'ToolSchemas.ps1', 'Validation.ps1', 'Validation.V2.ps1')) {
+foreach ($file in @('Common.ps1', 'State.ps1', 'ToolSchemas.ps1', 'Validation.ps1', 'Validation.V2.ps1')) {
     . (Join-Path $libRoot $file)
 }
 

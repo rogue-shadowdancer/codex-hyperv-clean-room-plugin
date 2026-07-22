@@ -175,7 +175,7 @@ Protect `master` with this exact API payload:
   "required_pull_request_reviews": {
     "dismiss_stale_reviews": false,
     "require_code_owner_reviews": false,
-    "required_approving_review_count": 1,
+    "required_approving_review_count": 0,
     "require_last_push_approval": false
   },
   "restrictions": null,
@@ -195,9 +195,11 @@ Protect `master` with this exact API payload:
 Required commit signatures (`required_signatures`) remain disabled. Run
 `scripts/validate-public-github-settings.ps1` and require exact readback of the
 metadata, features, GPL detection, Pages/vulnerability state, status-check
-strictness/context, one non-stale non-code-owner approval, conversation
-resolution, null restrictions, all false Boolean controls, disabled
-signatures, and `enforce_admins: false`.
+strictness/context, a retained pull-request-review object with zero required
+approvals, conversation resolution, null restrictions, all false Boolean
+controls, disabled signatures, and `enforce_admins: false`. Review findings
+remain subject to technical triage and every conversation must be resolved;
+zero required approvals does not permit direct or protection-bypassing merges.
 
 ## Tag and GitHub Release
 
