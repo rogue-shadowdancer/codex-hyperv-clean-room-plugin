@@ -692,7 +692,10 @@ Cleanup is armed only after `run_test_profile` has completed validation and
 entered the execution phase. Immutable operation state records
 `cleanupTriggered: true` only when that phase encounters a failed
 required assertion, failed action or mutation, step timeout, or guest-adapter
-failure. It does not trigger for pre-execution validation failures or an
+failure. A ZIP or fixture staging adapter exception is converted to a failed
+hash-bound stage assertion, failed/not-performed artifact entries, cleanup,
+and evidence rather than escaping as an unaudited tool error. Cleanup does not
+trigger for pre-execution validation failures or an
 ordinary optional-assertion failure. Once triggered, cleanup steps run in
 declaration order while time remains in the 300-second total budget.
 

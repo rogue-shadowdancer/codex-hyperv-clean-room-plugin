@@ -352,30 +352,67 @@ function Invoke-HcrRunTestProfileV2 {
         expectedOwnershipId=$identityArguments.expectedOwnershipId; expectedVmPath=$identityArguments.expectedVmPath; expectedVhdxPath=$identityArguments.expectedVhdxPath
     }
     $steps = @((Get-HcrPropertyValue $profile 'steps'))
-    $staged = Invoke-HcrAdapter 'StageArtifact' ([pscustomobject]($identityArguments + @{
-        sourcePath=$artifactItem.FullName; sourceSha256=$artifactHash; size=[int64]$artifactItem.Length
-        guestDestination=$artifactItem.Name; timeoutSeconds=[int](Get-HcrPropertyValue $steps[0] 'timeoutSeconds')
-    }))
-    $artifactGuestHash = [string](Get-HcrPropertyValue $staged 'guestSha256')
-    $stageStatus = if ($artifactGuestHash -eq $artifactHash) { 'passed' } else { 'failed' }
-    $context.artifact = [pscustomobject]@{ guestDestination=[string](Get-HcrPropertyValue $staged 'guestDestination'); sourceSha256=$artifactHash; guestSha256=$artifactGuestHash }
-    $automatic.Add((New-HcrV2AutomaticAssertion ([string](Get-HcrPropertyValue $steps[0] 'id')) $true $stageStatus 'Portable ZIP staging completed with exact hash verification.' ([pscustomobject]@{ sourceSha256=$artifactHash; guestSha256=$artifactGuestHash })))
+    $artifactGuestHash = $null
+    $stageStatus = 'passed'
+    $stageSummary = 'Portable ZIP and fixture staging completed with exact hash verification.'
+    $stageMachineEvidence = [pscustomobject]@{ sourceSha256=$artifactHash; guestSha256=$null }
+    try {
+        $staged = Invoke-HcrAdapter 'StageArtifact' ([pscustomobject]($identityArguments + @{
+            sourcePath=$artifactItem.FullName; sourceSha256=$artifactHash; size=[int64]$artifactItem.Length
+            guestDestination=$artifactItem.Name; timeoutSeconds=[int](Get-HcrPropertyValue $steps[0] 'timeoutSeconds')
+        }))
+        $artifactGuestHash = [string](Get-HcrPropertyValue $staged 'guestSha256')
+        $context.artifact = [pscustomobject]@{ guestDestination=[string](Get-HcrPropertyValue $staged 'guestDestination'); sourceSha256=$artifactHash; guestSha256=$artifactGuestHash }
+        $stageMachineEvidence = [pscustomobject]@{ sourceSha256=$artifactHash; guestSha256=$artifactGuestHash }
+        if ($artifactGuestHash -ne $artifactHash) {
+            $stageStatus = 'failed'
+            $stageSummary = 'Portable ZIP staging did not preserve the exact source hash.'
+        }
+    }
+    catch {
+        $stageFailure = Get-HcrExceptionData $_.Exception
+        $stageStatus = 'failed'
+        $stageSummary = "Portable ZIP staging failed through the fixed adapter: $($stageFailure.code)."
+        $stageMachineEvidence = [pscustomobject]@{ sourceSha256=$artifactHash; guestSha256=$null; errorCode=$stageFailure.code }
+        $context.artifact = [pscustomobject]@{ guestDestination=$null; sourceSha256=$artifactHash; guestSha256=$null }
+    }
     $artifactEvidence.Add([pscustomobject][ordered]@{ role='portableZip'; id='portable-zip'; fileName=$artifactItem.Name; sizeBytes=[int64]$artifactItem.Length; sourceSha256=$artifactHash; guestSha256=$artifactGuestHash; status=$stageStatus })
     foreach ($fixture in $fixtures) {
         $declaration = $fixture.declaration
-        $fixtureStage = Invoke-HcrAdapter 'StageArtifact' ([pscustomobject]($identityArguments + @{
-            sourcePath=$fixture.item.FullName; sourceSha256=$fixture.sha256; size=[int64]$fixture.item.Length
-            guestDestination=('fixtures\' + [string](Get-HcrPropertyValue $declaration 'id') + '-' + $fixture.item.Name); timeoutSeconds=120
-        }))
-        $fixtureGuestHash = [string](Get-HcrPropertyValue $fixtureStage 'guestSha256')
-        $fixtureContext = @($context.fixtures | Where-Object {
-            [string](Get-HcrPropertyValue $_ 'id') -eq [string](Get-HcrPropertyValue $declaration 'id')
-        })
-        if ($fixtureContext.Count -ne 1) { Throw-HcrError 'FIXTURE_INVALID' 'The staged fixture identity is not unique.' }
-        $fixtureContext[0] | Add-Member -NotePropertyName guestDestination -NotePropertyValue ([string](Get-HcrPropertyValue $fixtureStage 'guestDestination')) -Force
-        $fixtureContext[0] | Add-Member -NotePropertyName guestSha256 -NotePropertyValue $fixtureGuestHash -Force
-        $artifactEvidence.Add([pscustomobject][ordered]@{ role='fixture'; id=[string](Get-HcrPropertyValue $declaration 'id'); fileName=$fixture.item.Name; sizeBytes=[int64]$fixture.item.Length; sourceSha256=$fixture.sha256; guestSha256=$fixtureGuestHash; status=$(if($fixtureGuestHash -eq $fixture.sha256){'passed'}else{'failed'}) })
+        $fixtureId = [string](Get-HcrPropertyValue $declaration 'id')
+        $fixtureGuestHash = $null
+        $fixtureStatus = if ($stageStatus -eq 'passed') { 'passed' } else { 'notPerformed' }
+        if ($stageStatus -eq 'passed') {
+            try {
+                $fixtureStage = Invoke-HcrAdapter 'StageArtifact' ([pscustomobject]($identityArguments + @{
+                    sourcePath=$fixture.item.FullName; sourceSha256=$fixture.sha256; size=[int64]$fixture.item.Length
+                    guestDestination=('fixtures\' + $fixtureId + '-' + $fixture.item.Name); timeoutSeconds=120
+                }))
+                $fixtureGuestHash = [string](Get-HcrPropertyValue $fixtureStage 'guestSha256')
+                $fixtureContext = @($context.fixtures | Where-Object {
+                    [string](Get-HcrPropertyValue $_ 'id') -eq $fixtureId
+                })
+                if ($fixtureContext.Count -ne 1) { Throw-HcrError 'FIXTURE_INVALID' 'The staged fixture identity is not unique.' }
+                $fixtureContext[0] | Add-Member -NotePropertyName guestDestination -NotePropertyValue ([string](Get-HcrPropertyValue $fixtureStage 'guestDestination')) -Force
+                $fixtureContext[0] | Add-Member -NotePropertyName guestSha256 -NotePropertyValue $fixtureGuestHash -Force
+                if ($fixtureGuestHash -ne $fixture.sha256) {
+                    $fixtureStatus = 'failed'
+                    $stageStatus = 'failed'
+                    $stageSummary = "Fixture '$fixtureId' staging did not preserve the exact source hash."
+                    $stageMachineEvidence = [pscustomobject]@{ sourceSha256=$artifactHash; guestSha256=$artifactGuestHash; failedFixtureId=$fixtureId; errorCode='FIXTURE_HASH_MISMATCH' }
+                }
+            }
+            catch {
+                $fixtureFailure = Get-HcrExceptionData $_.Exception
+                $fixtureStatus = 'failed'
+                $stageStatus = 'failed'
+                $stageSummary = "Fixture '$fixtureId' staging failed through the fixed adapter: $($fixtureFailure.code)."
+                $stageMachineEvidence = [pscustomobject]@{ sourceSha256=$artifactHash; guestSha256=$artifactGuestHash; failedFixtureId=$fixtureId; errorCode=$fixtureFailure.code }
+            }
+        }
+        $artifactEvidence.Add([pscustomobject][ordered]@{ role='fixture'; id=$fixtureId; fileName=$fixture.item.Name; sizeBytes=[int64]$fixture.item.Length; sourceSha256=$fixture.sha256; guestSha256=$fixtureGuestHash; status=$fixtureStatus })
     }
+    $automatic.Add((New-HcrV2AutomaticAssertion ([string](Get-HcrPropertyValue $steps[0] 'id')) $true $stageStatus $stageSummary $stageMachineEvidence))
     $tokenOk = -not $guest.isAdministrator -and -not $guest.isElevated -and $guest.tokenIntegrity -eq 'medium'
     $automatic.Add((New-HcrV2AutomaticAssertion 'runtime-ordinary-user-token' $true $(if($tokenOk){'passed'}else{'failed'}) 'Ordinary test-user token invariants were evaluated.' ([pscustomobject]@{ userSid=$guest.userSid; tokenIntegrity=$guest.tokenIntegrity })))
     $cleanupTriggered = $stageStatus -ne 'passed' -or -not $tokenOk -or @($artifactEvidence | Where-Object { $_.status -ne 'passed' }).Count -gt 0

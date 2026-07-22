@@ -148,6 +148,22 @@ def main() -> int:
         raise AssertionError("schema-v2 plan drift remains bound to caller elevation")
     if "$Path.port is outside 1..65535." not in validation:
         raise AssertionError("schema-v2 assertPort lacks native integer/range validation")
+    stop_ui_index = worker.find("if($type-eq'stopUiSession')")
+    driver_lookup_index = worker.find("$driver=Get-Process", stop_ui_index)
+    delete_index = worker.find("Invoke-WorkerWebDriverRequest $state DELETE", stop_ui_index)
+    finally_index = worker.find("finally{", delete_index)
+    terminate_index = worker.find(
+        "TerminateAndWait($driverHandle,0,500)", finally_index
+    )
+    if not (
+        0
+        <= stop_ui_index
+        < driver_lookup_index
+        < delete_index
+        < finally_index
+        < terminate_index
+    ) or "$protocolTimeoutMilliseconds" not in worker:
+        raise AssertionError("UI-session stop does not contain the exact driver after bounded DELETE")
     if "Stop-VM -VM $verifiedVm -ErrorAction Stop" not in adapters:
         raise AssertionError("graceful shutdown does not use the default Stop-VM path")
     if "Stop-VM -VM $verifiedVm -Shutdown" in adapters:
@@ -189,9 +205,9 @@ def main() -> int:
         raise AssertionError("Gate 7 runtime evidence is unavailable")
     evidence_paths = list(artifact_roots[0].glob("state/evidence-staging/*/evidence.json"))
     v2_evidence_paths = [path for path in evidence_paths if load(path).get("schemaVersion") == 2]
-    if len(v2_evidence_paths) != 4:
+    if len(v2_evidence_paths) != 5:
         raise AssertionError(
-            "Gate 7 runtime must emit one passed and three failed schema-v2 evidence documents"
+            "Gate 7 runtime must emit one passed and four failed schema-v2 evidence documents"
         )
     schemas = {name: load(CONTRACT / "schemas" / name) for name in V2_NAMES}
     registry = Registry()
@@ -213,6 +229,7 @@ def main() -> int:
     if any(evidence["runtime"]["adapterMode"] != "mock" for evidence in evidence_documents):
         raise AssertionError("Gate 7 runtime evidence escaped its mock-only boundary")
     if sorted(evidence["machineStatus"] for evidence in evidence_documents) != [
+        "failed",
         "failed",
         "failed",
         "failed",

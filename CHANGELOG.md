@@ -71,6 +71,9 @@ the local plugin cache.
 - Schema-v2 power/network plans no longer self-drift when the read-only planner
   was non-elevated and the guarded apply process is elevated, and native profile
   validation now rejects non-integer or out-of-range `assertPort` values.
+- Schema-v2 staging adapter failures now produce bound failure evidence and
+  cleanup state; UI session stop always contains the revalidated driver after a
+  bounded DELETE attempt; malformed cleanup timeouts fail profile validation.
 - The durable branch-protection contract retains pull-request review and
   conversation-resolution protection while requiring zero approving reviews;
   strict `public-release-validation` remains mandatory.

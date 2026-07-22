@@ -8,10 +8,11 @@ function Get-HcrExactSchemaVersion {
         -not (Test-HcrInteger (Get-HcrPropertyValue $Document 'schemaVersion'))) {
         Throw-HcrError 'UNSUPPORTED_SCHEMA_VERSION' "$DocumentKind requires an exact integer schemaVersion."
     }
-    $version = [int](Get-HcrPropertyValue $Document 'schemaVersion')
-    if (@(1, 2) -notcontains $version) {
+    $versionValue = Get-HcrPropertyValue $Document 'schemaVersion'
+    if ([decimal]$versionValue -lt 1 -or [decimal]$versionValue -gt 2) {
         Throw-HcrError 'UNSUPPORTED_SCHEMA_VERSION' "$DocumentKind schemaVersion is not supported."
     }
+    $version = [int][decimal]$versionValue
     return $version
 }
 
@@ -100,7 +101,7 @@ function Test-HcrV2ProfileStep {
     if (-not (Test-HcrIdentifier $id)) { Add-HcrValidationError $Errors "$Path.id is invalid." }
     if ($allowed -notcontains $type) { Add-HcrValidationError $Errors "$Path.type is unsupported." }
     $maximum = if ($Cleanup) { 120 } else { 900 }
-    if (-not (Test-HcrInteger $timeout) -or [int]$timeout -lt 1 -or [int]$timeout -gt $maximum) {
+    if (-not (Test-HcrInteger $timeout) -or [decimal]$timeout -lt 1 -or [decimal]$timeout -gt $maximum) {
         Add-HcrValidationError $Errors "$Path.timeoutSeconds is outside the fixed bound."
     }
     if (Test-HcrProperty $Step 'application') {
@@ -129,7 +130,7 @@ function Test-HcrV2ProfileStep {
     }
     if ($type -eq 'assertPort') {
         $port = Get-HcrPropertyValue $Step 'port'
-        if (-not (Test-HcrInteger $port) -or [int64]$port -lt 1 -or [int64]$port -gt 65535) {
+        if (-not (Test-HcrInteger $port) -or [decimal]$port -lt 1 -or [decimal]$port -gt 65535) {
             Add-HcrValidationError $Errors "$Path.port is outside 1..65535."
         }
     }
@@ -205,7 +206,7 @@ function Test-HcrProfileDocumentV2 {
             Add-HcrValidationError $errors '$.artifact is not a fixed portable ZIP contract.'
         }
         $size = Get-HcrPropertyValue $artifact 'sizeBytes'
-        if (-not (Test-HcrInteger $size) -or [int64]$size -lt 1 -or [int64]$size -gt 8GB) { Add-HcrValidationError $errors '$.artifact.sizeBytes is invalid.' }
+        if (-not (Test-HcrInteger $size) -or [decimal]$size -lt 1 -or [decimal]$size -gt 8GB) { Add-HcrValidationError $errors '$.artifact.sizeBytes is invalid.' }
         $name = [string](Get-HcrPropertyValue $artifact 'fileNamePattern')
         if ($name -notmatch '^[^\\/:*?"<>|%]+\.zip$') { Add-HcrValidationError $errors '$.artifact.fileNamePattern is invalid.' }
     }
@@ -222,7 +223,7 @@ function Test-HcrProfileDocumentV2 {
         }
         if (Test-HcrProperty $artifact 'sizeBytes') {
             $size = Get-HcrPropertyValue $artifact 'sizeBytes'
-            if (-not (Test-HcrInteger $size) -or [int64]$size -lt 1) {
+            if (-not (Test-HcrInteger $size) -or [decimal]$size -lt 1) {
                 Add-HcrValidationError $errors '$.artifact.sizeBytes is invalid.'
             }
         }
@@ -241,7 +242,7 @@ function Test-HcrProfileDocumentV2 {
         if (-not (Test-HcrSafeRelativePath ([string](Get-HcrPropertyValue $fixture 'sourceRelativePath')))) { Add-HcrValidationError $errors "$path.sourceRelativePath is unsafe." }
         if (-not (Test-HcrV2Sha256 (Get-HcrPropertyValue $fixture 'sha256'))) { Add-HcrValidationError $errors "$path.sha256 is invalid." }
         $fixtureSize = Get-HcrPropertyValue $fixture 'sizeBytes'
-        if (-not (Test-HcrInteger $fixtureSize) -or [int64]$fixtureSize -lt 1 -or [int64]$fixtureSize -gt 1GB) { Add-HcrValidationError $errors "$path.sizeBytes is invalid." }
+        if (-not (Test-HcrInteger $fixtureSize) -or [decimal]$fixtureSize -lt 1 -or [decimal]$fixtureSize -gt 1GB) { Add-HcrValidationError $errors "$path.sizeBytes is invalid." }
         if (@('image/png', 'image/jpeg', 'application/json', 'text/plain', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') -notcontains [string](Get-HcrPropertyValue $fixture 'mediaType')) { Add-HcrValidationError $errors "$path.mediaType is unsupported." }
     }
 
@@ -329,7 +330,11 @@ function Test-HcrProfileDocumentV2 {
     $cleanupBudgetSeconds = 0
     for ($index = 0; $index -lt $cleanup.Count; $index++) {
         Test-HcrV2ProfileStep $cleanup[$index] "$.cleanupSteps[$index]" $true @($applicationIds) @($fixtureIds) $errors
-        $cleanupBudgetSeconds += [int](Get-HcrPropertyValue $cleanup[$index] 'timeoutSeconds' 0)
+        $cleanupTimeout = Get-HcrPropertyValue $cleanup[$index] 'timeoutSeconds' 0
+        if ((Test-HcrInteger $cleanupTimeout) -and
+            [decimal]$cleanupTimeout -ge 1 -and [decimal]$cleanupTimeout -le 120) {
+            $cleanupBudgetSeconds += [int]$cleanupTimeout
+        }
     }
     if ($cleanupBudgetSeconds -gt 300) { Add-HcrValidationError $errors '$.cleanupSteps exceeds the 300-second total budget.' }
     if (@($cleanup | Where-Object { @('stopUiSession', 'captureUiScreenshot') -contains [string](Get-HcrPropertyValue $_ 'type') }).Count -gt 0 -and -not (Test-HcrProperty $Profile 'webDriver')) { Add-HcrValidationError $errors '$.cleanupSteps requires the fixed WebDriver contract.' }
@@ -369,12 +374,12 @@ function Test-HcrWebDriverManifestV2 {
     $acquisitionFields = @('source', 'archiveFileName', 'archiveSizeBytes', 'archiveSha256', 'redirectPolicy')
     [void](Test-HcrV2ClosedObject $acquisition $acquisitionFields $acquisitionFields "$Path.acquisition" $Errors)
     $archiveSize = Get-HcrPropertyValue $acquisition 'archiveSizeBytes'
-    if ((Get-HcrPropertyValue $acquisition 'source') -ne 'microsoftFixedEndpoint' -or (Get-HcrPropertyValue $acquisition 'archiveFileName') -ne 'edgedriver_win64.zip' -or (Get-HcrPropertyValue $acquisition 'redirectPolicy') -ne 'microsoftHttpsAllowlist' -or -not (Test-HcrInteger $archiveSize) -or [int64]$archiveSize -lt 1 -or [int64]$archiveSize -gt 512MB -or -not (Test-HcrV2Sha256 (Get-HcrPropertyValue $acquisition 'archiveSha256'))) { Add-HcrValidationError $Errors "$Path.acquisition is not fixed and hash-bound." }
+    if ((Get-HcrPropertyValue $acquisition 'source') -ne 'microsoftFixedEndpoint' -or (Get-HcrPropertyValue $acquisition 'archiveFileName') -ne 'edgedriver_win64.zip' -or (Get-HcrPropertyValue $acquisition 'redirectPolicy') -ne 'microsoftHttpsAllowlist' -or -not (Test-HcrInteger $archiveSize) -or [decimal]$archiveSize -lt 1 -or [decimal]$archiveSize -gt 512MB -or -not (Test-HcrV2Sha256 (Get-HcrPropertyValue $acquisition 'archiveSha256'))) { Add-HcrValidationError $Errors "$Path.acquisition is not fixed and hash-bound." }
     $executable = Get-HcrPropertyValue $Manifest 'executable'
     $executableFields = @('relativePath', 'sizeBytes', 'sha256', 'peArchitecture', 'authenticodePublisher')
     [void](Test-HcrV2ClosedObject $executable $executableFields $executableFields "$Path.executable" $Errors)
     $executableSize = Get-HcrPropertyValue $executable 'sizeBytes'
-    if ((Get-HcrPropertyValue $executable 'relativePath') -ne 'msedgedriver.exe' -or -not (Test-HcrInteger $executableSize) -or [int64]$executableSize -lt 1 -or [int64]$executableSize -gt 512MB -or (Get-HcrPropertyValue $executable 'peArchitecture') -ne 'x64' -or (Get-HcrPropertyValue $executable 'authenticodePublisher') -ne 'Microsoft Corporation' -or -not (Test-HcrV2Sha256 (Get-HcrPropertyValue $executable 'sha256'))) { Add-HcrValidationError $Errors "$Path.executable is not the fixed verified driver." }
+    if ((Get-HcrPropertyValue $executable 'relativePath') -ne 'msedgedriver.exe' -or -not (Test-HcrInteger $executableSize) -or [decimal]$executableSize -lt 1 -or [decimal]$executableSize -gt 512MB -or (Get-HcrPropertyValue $executable 'peArchitecture') -ne 'x64' -or (Get-HcrPropertyValue $executable 'authenticodePublisher') -ne 'Microsoft Corporation' -or -not (Test-HcrV2Sha256 (Get-HcrPropertyValue $executable 'sha256'))) { Add-HcrValidationError $Errors "$Path.executable is not the fixed verified driver." }
     $policy = Get-HcrPropertyValue $Manifest 'sessionPolicy'
     $policyFields = @('listenAddress', 'portPolicy', 'browserArguments', 'allowNavigation', 'allowExecuteScript', 'allowArbitrarySelector')
     [void](Test-HcrV2ClosedObject $policy $policyFields $policyFields "$Path.sessionPolicy" $Errors)
@@ -386,7 +391,7 @@ function Test-HcrWebDriverManifestV2 {
         $file = $files[$index]; $filePath = "$Path.files[$index]"
         [void](Test-HcrV2ClosedObject $file @('path', 'sizeBytes', 'sha256') @('path', 'sizeBytes', 'sha256') $filePath $Errors)
         $relative = [string](Get-HcrPropertyValue $file 'path'); $size = Get-HcrPropertyValue $file 'sizeBytes'
-        if (-not (Test-HcrSafeRelativePath $relative) -or -not $paths.Add($relative) -or -not (Test-HcrInteger $size) -or [int64]$size -lt 1 -or [int64]$size -gt 512MB -or -not (Test-HcrV2Sha256 (Get-HcrPropertyValue $file 'sha256'))) { Add-HcrValidationError $Errors "$filePath is unsafe, duplicated, or not hash-bound." }
+        if (-not (Test-HcrSafeRelativePath $relative) -or -not $paths.Add($relative) -or -not (Test-HcrInteger $size) -or [decimal]$size -lt 1 -or [decimal]$size -gt 512MB -or -not (Test-HcrV2Sha256 (Get-HcrPropertyValue $file 'sha256'))) { Add-HcrValidationError $Errors "$filePath is unsafe, duplicated, or not hash-bound." }
     }
     if (-not $paths.Contains('msedgedriver.exe')) { Add-HcrValidationError $Errors "$Path.files does not contain the fixed executable." }
 }
@@ -400,7 +405,11 @@ function Read-AndValidate-HcrProfile {
     $validation = Test-HcrProfileDocumentV2 $loaded.document
     $cleanupBudgetSeconds = 0
     foreach ($cleanupStep in @((Get-HcrPropertyValue $loaded.document 'cleanupSteps' @()))) {
-        $cleanupBudgetSeconds += [int](Get-HcrPropertyValue $cleanupStep 'timeoutSeconds' 0)
+        $cleanupTimeout = Get-HcrPropertyValue $cleanupStep 'timeoutSeconds' 0
+        if ((Test-HcrInteger $cleanupTimeout) -and
+            [decimal]$cleanupTimeout -ge 1 -and [decimal]$cleanupTimeout -le 120) {
+            $cleanupBudgetSeconds += [int]$cleanupTimeout
+        }
     }
     return [pscustomobject][ordered]@{ path = $loaded.path; profile = $loaded.document; valid = $validation.valid; errors = @($validation.errors); cleanupBudgetSeconds = $cleanupBudgetSeconds }
 }

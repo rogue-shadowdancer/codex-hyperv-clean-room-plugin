@@ -1120,11 +1120,13 @@ function Invoke-WorkerWebDriverRequest {
         [Parameter(Mandatory = $true)][object]$State,
         [Parameter(Mandatory = $true)][ValidateSet('GET','POST','DELETE')][string]$Method,
         [Parameter(Mandatory = $true)][string]$RelativePath,
-        [AllowNull()][object]$Body=$null
+        [AllowNull()][object]$Body=$null,
+        [ValidateRange(1, 100000)][int]$TimeoutMilliseconds=100000
     )
     if($RelativePath-notmatch'^/[a-zA-Z0-9_./-]{1,512}$'){Throw-WorkerError 'UI_PROTOCOL_PATH_INVALID' 'The internal fixed WebDriver path is invalid.'}
     $port=[int](Get-WorkerProperty $State 'port');if($port-lt1-or$port-gt65535){Throw-WorkerError 'UI_SESSION_INVALID' 'The owned WebDriver port is invalid.'}
     Add-Type -AssemblyName System.Net.Http -ErrorAction Stop;$handler=New-Object Net.Http.HttpClientHandler;$handler.AllowAutoRedirect=$false;$client=New-Object Net.Http.HttpClient($handler)
+    $client.Timeout=[TimeSpan]::FromMilliseconds($TimeoutMilliseconds)
     try{$uri=[Uri]("http://127.0.0.1:{0}{1}"-f$port,$RelativePath);$httpMethod=New-Object Net.Http.HttpMethod($Method);$request=New-Object Net.Http.HttpRequestMessage($httpMethod,$uri);if($null-ne$Body){$json=$Body|ConvertTo-Json -Depth 20 -Compress;if([Text.Encoding]::UTF8.GetByteCount($json)-gt65536){Throw-WorkerError 'UI_PROTOCOL_BODY_TOO_LARGE' 'The fixed UI request exceeded its bound.'};$request.Content=New-Object Net.Http.StringContent($json,[Text.Encoding]::UTF8,'application/json')};$response=$client.SendAsync($request).GetAwaiter().GetResult();try{$text=$response.Content.ReadAsStringAsync().GetAwaiter().GetResult();if([Text.Encoding]::UTF8.GetByteCount($text)-gt1048576){Throw-WorkerError 'UI_PROTOCOL_RESPONSE_TOO_LARGE' 'The fixed UI response exceeded one MiB.'};if(-not$response.IsSuccessStatusCode){Throw-WorkerError 'UI_PROTOCOL_FAILED' 'The fixed WebDriver request failed.'};if([string]::IsNullOrWhiteSpace($text)){return$null};return$text|ConvertFrom-Json -ErrorAction Stop}finally{$response.Dispose();$request.Dispose()}}
     finally{$client.Dispose();$handler.Dispose()}
 }
@@ -1167,16 +1169,31 @@ function Invoke-WorkerUiStep {
     param([Parameter(Mandatory=$true)][object]$Step,[Parameter(Mandatory=$true)][object]$Input,[Parameter(Mandatory=$true)][string]$OperationId,[Parameter(Mandatory=$true)][object]$Token)
     $type=[string](Get-WorkerProperty $Step 'type');$state=Read-WorkerWebDriverState $OperationId
     if($type-eq'stopUiSession'){
-        [void](Invoke-WorkerWebDriverRequest $state DELETE ("/session/{0}"-f$state.sessionId))
         $driver=Get-Process -Id ([int]$state.driverPid) -ErrorAction SilentlyContinue
-        if($null-ne$driver){
-            $driverHandle=[IntPtr]$driver.Handle
-            $actual=Get-WorkerProcessPath $driver
-            $started=$driver.StartTime.ToUniversalTime().ToString('o')
-            if(-not$actual.Equals([string]$state.driverPath,[StringComparison]::OrdinalIgnoreCase)-or$started-ne[string]$state.driverStartedAt){Throw-WorkerError 'UI_DRIVER_IDENTITY_DRIFT' 'The owned driver process identity changed.'}
-            if(-not[Hcr.WorkerProcessHandle]::TerminateAndWait($driverHandle, 0, 5000)){Throw-WorkerError 'UI_DRIVER_STOP_FAILED' 'The exact owned driver process did not stop.'}
+        if($null-eq$driver){
+            return New-WorkerStepResult 'passed' 'The owned fixed WebDriver process had already exited.' ([pscustomobject]@{sessionOwned=$true;sessionDeleteSucceeded=$false;driverContained=$true;driverAlreadyExited=$true;token=Get-WorkerTokenProjection $Token})
         }
-        return New-WorkerStepResult 'passed' 'The owned fixed WebDriver session stopped.' ([pscustomobject]@{sessionOwned=$true;token=Get-WorkerTokenProjection $Token})
+        $driverHandle=[IntPtr]$driver.Handle
+        $actual=Get-WorkerProcessPath $driver
+        $started=$driver.StartTime.ToUniversalTime().ToString('o')
+        if(-not$actual.Equals([string]$state.driverPath,[StringComparison]::OrdinalIgnoreCase)-or$started-ne[string]$state.driverStartedAt){$driver.Dispose();Throw-WorkerError 'UI_DRIVER_IDENTITY_DRIFT' 'The owned driver process identity changed.'}
+        $sessionDeleteSucceeded=$false;$sessionDeleteError=$null
+        $stepTimeoutMilliseconds=[int](Get-WorkerProperty $Step 'timeoutSeconds' 1)*1000
+        $protocolTimeoutMilliseconds=[Math]::Max(100,[Math]::Min(2000,$stepTimeoutMilliseconds-600))
+        try{
+            try{
+                [void](Invoke-WorkerWebDriverRequest $state DELETE ("/session/{0}"-f$state.sessionId) $null $protocolTimeoutMilliseconds)
+                $sessionDeleteSucceeded=$true
+            }
+            catch{$sessionDeleteError=Get-WorkerErrorCode $_.Exception}
+        }
+        finally{
+            $driverContained=[Hcr.WorkerProcessHandle]::TerminateAndWait($driverHandle,0,500)
+            $driver.Dispose()
+            if(-not$driverContained){Throw-WorkerError 'UI_DRIVER_STOP_FAILED' 'The exact owned driver process did not stop.'}
+        }
+        $summary=if($sessionDeleteSucceeded){'The owned fixed WebDriver session and driver stopped.'}else{'The fixed session DELETE failed, but the exact owned WebDriver process was contained.'}
+        return New-WorkerStepResult 'passed' $summary ([pscustomobject]@{sessionOwned=$true;sessionDeleteSucceeded=$sessionDeleteSucceeded;sessionDeleteError=$sessionDeleteError;driverContained=$true;driverAlreadyExited=$false;token=Get-WorkerTokenProjection $Token})
     }
     if($type-eq'captureUiScreenshot'){$name=[string](Get-WorkerProperty $Step 'evidenceName');if($name-notmatch'^[a-z0-9]+(?:-[a-z0-9]+)*$'){Throw-WorkerError 'UI_EVIDENCE_NAME_INVALID' 'The screenshot evidence name is invalid.'};$response=Invoke-WorkerWebDriverRequest $state GET ("/session/{0}/screenshot"-f$state.sessionId);$base64=[string](Get-WorkerProperty $response 'value');$bytes=[Convert]::FromBase64String($base64);if($bytes.Length-gt16MB){Throw-WorkerError 'UI_SCREENSHOT_TOO_LARGE' 'The UI screenshot exceeded its bound.'};$root=Initialize-WorkerDirectoryTree (Get-WorkerOperationRoot $OperationId) 'screenshots';$path=Join-Path $root ($name+'.png');[IO.File]::WriteAllBytes($path,$bytes);return New-WorkerStepResult 'passed' 'The bounded UI screenshot was captured.' ([pscustomobject]@{evidenceName=$name;sizeBytes=$bytes.Length;sha256=Get-WorkerSha256File $path;token=Get-WorkerTokenProjection $Token})}
     $element=Get-WorkerWebDriverElement $state ([string](Get-WorkerProperty $Step 'testId'));$base=("/session/{0}/element/{1}"-f$state.sessionId,$element)

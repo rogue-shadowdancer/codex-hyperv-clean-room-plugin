@@ -298,7 +298,9 @@ The portable UI runner separately contains an owned UI session that survives a
 required failure or failed ordinary stop. It makes one internal, fixed
 `stopUiSession` cleanup call with a 30-second bound, records the outcome, and
 does not accept a profile-supplied WebDriver endpoint, method, or payload for
-that recovery action.
+that recovery action. The worker revalidates the exact recorded driver process,
+uses an internal short timeout for the fixed session DELETE request, and
+terminates that process in `finally` even when DELETE fails or times out.
 
 ## Diagnostics and redaction
 

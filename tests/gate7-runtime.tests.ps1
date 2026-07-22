@@ -691,6 +691,19 @@ $validPortProfile.steps[4].port = 443
 $validPortValidation = Test-HcrProfileDocumentV2 $validPortProfile
 Assert-Gate7 $validPortValidation.valid `
     'The native schema-v2 validator rejected an in-range integer assertPort value.'
+$invalidCleanupTimeoutProfile = Copy-HcrObject ([pscustomobject]$profile)
+$invalidCleanupTimeoutProfile.cleanupSteps = @([pscustomobject][ordered]@{
+    id = 'cleanup-invalid-timeout'
+    type = 'wait'
+    timeoutSeconds = 'abc'
+})
+$invalidCleanupTimeoutPath = Join-Path $testRoot 'portable-invalid-cleanup-timeout.json'
+Write-Gate7Json $invalidCleanupTimeoutPath $invalidCleanupTimeoutProfile
+$invalidCleanupTimeoutValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $invalidCleanupTimeoutPath
+})
+Assert-Gate7Error $invalidCleanupTimeoutValidation 'PROFILE_INVALID' `
+    'A non-integer cleanup timeout escaped as an internal validator failure.'
 $unknown = Copy-HcrObject ([pscustomobject]$profile)
 $unknown.schemaVersion = 3
 Write-Gate7Json $unknownPath $unknown
@@ -938,6 +951,45 @@ Assert-Gate7 (Test-HcrEvidenceDocumentV2 `
 $restoredFailedStopState = Read-HcrMockAdapterState
 $restoredFailedStopState.stepResults.PSObject.Properties.Remove('stop-ui-session')
 Write-HcrMockAdapterState $restoredFailedStopState
+
+$stageAdapterFailureState = Read-HcrMockAdapterState
+$stageAdapterFailureState | Add-Member -NotePropertyName stageAdapterFailure `
+    -NotePropertyValue $true -Force
+Write-HcrMockAdapterState $stageAdapterFailureState
+$stageAdapterFailureRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $profilePath
+    artifactPath = $portablePath
+})
+Assert-Gate7 $stageAdapterFailureRun.ok `
+    'A schema-v2 staging adapter failure escaped without auditable evidence.'
+Assert-Gate7 ([bool]$stageAdapterFailureRun.data.cleanupTriggered) `
+    'A schema-v2 staging adapter failure did not trigger cleanup state.'
+Assert-Gate7Equal (@($stageAdapterFailureRun.data.automaticAssertions | Where-Object {
+            [string]$_.id -eq 'stage-artifact' -and [string]$_.status -eq 'failed'
+        }).Count) 1 `
+    'The schema-v2 staging adapter failure did not bind a failed stage assertion.'
+$stageAdapterFailureOperation = Get-HcrOperationRecord `
+    ([string]$stageAdapterFailureRun.data.testOperationId)
+$stageAdapterFailureEvidence = Read-HcrJsonFile `
+    ([string]$stageAdapterFailureOperation.evidenceFile) 'EVIDENCE_NOT_READY'
+Assert-Gate7 (Test-HcrEvidenceDocumentV2 `
+        $stageAdapterFailureEvidence $stageAdapterFailureOperation).valid `
+    'The native validator rejected schema-v2 staging-failure evidence.'
+Assert-Gate7 (@($stageAdapterFailureEvidence.artifacts | Where-Object {
+            [string]$_.role -eq 'portableZip' -and
+            [string]$_.status -eq 'failed' -and $null -eq $_.guestSha256
+        }).Count -eq 1) `
+    'The staging-failure evidence did not preserve the failed ZIP identity.'
+Assert-Gate7 (@($stageAdapterFailureEvidence.artifacts | Where-Object {
+            [string]$_.role -eq 'fixture' -and
+            [string]$_.status -eq 'notPerformed' -and $null -eq $_.guestSha256
+        }).Count -eq 1) `
+    'Fixture staging was not safely skipped after the ZIP staging failure.'
+$restoredStageAdapterState = Read-HcrMockAdapterState
+$restoredStageAdapterState.stageAdapterFailure = $false
+Write-HcrMockAdapterState $restoredStageAdapterState
 
 $migrationInput = Get-Content `
     -LiteralPath (Join-Path $PSScriptRoot 'fixtures\v2\migration\test-profile.v1.input.json') `
