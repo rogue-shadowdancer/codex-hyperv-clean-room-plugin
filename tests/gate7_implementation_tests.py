@@ -70,6 +70,7 @@ def main() -> int:
     runtime = read(PLUGIN / "mcp" / "lib" / "Runtime.ps1")
     server = read(PLUGIN / "mcp" / "server.ps1")
     host_v2 = read(PLUGIN / "mcp" / "lib" / "Tools.Host.V2.ps1")
+    guest_v1 = read(PLUGIN / "mcp" / "lib" / "Tools.Guest.ps1")
     guest_v2 = read(PLUGIN / "mcp" / "lib" / "Tools.Guest.V2.ps1")
     worker = read(PLUGIN / "mcp" / "lib" / "GuestWorker.ps1")
     validation = read(PLUGIN / "mcp" / "lib" / "Validation.V2.ps1")
@@ -119,6 +120,15 @@ def main() -> int:
         raise AssertionError("the standalone migration loader omits the atomic JSON writer")
     if "HCR_TEST_SOURCE_COMMIT" not in guest_v2 or "RUNTIME_PROVENANCE_INVALID" not in guest_v2:
         raise AssertionError("runtime candidate provenance is not fail closed")
+    if not re.search(
+        r"\$copiedValidation = if \([\s\S]+?Test-HcrEvidenceDocumentV2",
+        guest_v1,
+    ):
+        raise AssertionError("copied evidence does not retain schema-version dispatch")
+    if "Evidence content does not match immutable operation state." not in validation:
+        raise AssertionError("schema-v2 evidence is not bound to its operation digest")
+    if "launchedProcess = $launchedProcess" not in guest_v2:
+        raise AssertionError("schema-v2 cleanup does not pass operation-scoped process identity")
 
     artifact_roots = sorted(
         (ROOT / ".artifacts").glob("gate7-tests-*"),
@@ -129,24 +139,32 @@ def main() -> int:
         raise AssertionError("Gate 7 runtime evidence is unavailable")
     evidence_paths = list(artifact_roots[0].glob("state/evidence-staging/*/evidence.json"))
     v2_evidence_paths = [path for path in evidence_paths if load(path).get("schemaVersion") == 2]
-    if len(v2_evidence_paths) != 1:
-        raise AssertionError("Gate 7 runtime must emit exactly one schema-v2 evidence document")
+    if len(v2_evidence_paths) != 2:
+        raise AssertionError("Gate 7 runtime must emit passed and failed schema-v2 evidence")
     schemas = {name: load(CONTRACT / "schemas" / name) for name in V2_NAMES}
     registry = Registry()
     for schema in schemas.values():
         registry = registry.with_resource(schema["$id"], Resource.from_contents(schema))
-    evidence = load(v2_evidence_paths[0])
-    errors = list(
-        Draft202012Validator(
-            schemas["evidence.schema.json"],
-            registry=registry,
-            format_checker=FormatChecker(),
-        ).iter_errors(evidence)
-    )
-    if errors:
-        raise AssertionError(f"generated evidence-v2 violates its schema: {errors[0].message}")
-    if evidence["runtime"]["adapterMode"] != "mock" or evidence["machineStatus"] != "passed":
-        raise AssertionError("Gate 7 runtime evidence did not preserve its mock-only passed boundary")
+    evidence_documents = [load(path) for path in v2_evidence_paths]
+    for evidence in evidence_documents:
+        errors = list(
+            Draft202012Validator(
+                schemas["evidence.schema.json"],
+                registry=registry,
+                format_checker=FormatChecker(),
+            ).iter_errors(evidence)
+        )
+        if errors:
+            raise AssertionError(
+                f"generated evidence-v2 violates its schema: {errors[0].message}"
+            )
+    if any(evidence["runtime"]["adapterMode"] != "mock" for evidence in evidence_documents):
+        raise AssertionError("Gate 7 runtime evidence escaped its mock-only boundary")
+    if sorted(evidence["machineStatus"] for evidence in evidence_documents) != [
+        "failed",
+        "passed",
+    ]:
+        raise AssertionError("Gate 7 runtime did not preserve passed and failed evidence")
 
     print(
         json.dumps(
@@ -158,7 +176,7 @@ def main() -> int:
                 "v1ToolsPreserved": 16,
                 "v1SchemasPreserved": len(V1_NAMES),
                 "v2SchemasInstalled": len(V2_NAMES),
-                "generatedEvidenceValidated": 1,
+                "generatedEvidenceValidated": len(evidence_documents),
                 "realHostOperations": 0,
                 "realGuestOperations": 0,
                 "portableDeployments": 0,

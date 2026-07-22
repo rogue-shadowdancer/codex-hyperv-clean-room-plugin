@@ -416,8 +416,14 @@ function Test-HcrEvidenceDocumentV2 {
     }
     if (@($artifacts | Where-Object { (Get-HcrPropertyValue $_ 'role') -eq 'fixture' }).Count -lt 1) { Add-HcrValidationError $errors 'Evidence requires at least one fixture artifact.'; $machineFactsPassed = $false }
     foreach ($artifact in $artifacts) {
-        if ((Get-HcrPropertyValue $artifact 'status') -ne 'passed') { $machineFactsPassed = $false }
-        if ([string](Get-HcrPropertyValue $artifact 'sourceSha256') -ne [string](Get-HcrPropertyValue $artifact 'guestSha256')) { Add-HcrValidationError $errors "Artifact role '$([string](Get-HcrPropertyValue $artifact 'role'))' has hash drift."; $machineFactsPassed = $false }
+        $artifactStatus = [string](Get-HcrPropertyValue $artifact 'status')
+        $artifactGuestHash = Get-HcrPropertyValue $artifact 'guestSha256'
+        if ($artifactStatus -ne 'passed') { $machineFactsPassed = $false }
+        if (($artifactStatus -eq 'passed' -or $null -ne $artifactGuestHash) -and
+            [string](Get-HcrPropertyValue $artifact 'sourceSha256') -ne [string]$artifactGuestHash) {
+            Add-HcrValidationError $errors "Artifact role '$([string](Get-HcrPropertyValue $artifact 'role'))' has hash drift."
+            $machineFactsPassed = $false
+        }
     }
     if ([string](Get-HcrPropertyValue $profile 'sha256') -ne [string](Get-HcrPropertyValue $candidate 'profileSha256')) { Add-HcrValidationError $errors 'The profile hash is not bound to the candidate.'; $machineFactsPassed = $false }
     if ([string](Get-HcrPropertyValue $automation 'webDriverManifestSha256') -ne [string](Get-HcrPropertyValue $candidate 'webDriverManifestSha256')) { Add-HcrValidationError $errors 'The WebDriver manifest hash is not bound to the candidate.'; $machineFactsPassed = $false }
@@ -457,6 +463,11 @@ function Test-HcrEvidenceDocumentV2 {
     if ((Get-HcrPropertyValue $Evidence 'machineStatus') -ne $derivedMachine) { Add-HcrValidationError $errors '$.machineStatus does not match deterministic derivation.' }
     if ((Get-HcrPropertyValue $Evidence 'overallStatus') -ne $derivedOverall) { Add-HcrValidationError $errors '$.overallStatus does not match deterministic derivation.' }
     if ($null -ne $OperationRecord) {
+        $expectedEvidenceDigest = [string](Get-HcrPropertyValue $OperationRecord 'evidenceSha256')
+        if ($expectedEvidenceDigest -notmatch '^[a-f0-9]{64}$' -or
+            (Get-HcrEvidenceDocumentDigest $Evidence) -ne $expectedEvidenceDigest) {
+            Add-HcrValidationError $errors 'Evidence content does not match immutable operation state.'
+        }
         foreach ($binding in @('profileSha256', 'portableZipSha256', 'fixtureSetSha256', 'webDriverManifestSha256', 'sourceCommit')) {
             if ([string](Get-HcrPropertyValue $candidate $binding) -ne [string](Get-HcrPropertyValue $OperationRecord $binding)) { Add-HcrValidationError $errors "$.candidate.$binding does not match immutable operation state." }
         }

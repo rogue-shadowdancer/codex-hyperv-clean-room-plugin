@@ -968,7 +968,10 @@ function Invoke-HcrCollectEvidence {
         }
         $copiedEvidencePath = Join-Path $targetRoot 'evidence.json'
         $copiedEvidence = Read-HcrJsonFile $copiedEvidencePath 'EVIDENCE_STAGING_INVALID'
-        $copiedValidation = Test-HcrEvidenceDocument $copiedEvidence $operation
+        $copiedValidation = if ([int](Get-HcrPropertyValue $operation 'schemaVersion' 1) -eq 2) {
+            Test-HcrEvidenceDocumentV2 $copiedEvidence $operation
+        }
+        else { Test-HcrEvidenceDocument $copiedEvidence $operation }
         if (-not $copiedValidation.valid) {
             Throw-HcrError 'EVIDENCE_INVALID' 'The exact copied evidence bytes do not match immutable operation state.' ([ordered]@{
                 errors = @($copiedValidation.errors)

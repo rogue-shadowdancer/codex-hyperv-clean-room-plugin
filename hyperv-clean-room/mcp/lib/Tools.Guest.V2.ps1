@@ -102,6 +102,21 @@ function Invoke-HcrV2StepSafely {
     )
 
     try {
+        $launchedProcess = $null
+        if ($Cleanup -and [string](Get-HcrPropertyValue $Step 'type') -eq 'stopApplication') {
+            $application = [string](Get-HcrPropertyValue $Step 'application')
+            $matches = @($Context.launchedProcesses | Where-Object {
+                    [string](Get-HcrPropertyValue $_ 'application') -eq $application
+                } | Select-Object -Last 1)
+            if ($matches.Count -eq 0) {
+                return [pscustomobject][ordered]@{
+                    status = 'failed'
+                    summary = 'No current-operation launched PID exists for this application.'
+                    evidence = [pscustomobject]@{ processIdentityRevalidated = $false }
+                }
+            }
+            $launchedProcess = $matches[0]
+        }
         $result = Invoke-HcrAdapter $(if ($Cleanup) { 'RunCleanupStep' } else { 'RunTestStep' }) ([pscustomobject][ordered]@{
             schemaVersion = 2
             vmName = $Context.vmName
@@ -116,6 +131,7 @@ function Invoke-HcrV2StepSafely {
             fixtures = $Context.fixtures
             webDriver = $Context.webDriver
             launchedProcesses = @($Context.launchedProcesses | ForEach-Object { $_ })
+            launchedProcess = $launchedProcess
             expectedVmId = $Context.expectedVmId
             expectedVmName = $Context.expectedVmName
             expectedOwnershipId = $Context.expectedOwnershipId

@@ -502,6 +502,22 @@ $evidenceValidation = Invoke-Gate7Tool 'validate_evidence' ([pscustomobject]@{
     evidencePath = [string]$portableOperation.evidenceFile
 })
 Assert-Gate7 $evidenceValidation.ok 'Generated schema-v2 evidence failed validation.'
+$portableAttestation = Invoke-Gate7Tool 'record_manual_attestation' ([pscustomobject]@{
+    operationId = [string]$portableRun.data.testOperationId
+    assertionId = 'visual-dpi-check'
+    status = 'unsupported'
+    method = 'declaredUnsupported'
+    summary = 'Interactive validation is unavailable in the mock test harness.'
+})
+Assert-Gate7 $portableAttestation.ok `
+    'Schema-v2 manual attestation failed after operation-digest binding.'
+$attestedPortableOperation = Get-HcrOperationRecord `
+    ([string]$portableRun.data.testOperationId)
+$attestedPortableValidation = Invoke-Gate7Tool 'validate_evidence' ([pscustomobject]@{
+    evidencePath = [string]$attestedPortableOperation.evidenceFile
+})
+Assert-Gate7 $attestedPortableValidation.ok `
+    'Schema-v2 evidence failed validation after its atomic attestation digest update.'
 $hashDriftEvidence = Copy-HcrObject $portableEvidence
 $hashDriftEvidence.artifacts[0].guestSha256 = ('0' * 64)
 $hashDriftValidation = Test-HcrEvidenceDocumentV2 $hashDriftEvidence $portableOperation
@@ -509,6 +525,88 @@ Assert-Gate7 (-not $hashDriftValidation.valid) `
     'The native evidence-v2 validator accepted artifact hash drift.'
 Assert-Gate7Equal ([string]$hashDriftValidation.derivedMachineStatus) 'failed' `
     'Artifact hash drift did not deterministically fail machine status.'
+
+$cleanupFailureProfile = Copy-HcrObject ([pscustomobject]$profile)
+$cleanupFailureProfile.id = 'portable-cleanup-failure'
+$cleanupFailureProfile.cleanupSteps = @([pscustomobject][ordered]@{
+    id = 'cleanup-stop-application'
+    type = 'stopApplication'
+    application = 'sample-product'
+    timeoutSeconds = 30
+})
+$cleanupFailureProfilePath = Join-Path $testRoot 'portable-cleanup-failure.json'
+Write-Gate7Json $cleanupFailureProfilePath $cleanupFailureProfile
+$failureState = Read-HcrMockAdapterState
+$failureState.stepResults | Add-Member -NotePropertyName 'acquire-webdriver' `
+    -NotePropertyValue ([pscustomobject][ordered]@{
+        status = 'failed'
+        summary = 'The configured post-launch failure triggered cleanup.'
+        evidence = $null
+    }) -Force
+Write-HcrMockAdapterState $failureState
+$cleanupFailureRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $cleanupFailureProfilePath
+    artifactPath = $portablePath
+})
+Assert-Gate7 $cleanupFailureRun.ok `
+    'The mock schema-v2 failure workflow did not produce auditable failure evidence.'
+Assert-Gate7Equal ([string]$cleanupFailureRun.data.machineStatus) 'failed' `
+    'The configured schema-v2 failure did not derive machineStatus=failed.'
+Assert-Gate7 ([bool]$cleanupFailureRun.data.cleanupTriggered) `
+    'The configured post-launch schema-v2 failure did not trigger cleanup.'
+Assert-Gate7Equal ([string]$cleanupFailureRun.data.cleanupResults[0].status) 'passed' `
+    'The schema-v2 cleanup stop did not receive its current-operation process identity.'
+Assert-Gate7 (@($cleanupFailureRun.data.cleanupResults[0].observations | Where-Object {
+            $_.name -eq 'processidentityrevalidated' -and $_.value -eq $true
+        }).Count -eq 1) `
+    'The schema-v2 cleanup stop did not revalidate its current-operation process identity.'
+$cleanupFailureOperation = Get-HcrOperationRecord `
+    ([string]$cleanupFailureRun.data.testOperationId)
+$cleanupFailureEvidence = Read-HcrJsonFile `
+    ([string]$cleanupFailureOperation.evidenceFile) 'EVIDENCE_NOT_READY'
+$cleanupFailureValidation = Test-HcrEvidenceDocumentV2 `
+    $cleanupFailureEvidence $cleanupFailureOperation
+Assert-Gate7 $cleanupFailureValidation.valid `
+    ('The native validator rejected schema-valid failure evidence with null guest hashes: ' +
+        ($cleanupFailureValidation.errors -join '; '))
+Assert-Gate7 (@($cleanupFailureEvidence.artifacts | Where-Object {
+            $_.status -ne 'passed' -and $null -eq $_.guestSha256
+        }).Count -ge 2) `
+    'The failure-evidence regression did not exercise absent guest hashes.'
+
+$tamperedCleanupEvidence = Copy-HcrObject $cleanupFailureEvidence
+$tamperedCleanupEvidence.cleanupResults[0].summary = 'forged cleanup summary'
+Assert-Gate7 (-not (Test-HcrEvidenceDocumentV2 `
+            $tamperedCleanupEvidence $cleanupFailureOperation).valid) `
+    'The schema-v2 validator accepted cleanup evidence that diverged from the operation digest.'
+$tamperedAssertionEvidence = Copy-HcrObject $cleanupFailureEvidence
+$tamperedAssertionEvidence.automaticAssertions[0].id = 'forged-stage-identity'
+Assert-Gate7 (-not (Test-HcrEvidenceDocumentV2 `
+            $tamperedAssertionEvidence $cleanupFailureOperation).valid) `
+    'The schema-v2 validator accepted assertion identity drift from immutable operation state.'
+
+$cleanupFailureValidationTool = Invoke-Gate7Tool 'validate_evidence' ([pscustomobject]@{
+    evidencePath = [string]$cleanupFailureOperation.evidenceFile
+})
+Assert-Gate7 $cleanupFailureValidationTool.ok `
+    'The validate_evidence tool rejected immutable schema-v2 failure evidence.'
+$v2ExportRoot = Join-Path $testRoot 'v2-export'
+[void](New-Item -ItemType Directory -Path $v2ExportRoot)
+$cleanupFailureExport = Invoke-Gate7Tool 'collect_evidence' ([pscustomobject]@{
+    operationId = [string]$cleanupFailureRun.data.testOperationId
+    outputDirectory = $v2ExportRoot
+})
+Assert-Gate7 $cleanupFailureExport.ok `
+    ('The schema-v2 evidence export failed copied-version dispatch: ' +
+        ((Get-HcrPropertyValue $cleanupFailureExport 'error') | ConvertTo-Json -Depth 10 -Compress))
+Assert-Gate7 (Test-Path -LiteralPath $cleanupFailureExport.evidencePath -PathType Leaf) `
+    'The schema-v2 evidence export did not publish its copied evidence file.'
+
+$restoredState = Read-HcrMockAdapterState
+$restoredState.stepResults.PSObject.Properties.Remove('acquire-webdriver')
+Write-HcrMockAdapterState $restoredState
 
 $migrationInput = Get-Content `
     -LiteralPath (Join-Path $PSScriptRoot 'fixtures\v2\migration\test-profile.v1.input.json') `

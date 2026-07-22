@@ -47,6 +47,10 @@ the local plugin cache.
 - The standalone schema-v1-to-v2 migration CLI now loads its atomic JSON writer,
   and the native schema-v2 validator accepts the contract-defined optional
   legacy artifact identity fields and optional legacy `processName`.
+- Schema-v2 evidence now retains immutable operation-digest binding, validates
+  copied exports with version-aware dispatch, preserves valid failed evidence
+  with absent guest hashes, and supplies operation-scoped process identity to
+  cleanup application stops.
 - The durable branch-protection contract retains pull-request review and
   conversation-resolution protection while requiring zero approving reviews;
   strict `public-release-validation` remains mandatory.
