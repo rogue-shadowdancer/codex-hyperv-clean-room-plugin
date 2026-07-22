@@ -345,7 +345,7 @@ function Save-HcrNetworkPlanSet {
     })
 }
 
-function Consume-HcrNetworkPlanRecord {
+function Get-HcrNetworkPlanRecord {
     param([Parameter(Mandatory = $true)][string]$PlanId)
 
     if (-not (Test-HcrUuid $PlanId)) {
@@ -353,7 +353,12 @@ function Consume-HcrNetworkPlanRecord {
     }
     $ordinaryPath = Get-HcrStateSubpath 'plans' "$PlanId.json"
     if (Test-Path -LiteralPath $ordinaryPath -PathType Leaf) {
-        return Consume-HcrPlanRecord $PlanId
+        $record = Get-HcrPlanRecord $PlanId
+        if ([bool](Get-HcrPropertyValue $record 'consumed' $false) -or
+            $null -ne (Get-HcrPropertyValue $record 'consumedAt')) {
+            Throw-HcrError 'PLAN_ALREADY_CONSUMED' 'The plan has already been consumed.'
+        }
+        return $record
     }
     return Invoke-HcrFileLock 'network-plan-pairs' {
         $plansRoot = Split-Path -Parent $ordinaryPath
@@ -376,6 +381,69 @@ function Consume-HcrNetworkPlanRecord {
                 if ([bool](Get-HcrPropertyValue $record 'consumed' $false) -or
                     $null -ne (Get-HcrPropertyValue $record 'consumedAt')) {
                     Throw-HcrError 'PLAN_ALREADY_CONSUMED' 'The plan has already been consumed.'
+                }
+                return Copy-HcrObject $record
+            }
+        }
+        Throw-HcrError 'PLAN_NOT_FOUND' 'The requested plan does not exist.'
+    }
+}
+
+function Consume-HcrNetworkPlanRecord {
+    param(
+        [Parameter(Mandatory = $true)][string]$PlanId,
+        [Parameter(Mandatory = $true)][string]$ExpectedPlanSha256
+    )
+
+    if (-not (Test-HcrUuid $PlanId)) {
+        Throw-HcrError 'PLAN_NOT_FOUND' 'The requested plan does not exist.'
+    }
+    if ($ExpectedPlanSha256 -notmatch '^[a-f0-9]{64}$') {
+        Throw-HcrError 'PLAN_INVALID' 'The expected network plan digest is invalid.'
+    }
+    $ordinaryPath = Get-HcrStateSubpath 'plans' "$PlanId.json"
+    if (Test-Path -LiteralPath $ordinaryPath -PathType Leaf) {
+        return Invoke-HcrFileLock "plan-$PlanId" {
+            $record = Read-HcrJsonFile $ordinaryPath 'PLAN_NOT_FOUND'
+            if ([bool](Get-HcrPropertyValue $record 'consumed' $false) -or
+                $null -ne (Get-HcrPropertyValue $record 'consumedAt')) {
+                Throw-HcrError 'PLAN_ALREADY_CONSUMED' 'The plan has already been consumed.'
+            }
+            if ((Get-HcrSha256Text (ConvertTo-HcrJson (Get-HcrPropertyValue $record 'plan') 100)) -ne
+                $ExpectedPlanSha256) {
+                Throw-HcrError 'PLAN_DRIFT' 'The network plan record changed after precondition validation.'
+            }
+            $record.consumed = $true
+            $record.consumedAt = [DateTimeOffset]::UtcNow.ToString('o')
+            Save-HcrPlanRecord $record
+            return $record
+        }
+    }
+    return Invoke-HcrFileLock 'network-plan-pairs' {
+        $plansRoot = Split-Path -Parent $ordinaryPath
+        $pairFiles = @(Get-ChildItem -LiteralPath $plansRoot -File -Filter 'network-pair-*.json')
+        if ($pairFiles.Count -gt 4096) {
+            Throw-HcrError 'PLAN_INVALID' 'The network plan-pair store exceeds its fixed bound.'
+        }
+        foreach ($pairFile in $pairFiles) {
+            $pair = Read-HcrJsonFile $pairFile.FullName 'PLAN_INVALID'
+            if ([int](Get-HcrPropertyValue $pair 'schemaVersion' 0) -ne 2 -or
+                [string](Get-HcrPropertyValue $pair 'pairKind') -ne 'vmNetwork') {
+                Throw-HcrError 'PLAN_INVALID' 'The network plan-pair store contains an invalid record.'
+            }
+            foreach ($role in @('change', 'recovery')) {
+                $record = Get-HcrPropertyValue $pair $role
+                if ($null -eq $record -or
+                    [string](Get-HcrPropertyValue (Get-HcrPropertyValue $record 'plan') 'planId') -ne $PlanId) {
+                    continue
+                }
+                if ([bool](Get-HcrPropertyValue $record 'consumed' $false) -or
+                    $null -ne (Get-HcrPropertyValue $record 'consumedAt')) {
+                    Throw-HcrError 'PLAN_ALREADY_CONSUMED' 'The plan has already been consumed.'
+                }
+                if ((Get-HcrSha256Text (ConvertTo-HcrJson (Get-HcrPropertyValue $record 'plan') 100)) -ne
+                    $ExpectedPlanSha256) {
+                    Throw-HcrError 'PLAN_DRIFT' 'The network plan record changed after precondition validation.'
                 }
                 $record.consumed = $true
                 $record.consumedAt = [DateTimeOffset]::UtcNow.ToString('o')
@@ -486,10 +554,15 @@ function Assert-HcrVmNetworkPlanDriftFree {
 function Invoke-HcrApplyVmNetwork {
     param([Parameter(Mandatory = $true)][object]$Arguments)
 
-    $record = Consume-HcrNetworkPlanRecord ([string](Get-HcrPropertyValue $Arguments 'planId'))
-    if ([int](Get-HcrPropertyValue $record 'schemaVersion' 0) -ne 2) {
-        Throw-HcrError 'PLAN_INVALID' 'The consumed network plan record has an unsupported schema version.'
+    $planId = [string](Get-HcrPropertyValue $Arguments 'planId')
+    $previewRecord = Get-HcrNetworkPlanRecord $planId
+    if ([int](Get-HcrPropertyValue $previewRecord 'schemaVersion' 0) -ne 2) {
+        Throw-HcrError 'PLAN_INVALID' 'The network plan record has an unsupported schema version.'
     }
+    $previewPlan = Assert-HcrPlanUsable $previewRecord 'vmNetwork'
+    [void](Assert-HcrVmNetworkPlanDriftFree $previewPlan)
+    $expectedPlanSha256 = Get-HcrSha256Text (ConvertTo-HcrJson $previewPlan 100)
+    $record = Consume-HcrNetworkPlanRecord $planId $expectedPlanSha256
     $plan = Assert-HcrPlanUsable $record 'vmNetwork'
     $bound = Assert-HcrVmNetworkPlanDriftFree $plan
     $recoveryPlanId = if (

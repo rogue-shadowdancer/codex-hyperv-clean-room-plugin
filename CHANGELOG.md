@@ -53,6 +53,9 @@ the local plugin cache.
   cleanup application stops.
 - Guarded graceful VM shutdown now uses the supported default `Stop-VM` guest
   shutdown path without a nonexistent parameter switch.
+- Paired network recovery plans remain unconsumed until their attachment and
+  ownership preconditions pass, and atomic consumption is bound to the exact
+  prevalidated plan digest before any adapter mutation.
 - The durable branch-protection contract retains pull-request review and
   conversation-resolution protection while requiring zero approving reviews;
   strict `public-release-validation` remains mandatory.

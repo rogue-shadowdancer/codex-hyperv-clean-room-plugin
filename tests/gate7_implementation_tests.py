@@ -133,6 +133,17 @@ def main() -> int:
         raise AssertionError("graceful shutdown does not use the default Stop-VM path")
     if "Stop-VM -VM $verifiedVm -Shutdown" in adapters:
         raise AssertionError("graceful shutdown uses a nonexistent Stop-VM switch")
+    preview_index = host_v2.find("$previewRecord = Get-HcrNetworkPlanRecord")
+    first_drift_index = host_v2.find(
+        "Assert-HcrVmNetworkPlanDriftFree $previewPlan", preview_index
+    )
+    consume_index = host_v2.find(
+        "Consume-HcrNetworkPlanRecord $planId $expectedPlanSha256",
+        first_drift_index,
+    )
+    mutation_index = host_v2.find("Invoke-HcrAdapter 'SetVmNetwork'", consume_index)
+    if not (0 <= preview_index < first_drift_index < consume_index < mutation_index):
+        raise AssertionError("network recovery can be consumed before drift validation")
 
     artifact_roots = sorted(
         (ROOT / ".artifacts").glob("gate7-tests-*"),

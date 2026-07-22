@@ -319,6 +319,16 @@ Assert-Gate7 `
     ([string]$networkPlan.data.changePlan.pairedPlanId -eq
         [string]$networkPlan.data.recoveryPlan.planId) `
     'The disconnect plan was not paired to its recovery plan.'
+$prematureRecovery = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
+    planId = [string]$networkPlan.data.recoveryPlan.planId
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7Error $prematureRecovery 'PLAN_DRIFT' `
+    'A recovery plan applied before disconnect did not fail its preconditions.'
+$pairAfterPrematureRecovery = Read-HcrJsonFile `
+    $networkPairFiles[0].FullName 'PLAN_INVALID'
+Assert-Gate7 (-not [bool]$pairAfterPrematureRecovery.recovery.consumed -and
+        $null -eq $pairAfterPrematureRecovery.recovery.consumedAt) `
+    'A recovery plan was consumed before its disconnected-state preconditions passed.'
 $networkApply = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
     planId = [string]$networkPlan.data.changePlan.planId
 }) -EnvelopeSchemaVersion 2
