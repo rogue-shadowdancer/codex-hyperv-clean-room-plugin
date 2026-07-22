@@ -190,6 +190,14 @@ def main() -> int:
         if fragment not in source:
             raise AssertionError(f"{source_name} does not freeze zero required approvals")
 
+    anonymous_readback = read_text("scripts/verify-anonymous-public-readback.ps1")
+    if "'README.md' = '20 MCP tools total'" not in anonymous_readback:
+        raise AssertionError(
+            "anonymous readback is not bound to the integrated 20-tool README"
+        )
+    if "'README.md' = 'v0.1.1 GPL public release'" in anonymous_readback:
+        raise AssertionError("anonymous readback still requires the retired v0.1.1 title")
+
     docs = "\n".join(
         read_text(relative)
         for relative in (
