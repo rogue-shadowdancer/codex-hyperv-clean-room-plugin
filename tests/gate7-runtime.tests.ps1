@@ -342,6 +342,61 @@ $networkRecovery = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
 Assert-Gate7 ($networkRecovery.ok -and $networkRecovery.changed) `
     'The paired network recovery did not restore the baseline.'
 
+$driftPlan = Invoke-Gate7Tool 'plan_vm_network' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    target = 'disconnected'
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7 $driftPlan.ok 'Network drift regression planning failed.'
+$driftChangeId = [string]$driftPlan.data.changePlan.planId
+$driftPairPath = Get-HcrStateSubpath 'plans' "network-pair-$driftChangeId.json"
+$driftState = Read-HcrMockAdapterState
+$originalSwitchName = [string]$driftState.vms[0].networkAdapters[0].switchName
+$driftState.vms[0].networkAdapters[0].switchName = 'Drifted Switch'
+Write-HcrMockAdapterState $driftState
+$driftApply = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
+    planId = $driftChangeId
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7Error $driftApply 'PLAN_DRIFT' `
+    'A drifted change plan did not fail closed.'
+$driftPairAfterApply = Read-HcrJsonFile $driftPairPath 'PLAN_INVALID'
+Assert-Gate7 ([bool]$driftPairAfterApply.change.consumed -and
+        $null -ne $driftPairAfterApply.change.consumedAt) `
+    'A well-formed drifted change plan was not consumed exactly once.'
+$restoredDriftState = Read-HcrMockAdapterState
+$restoredDriftState.vms[0].networkAdapters[0].switchName = $originalSwitchName
+Write-HcrMockAdapterState $restoredDriftState
+$driftReplay = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
+    planId = $driftChangeId
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7Error $driftReplay 'PLAN_ALREADY_CONSUMED' `
+    'A stale change plan became reusable after adapter state was restored.'
+
+$unavailableRecoveryPlan = Invoke-Gate7Tool 'plan_vm_network' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    target = 'disconnected'
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7 $unavailableRecoveryPlan.ok 'Unavailable recovery regression planning failed.'
+$unavailableChangeId = [string]$unavailableRecoveryPlan.data.changePlan.planId
+$unavailablePairPath = Get-HcrStateSubpath 'plans' "network-pair-$unavailableChangeId.json"
+$unavailablePair = Read-HcrJsonFile $unavailablePairPath 'PLAN_INVALID'
+$unavailablePair.recovery.consumed = $true
+$unavailablePair.recovery.consumedAt = [DateTimeOffset]::UtcNow.ToString('o')
+Write-HcrJsonFile $unavailablePairPath $unavailablePair
+$attachmentBeforeUnavailableApply = (Read-HcrMockAdapterState).vms[0].networkAdapters[0].switchName
+$unavailableApply = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
+    planId = $unavailableChangeId
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7Error $unavailableApply 'PLAN_ALREADY_CONSUMED' `
+    'A disconnect change proceeded without an available paired recovery plan.'
+$unavailablePairAfterApply = Read-HcrJsonFile $unavailablePairPath 'PLAN_INVALID'
+Assert-Gate7 ([bool]$unavailablePairAfterApply.change.consumed -and
+        $null -ne $unavailablePairAfterApply.change.consumedAt) `
+    'A disconnect change was not consumed before paired recovery availability was checked.'
+$attachmentAfterUnavailableApply = (Read-HcrMockAdapterState).vms[0].networkAdapters[0].switchName
+Assert-Gate7 ([string]$attachmentAfterUnavailableApply -eq
+        [string]$attachmentBeforeUnavailableApply) `
+    'The network changed even though the paired recovery plan was unavailable.'
+
 $faultPlan = Invoke-Gate7Tool 'plan_vm_network' ([pscustomobject]@{
     vmName = 'cleanroom-v2'
     target = 'disconnected'

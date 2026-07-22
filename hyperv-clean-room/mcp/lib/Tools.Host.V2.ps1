@@ -556,15 +556,40 @@ function Invoke-HcrApplyVmNetwork {
 
     $planId = [string](Get-HcrPropertyValue $Arguments 'planId')
     $previewRecord = Get-HcrNetworkPlanRecord $planId
-    if ([int](Get-HcrPropertyValue $previewRecord 'schemaVersion' 0) -ne 2) {
-        Throw-HcrError 'PLAN_INVALID' 'The network plan record has an unsupported schema version.'
+    $previewPlan = Get-HcrPropertyValue $previewRecord 'plan'
+    $planRole = [string](Get-HcrPropertyValue $previewPlan 'planRole')
+    if ($planRole -eq 'recovery') {
+        if ([int](Get-HcrPropertyValue $previewRecord 'schemaVersion' 0) -ne 2) {
+            Throw-HcrError 'PLAN_INVALID' 'The recovery plan record has an unsupported schema version.'
+        }
+        if ([string](Get-HcrPropertyValue $previewRecord 'planKind') -ne 'vmNetwork' -or
+            $null -eq $previewPlan -or
+            -not (Test-HcrDateTimeString (Get-HcrPropertyValue $previewPlan 'expiresAt'))) {
+            Throw-HcrError 'PLAN_INVALID' 'The recovery plan record is invalid.'
+        }
+        [void](Assert-HcrVmNetworkPlanDriftFree $previewPlan)
     }
-    $previewPlan = Assert-HcrPlanUsable $previewRecord 'vmNetwork'
-    [void](Assert-HcrVmNetworkPlanDriftFree $previewPlan)
     $expectedPlanSha256 = Get-HcrSha256Text (ConvertTo-HcrJson $previewPlan 100)
     $record = Consume-HcrNetworkPlanRecord $planId $expectedPlanSha256
+    if ([int](Get-HcrPropertyValue $record 'schemaVersion' 0) -ne 2) {
+        Throw-HcrError 'PLAN_INVALID' 'The consumed network plan record has an unsupported schema version.'
+    }
     $plan = Assert-HcrPlanUsable $record 'vmNetwork'
     $bound = Assert-HcrVmNetworkPlanDriftFree $plan
+    if ([string](Get-HcrPropertyValue $plan 'planRole') -eq 'change' -and
+        [string](Get-HcrPropertyValue $plan 'target') -eq 'disconnected') {
+        $pairedRecoveryId = [string](Get-HcrPropertyValue $plan 'pairedPlanId')
+        $pairedRecoveryRecord = Get-HcrNetworkPlanRecord $pairedRecoveryId
+        if ([int](Get-HcrPropertyValue $pairedRecoveryRecord 'schemaVersion' 0) -ne 2) {
+            Throw-HcrError 'PLAN_INVALID' 'The paired recovery record has an unsupported schema version.'
+        }
+        $pairedRecoveryPlan = Get-HcrPropertyValue $pairedRecoveryRecord 'plan'
+        if ([string](Get-HcrPropertyValue $pairedRecoveryRecord 'planKind') -ne 'vmNetwork' -or
+            [string](Get-HcrPropertyValue $pairedRecoveryPlan 'planRole') -ne 'recovery' -or
+            [string](Get-HcrPropertyValue $pairedRecoveryPlan 'pairedPlanId') -ne $planId) {
+            Throw-HcrError 'PLAN_INVALID' 'The disconnect plan is not bound to an available paired recovery plan.'
+        }
+    }
     $recoveryPlanId = if (
         [string](Get-HcrPropertyValue $plan 'planRole') -eq 'change' -and
         [string](Get-HcrPropertyValue $plan 'target') -eq 'disconnected'

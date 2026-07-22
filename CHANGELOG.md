@@ -55,7 +55,9 @@ the local plugin cache.
   shutdown path without a nonexistent parameter switch.
 - Paired network recovery plans remain unconsumed until their attachment and
   ownership preconditions pass, and atomic consumption is bound to the exact
-  prevalidated plan digest before any adapter mutation.
+  prevalidated plan digest before any adapter mutation. Change plans retain
+  one-shot consume-on-drift semantics and require an available paired recovery
+  before a guarded disconnect.
 - The durable branch-protection contract retains pull-request review and
   conversation-resolution protection while requiring zero approving reviews;
   strict `public-release-validation` remains mandatory.

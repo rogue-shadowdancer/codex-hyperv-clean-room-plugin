@@ -91,6 +91,14 @@ hash, VM fingerprint, recorded state, adapter identity/fingerprint, baseline
 switch identity, or operation-specific precondition. Drift produces no
 mutation and requires a fresh plan.
 
+The sole consumption exception is the paired network recovery plan: its stored
+record shape and live VM, ownership, adapter, baseline, and attachment recovery
+preconditions are checked before consumption so an accidental recovery attempt
+before the paired disconnect cannot burn the only recovery capability. A
+disconnect change plan still consumes before checking that its paired recovery
+record remains available; an unavailable recovery fails closed without a
+network mutation and requires a fresh pair.
+
 For network plans, `vmFingerprint` binds all relevant VM configuration except
 the verified primary NIC's attachment, and `adapter.fingerprint` binds the NIC
 identity/configuration except its attachment. `currentAttachment` and

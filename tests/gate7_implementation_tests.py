@@ -134,6 +134,7 @@ def main() -> int:
     if "Stop-VM -VM $verifiedVm -Shutdown" in adapters:
         raise AssertionError("graceful shutdown uses a nonexistent Stop-VM switch")
     preview_index = host_v2.find("$previewRecord = Get-HcrNetworkPlanRecord")
+    recovery_branch_index = host_v2.find("if ($planRole -eq 'recovery')", preview_index)
     first_drift_index = host_v2.find(
         "Assert-HcrVmNetworkPlanDriftFree $previewPlan", preview_index
     )
@@ -141,9 +142,22 @@ def main() -> int:
         "Consume-HcrNetworkPlanRecord $planId $expectedPlanSha256",
         first_drift_index,
     )
+    paired_lookup_index = host_v2.find(
+        "Get-HcrNetworkPlanRecord $pairedRecoveryId", consume_index
+    )
     mutation_index = host_v2.find("Invoke-HcrAdapter 'SetVmNetwork'", consume_index)
-    if not (0 <= preview_index < first_drift_index < consume_index < mutation_index):
-        raise AssertionError("network recovery can be consumed before drift validation")
+    if not (
+        0
+        <= preview_index
+        < recovery_branch_index
+        < first_drift_index
+        < consume_index
+        < paired_lookup_index
+        < mutation_index
+    ):
+        raise AssertionError(
+            "network recovery ordering does not preserve recovery while consuming change once"
+        )
 
     artifact_roots = sorted(
         (ROOT / ".artifacts").glob("gate7-tests-*"),
