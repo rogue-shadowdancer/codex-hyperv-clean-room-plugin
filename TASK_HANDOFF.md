@@ -1,101 +1,99 @@
-# TaskHandoff - Gate 7/H2 schema-v2 production integration
+# TaskHandoff - Gate 8/H3 plugin 0.2.0 source publication
 
 `relayProtocolVersion: 1`
 
 ## Objective and outcome
 
-Gate 7/H2 implements the frozen Hyper-V Clean Room plugin `0.2.0` / public
-schema-v2 contract from `contracts/v2` in production source. The candidate
-preserves the exact 16 schema-v1 tools and five schema-v1 file hashes, adds the
-four frozen power/network tools for exactly 20 MCP tools, and installs exact
-copies of all seven schema-v2 files.
+Gate 8/H3 is complete. The reviewed Hyper-V Clean Room plugin `0.2.0` source
+was merged through protected `master`, tagged with an annotated unsigned
+`v0.2.0` tag, published as a source-only GitHub Release, and verified through
+authenticated and anonymous readback.
 
-H2 used only mock adapters, PowerShell parsers, JSON Schema validation, and
-static production-seam checks. Real Hyper-V, VM/VHDX/checkpoint, power/network,
-credential, guest, package, portable, WebDriver, UI, evidence/manual,
-installation, release, and clean-machine operations remain `notPerformed`.
+The immutable release commit is
+`642f20d1d74a54ecbb08115b1a921ca65ef01fb8`. Tag object
+`05ef3f5f61c78865e399eeb7e1673383dccc2db4` peels exactly to that commit. The
+Release is non-draft, non-prerelease, has zero uploaded assets, and offers only
+GitHub's generated source archives:
+<https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/releases/tag/v0.2.0>.
 
-## Changed areas
+## Publication and review record
 
-- `hyperv-clean-room/mcp/lib/Common.ps1`, `Runtime.ps1`, `ToolSchemas.ps1`, and
-  `server.ps1`: version `0.2.0`, exact 20-tool registry, and v1/v2 envelopes.
-- `Tools.Host.V2.ps1` and `Adapters.ps1`: guarded one-shot VM power plans,
-  paired network change/recovery plans, ownership/drift/expiry rebinding, exact
-  primary-NIC transitions, and bounded partial-effect reporting.
-- `Validation.V2.ps1`, `Tools.Guest.V2.ps1`, and `GuestWorker.ps1`: exact
-  schema dispatch, closed portable/driver/UI workflows, atomic slot metadata,
-  data-inventory preservation, evidence-v2 derivation, and fail-closed
-  production seams.
-- `Migrate-TestProfile.ps1`: additive, deterministic v1-to-v2 profile
-  migration that refuses ambiguous input and existing destinations.
-- `hyperv-clean-room/schemas/v2`: byte-identical copies of the seven frozen
-  contracts; schema-v1 bytes remain unchanged.
-- `tests/gate7-runtime.tests.ps1`, `tests/gate7_implementation_tests.py`, and
-  `scripts/validate-gate7.ps1`: mock/parser/schema/static Gate 7 acceptance.
-- Installer source validation, CI, authoritative documentation, changelog,
-  skill guidance, and compatibility metadata now describe the integrated
-  source candidate without claiming release or real validation.
-
-## Repository state
-
-`projectPath: E:\study\great_projects\codex-hyperv-clean-room-plugin-gate6`
-
-- Writable workspace: the `projectPath` above.
-- Branch: `codex/gate6-automation-contract`, tracking the same remote branch.
-- The exact Gate 7 commit is the branch HEAD containing this handoff; obtain it
-  with `git rev-parse HEAD` and require identical local/remote/PR head OIDs.
-- Draft PR: <https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/pull/7>.
-- No pre-existing user changes existed in this dedicated workspace. All Gate 7
-  changes belong to H2. The saved root `master` workspace remains read-only.
+- PR #7 final head `6824f95a4383d27da9f10a7b42e5a4dc5e6dc9e1` closed twenty
+  technically actionable Codex findings and merged as
+  `cf27311bd1414a605303da237cd6df4c3860bdb8`.
+- Post-merge readback found the official anonymous validator still required a
+  retired v0.1.1 README title. The minimal additive repair
+  `cf67162fd65fcc047332e6fc4f3a04ceab4b9ad6` updated that marker and its
+  contract regression in PR #10; protected merge
+  `642f20d1d74a54ecbb08115b1a921ca65ef01fb8` is the accepted release commit.
+- PR #10 review object `4753485327` raised one handoff-order comment. It was
+  dispositioned non-actionable because the accepted plan requires this
+  tracker-only update after the Release and outside the immutable tag; the
+  rationale was recorded and the conversation resolved. Final technical
+  triage was ZERO ACTIONABLE FINDINGS.
+- `master` permanently retains a non-null pull-request-review protection object
+  with zero required approvals. Strict `public-release-validation`, conversation
+  resolution, no force-push/deletion, and all other prior controls remain.
 
 ## Verification
 
-- `scripts/validate-gate7.ps1` passes the inherited CI-safe runtime/schema
-  baseline plus Gate 7 integration on mock/parser/static paths only.
-- Gate 7 records exactly 20 tools, 16 preserved schema-v1 tools, five preserved
-  schema-v1 files, seven installed schema-v2 files, 76 mock runtime assertions,
-  one generated evidence-v2 document validated against Draft 2020-12, and zero
-  real operations.
-- Publication policy/tree/release-contract tests, strict UTF-8/link docs,
-  install-source/CI-safe payload tests, and `git diff --check` pass.
-- The exact staged candidate receives a substantive compatibility, security,
-  recovery, data-integrity, and scope review with ZERO ACTIONABLE FINDINGS.
-- Hosted `public-release-validation` must pass on the exact pushed Gate 7 SHA
-  before the next task treats this handoff as publication-ready.
+- Exact candidate validation: `scripts/validate-gate7.ps1` reports 20 tools,
+  16 preserved v1 tools, five v1 schemas, seven v2 schemas, 216 runtime
+  assertions, five valid v2 evidence documents, and zero real-operation
+  counters. Public-release validation passes 13/13.
+- Accepted master CI run `29914264199` and tag CI run `29914881338` both pass on
+  `642f20d1d74a54ecbb08115b1a921ca65ef01fb8`.
+- The final Actions-history scan covers 62 authoritative runs, 15,433 log lines
+  and 2,388,490 bytes with zero sensitive findings, credentialed URLs, private
+  paths, or forbidden state files.
+- Anonymous readback confirms public `master`, GPL-3.0 detection, six strict
+  UTF-8 files, zero BOM/mojibake, the annotated unsigned tag object and peeled
+  commit, Release flags, zero assets, and both successful CI runs.
+- `v0.1.1` remains unchanged: tag object
+  `5edafb08c16a20d2994b4049367d481c67d56d57`, peeled commit
+  `4bed14c8a7df068fcd8e827418e7c20527a2f271`.
 
-## Blockers and unresolved work
+## Repository and tracker state
 
-`blockers[]`: none for H2 source integration.
+`projectPath: E:\study\great_projects\codex-hyperv-clean-room-plugin-gate6`
 
-The candidate is not released, tagged, merged, cachebuster-installed, or
-clean-machine validated. The immutable `v0.1.1` tag/Release and existing
-`0.1.1+codex.20260715084043` personal installation are not moved or rewritten.
-Birdsgone G6-G7 remains open until later publication and installed-source-match
-work is separately completed.
+This handoff is a tracker-only post-release change on branch
+`codex/gate8-release-tracker`. It is later than the immutable release commit and
+does not change or move `v0.2.0`. No pre-existing user changes existed in this
+dedicated workspace. The saved root workspace remains read-only.
+
+Relative to H2 commit `9205a23f1edb8b5b1199a206b97ea6725bb8736e`, H3 did not
+change `.github/workflows/ci.yml` or `tests/publication_hygiene_tests.py`, and
+did change `tests/public_release_contract_tests.py`. Dependabot PR #8/#9 were
+not processed, merged, or closed; their separate dependency-upgrade task must
+take a fresh baseline from the accepted release/master state.
+
+Plugin issue #6 remains closed. Birdsgone issue #7 remains open and its G6-G7
+checkbox remains unchecked because installed-source match belongs to H4/G9.
+
+## Safety boundary and unresolved work
+
+`blockers[]`: none for H3/G8 source publication.
+
+No cachebuster/personal install or installed-source match was performed. No
+real Hyper-V, VM/VHDX/checkpoint, power/network, credential, guest, package,
+portable, WebDriver, UI, evidence/manual, or clean-machine operation was
+performed. All remain `notPerformed`.
 
 ## Next gate
 
-H3/G8 only: publish the reviewed plugin `0.2.0` source candidate. Re-read the
-authority files, verify the exact branch/PR head and successful required check,
-resolve any review threads, make draft PR #7 ready, merge through protected
-`master`, and create/read back the immutable `v0.2.0` tag and source-only
-GitHub Release from the exact accepted commit. Do not perform a cachebuster
-personal install or any real Hyper-V/guest/package/portable/WebDriver/UI or
-clean-machine operation in H3; those belong to later gates.
+H4/G9 only: create an isolated workspace from immutable release commit
+`642f20d1d74a54ecbb08115b1a921ca65ef01fb8`, perform exactly one authorized
+cachebuster personal install, and prove installed-source/marketplace/runtime
+match to that release. Do not perform clean-machine or real Hyper-V/guest work.
 
-## Successor commands and safety
-
-1. Verify cwd, branch, clean state, local/upstream/PR OIDs, protected `master`,
-   required checks, and unresolved review threads before any write.
-2. Read `AGENTS.md`, this handoff, all authoritative docs, `contracts/v2`, and
-   the release process before changing PR/release state.
-3. Require exact-head validation and ZERO ACTIONABLE FINDINGS. A changed HEAD
-   resets publication validation.
-4. Preserve all v1 definitions/hashes, the frozen v2 contract, and every
-   fail-closed boundary. Never force-push or rewrite history.
-5. Do not move `v0.1.1`, install a cachebuster, claim an installed-source
-   match, or perform real host/VM/credential/guest/package/portable/WebDriver/UI
-   work in H3.
+1. Re-read the authority files and this handoff from current tracker `master`,
+   then create the H4 workspace from the immutable v0.2.0 commit, not the later
+   tracker commit.
+2. Preserve the v0.2.0 tag/Release, branch protection, and all repository
+   history. Never change the release tag to include tracker or install state.
+3. Limit validation to the personal cachebuster install and installed-source
+   match; relay clean-machine/real-operation work to its later gate.
 
 `ownership.previousTask: read-only-after-relay`
 
