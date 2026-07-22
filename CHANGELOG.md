@@ -4,7 +4,7 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
-## Unreleased - Gate 6/H1 contract and Gate 7/H2 integration
+## 0.2.0 - Source release - 2026-07-22
 
 ### Added
 
@@ -37,10 +37,13 @@ the local plugin cache.
 - Gate 7 changes the source runtime candidate to `0.2.0` and exactly 20 MCP
   tools while preserving the exact 16-tool schema-v1 snapshot and byte hashes
   of all five public schema-v1 files. CI now validates the Gate 7 integration.
-- Gate 7 executes mock/parser/static checks only. Plugin release, cachebuster
-  install, clean-machine validation, and real VM, credential, guest, package,
-  portable, WebDriver, network, UI, and manual-attestation work remain
-  `notPerformed`.
+- Gate 7/H2 executes mock/parser/static checks only; at that gate, source
+  publication and all machine-backed work remain `notPerformed`.
+- Gate 8/H3 publishes the immutable source-only `v0.2.0` tag and GitHub Release
+  from accepted commit `642f20d1d74a54ecbb08115b1a921ca65ef01fb8`.
+  Cachebuster installation, installed-source match, clean-machine validation,
+  and real VM, credential, guest, package, portable, WebDriver, network, UI,
+  and manual-attestation work remain `notPerformed`.
 
 ### Fixed
 
