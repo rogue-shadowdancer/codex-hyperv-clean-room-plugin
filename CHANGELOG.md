@@ -77,6 +77,8 @@ the local plugin cache.
 - The durable branch-protection contract retains pull-request review and
   conversation-resolution protection while requiring zero approving reviews;
   strict `public-release-validation` remains mandatory.
+- Anonymous public-source readback now binds README validation to the integrated
+  20-tool contract instead of the retired `v0.1.1` release-title wording.
 
 ## 0.1.1 - GPL public release - 2026-07-15
 

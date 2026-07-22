@@ -65,7 +65,7 @@ $profileGuideMarker = -join @(
     [char]0x7F16, [char]0x5199, [char]0x6307, [char]0x5357
 )
 $required = [ordered]@{
-    'README.md' = 'v0.1.1 GPL public release'
+    'README.md' = '20 MCP tools total'
     'LICENSE' = 'GNU GENERAL PUBLIC LICENSE'
     'hyperv-clean-room/.codex-plugin/plugin.json' = 'GPL-3.0-only'
     'hyperv-clean-room/skills/manage-hyperv-clean-room/SKILL.md' = 'Hyper-V'
