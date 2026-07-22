@@ -962,6 +962,10 @@ function Invoke-WorkerDeployPortable {
                 -not (Test-WorkerProperty $file 'sha256') -or
                 -not (Test-WorkerPortableRelativePath $path) -or
                 $path -ieq 'portable-manifest.json' -or $declared.ContainsKey($path)) { Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The portable file inventory contains an unsafe or colliding path.' }
+            if ($path -ieq 'data' -or
+                $path.StartsWith('data/', [StringComparison]::OrdinalIgnoreCase)) {
+                Throw-WorkerError 'PORTABLE_MUTABLE_DATA_FORBIDDEN' 'The portable payload cannot declare mutable data entries.'
+            }
             if ([string]$file.sha256 -notmatch '^[a-f0-9]{64}$' -or -not(Test-WorkerInteger $file.sizeBytes) -or [int64]$file.sizeBytes -lt 0 -or [int64]$file.sizeBytes -gt 2GB){Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'A portable file identity is invalid.'}
             $declared[$path]=$file
         }

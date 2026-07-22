@@ -117,6 +117,9 @@ only as an atomic pair with a pre-created recovery plan that restores the
 recorded baseline attachment; the two plans cross-reference each other. The
 recovery plan lives exactly 24 hours so it remains usable after the ordinary
 change window. Apply affects only the verified primary NIC of the managed VM.
+Before disconnect mutation, the paired recovery must still be unconsumed and
+unexpired and must bind the exact inverse attachment transition plus the same
+host, VM, ownership, adapter, fingerprint, and baseline identities.
 Disconnect starts only from the exact baseline attachment; baseline change or
 recovery starts only from the disconnected attachment, so successful apply is
 never a no-op and has `changed: true`.
@@ -154,6 +157,9 @@ only regular files/directories, rejects reparse points, links, ADS, unsafe or
 colliding relative paths, and enforces the same 4,096-entry/8-GiB bounds. It
 hashes a canonical source inventory before copy and a destination inventory
 after copy; a prior inventory must equal the deployed inventory byte-for-byte.
+The portable manifest and ZIP must not declare a `data` entry or any `data/`
+descendant; that mutable directory is created empty for a first deployment or
+copied only from the revalidated prior active deployment.
 Failed deployment must not replace the active slot or delete prior data. No H1
 contract creates a general unzip, copy, delete, or command surface.
 

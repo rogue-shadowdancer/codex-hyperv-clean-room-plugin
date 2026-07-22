@@ -62,6 +62,9 @@ the local plugin cache.
   ZIP manifest while keeping installed-plugin runtime provenance separate, and
   profile validation requires the bound application launch before UI session
   creation.
+- Disconnect requires an unexpired exact-inverse paired recovery plan, and the
+  portable worker rejects packaged `data` entries so mutable state can only be
+  created empty or copied from a revalidated prior deployment.
 - The durable branch-protection contract retains pull-request review and
   conversation-resolution protection while requiring zero approving reviews;
   strict `public-release-validation` remains mandatory.

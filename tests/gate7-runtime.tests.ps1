@@ -441,6 +441,54 @@ Assert-Gate7 ([string]$attachmentAfterUnavailableApply -eq
         [string]$attachmentBeforeUnavailableApply) `
     'The network changed even though the paired recovery plan was unavailable.'
 
+$invalidRecoveryPlan = Invoke-Gate7Tool 'plan_vm_network' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    target = 'disconnected'
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7 $invalidRecoveryPlan.ok 'Invalid paired recovery regression planning failed.'
+$invalidRecoveryChangeId = [string]$invalidRecoveryPlan.data.changePlan.planId
+$invalidRecoveryPairPath = Get-HcrStateSubpath 'plans' "network-pair-$invalidRecoveryChangeId.json"
+$invalidRecoveryPair = Read-HcrJsonFile $invalidRecoveryPairPath 'PLAN_INVALID'
+$invalidRecoveryPair.recovery.plan.targetAttachment = [pscustomobject][ordered]@{
+    mode = 'disconnected'
+}
+Write-HcrJsonFile $invalidRecoveryPairPath $invalidRecoveryPair
+$attachmentBeforeInvalidRecovery = (Read-HcrMockAdapterState).vms[0].networkAdapters[0].switchName
+$invalidRecoveryApply = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
+    planId = $invalidRecoveryChangeId
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7Error $invalidRecoveryApply 'PLAN_INVALID' `
+    'A disconnect change accepted a recovery plan with the wrong target attachment.'
+$invalidRecoveryPairAfterApply = Read-HcrJsonFile $invalidRecoveryPairPath 'PLAN_INVALID'
+Assert-Gate7 ([bool]$invalidRecoveryPairAfterApply.change.consumed) `
+    'A disconnect change was not consumed before paired recovery binding validation.'
+Assert-Gate7 ([string](Read-HcrMockAdapterState).vms[0].networkAdapters[0].switchName -eq
+        [string]$attachmentBeforeInvalidRecovery) `
+    'The network changed with an invalid paired recovery target.'
+
+$expiredRecoveryPlan = Invoke-Gate7Tool 'plan_vm_network' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    target = 'disconnected'
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7 $expiredRecoveryPlan.ok 'Expired paired recovery regression planning failed.'
+$expiredRecoveryChangeId = [string]$expiredRecoveryPlan.data.changePlan.planId
+$expiredRecoveryPairPath = Get-HcrStateSubpath 'plans' "network-pair-$expiredRecoveryChangeId.json"
+$expiredRecoveryPair = Read-HcrJsonFile $expiredRecoveryPairPath 'PLAN_INVALID'
+$expiredRecoveryPair.recovery.plan.expiresAt = [DateTimeOffset]::UtcNow.AddMinutes(-1).ToString('o')
+Write-HcrJsonFile $expiredRecoveryPairPath $expiredRecoveryPair
+$attachmentBeforeExpiredRecovery = (Read-HcrMockAdapterState).vms[0].networkAdapters[0].switchName
+$expiredRecoveryApply = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
+    planId = $expiredRecoveryChangeId
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7Error $expiredRecoveryApply 'PLAN_EXPIRED' `
+    'A disconnect change accepted an expired paired recovery plan.'
+$expiredRecoveryPairAfterApply = Read-HcrJsonFile $expiredRecoveryPairPath 'PLAN_INVALID'
+Assert-Gate7 ([bool]$expiredRecoveryPairAfterApply.change.consumed) `
+    'A disconnect change was not consumed before paired recovery expiry validation.'
+Assert-Gate7 ([string](Read-HcrMockAdapterState).vms[0].networkAdapters[0].switchName -eq
+        [string]$attachmentBeforeExpiredRecovery) `
+    'The network changed with an expired paired recovery plan.'
+
 $faultPlan = Invoke-Gate7Tool 'plan_vm_network' ([pscustomobject]@{
     vmName = 'cleanroom-v2'
     target = 'disconnected'

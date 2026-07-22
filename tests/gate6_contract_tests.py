@@ -1193,6 +1193,12 @@ def main() -> int:
     )
     if not validate_portable_manifest_semantics(portable_probe):
         raise AssertionError("self-referential portable manifest inventory was accepted")
+    mutable_data_probe = load_json(FIXTURE_ROOT / "portable-manifest.valid.json")
+    mutable_data_probe["files"].append(
+        {"path": "data/seed.json", "sizeBytes": 2, "sha256": "e" * 64}
+    )
+    if not validate_portable_manifest_semantics(mutable_data_probe):
+        raise AssertionError("packaged mutable data inventory was accepted")
     reserved_path_probe = load_json(FIXTURE_ROOT / "portable-manifest.valid.json")
     reserved_path_probe["files"][0]["path"] = "CON.txt"
     reserved_path_probe["entryPointRelativePath"] = "CON.txt"

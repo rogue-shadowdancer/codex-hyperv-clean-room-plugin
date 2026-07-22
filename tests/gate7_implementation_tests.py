@@ -131,6 +131,8 @@ def main() -> int:
             raise AssertionError(f"candidate/runtime provenance separation is missing: {token}")
     if "'deployPortable', 'launchApplication', 'acquireWebDriver'" not in validation:
         raise AssertionError("portable UI validation does not require application launch")
+    if "PORTABLE_MUTABLE_DATA_FORBIDDEN" not in worker or "StartsWith('data/'" not in worker:
+        raise AssertionError("portable worker accepts packaged mutable data entries")
     if not re.search(
         r"\$copiedValidation = if \([\s\S]+?Test-HcrEvidenceDocumentV2",
         guest_v1,
@@ -169,6 +171,8 @@ def main() -> int:
         raise AssertionError(
             "network recovery ordering does not preserve recovery while consuming change once"
         )
+    if "Assert-HcrPairedNetworkRecoveryUsable $plan $pairedRecoveryRecord" not in host_v2:
+        raise AssertionError("disconnect mutation does not validate exact paired recovery bindings")
 
     artifact_roots = sorted(
         (ROOT / ".artifacts").glob("gate7-tests-*"),

@@ -551,6 +551,60 @@ function Assert-HcrVmNetworkPlanDriftFree {
     }
 }
 
+function Assert-HcrPairedNetworkRecoveryUsable {
+    param(
+        [Parameter(Mandatory = $true)][object]$ChangePlan,
+        [Parameter(Mandatory = $true)][object]$RecoveryRecord
+    )
+
+    if ([int](Get-HcrPropertyValue $RecoveryRecord 'schemaVersion' 0) -ne 2) {
+        Throw-HcrError 'PLAN_INVALID' 'The paired recovery record has an unsupported schema version.'
+    }
+    $recoveryPlan = Assert-HcrPlanUsable $RecoveryRecord 'vmNetwork'
+    $changeAdapter = Get-HcrPropertyValue $ChangePlan 'adapter'
+    $recoveryAdapter = Get-HcrPropertyValue $recoveryPlan 'adapter'
+    $identityFields = @(
+        'hostFingerprint',
+        'vmId',
+        'vmName',
+        'ownershipId',
+        'ownershipRecordSha256',
+        'vmFingerprint'
+    )
+    $identityMismatch = @($identityFields | Where-Object {
+            [string](Get-HcrPropertyValue $ChangePlan $_) -ne
+                [string](Get-HcrPropertyValue $recoveryPlan $_)
+        }).Count -gt 0
+    $changeBaseline = Get-HcrPropertyValue $ChangePlan 'baselineAttachment'
+    $changeCurrent = Get-HcrPropertyValue $ChangePlan 'currentAttachment'
+    $changeTarget = Get-HcrPropertyValue $ChangePlan 'targetAttachment'
+    $recoveryBaseline = Get-HcrPropertyValue $recoveryPlan 'baselineAttachment'
+    $recoveryCurrent = Get-HcrPropertyValue $recoveryPlan 'currentAttachment'
+    $recoveryTarget = Get-HcrPropertyValue $recoveryPlan 'targetAttachment'
+    $adapterMismatch = -not (Test-HcrBoundObjectEqual $changeAdapter $recoveryAdapter)
+    $baselineMismatch = -not (Test-HcrBoundObjectEqual $changeBaseline $recoveryBaseline)
+    $inverseTargetMismatch = -not (Test-HcrBoundObjectEqual $changeCurrent $recoveryTarget)
+    $inverseCurrentMismatch = -not (Test-HcrBoundObjectEqual $changeTarget $recoveryCurrent)
+    $changeBaselineMismatch = -not (Test-HcrBoundObjectEqual $changeCurrent $changeBaseline)
+    if ([int](Get-HcrPropertyValue $recoveryPlan 'schemaVersion' 0) -ne 2 -or
+        [string](Get-HcrPropertyValue $recoveryPlan 'planKind') -ne 'vmNetwork' -or
+        [string](Get-HcrPropertyValue $ChangePlan 'planRole') -ne 'change' -or
+        [string](Get-HcrPropertyValue $ChangePlan 'target') -ne 'disconnected' -or
+        [string](Get-HcrPropertyValue $recoveryPlan 'planRole') -ne 'recovery' -or
+        [string](Get-HcrPropertyValue $recoveryPlan 'target') -ne 'baseline' -or
+        [string](Get-HcrPropertyValue $ChangePlan 'pairedPlanId') -ne
+            [string](Get-HcrPropertyValue $recoveryPlan 'planId') -or
+        [string](Get-HcrPropertyValue $recoveryPlan 'pairedPlanId') -ne
+            [string](Get-HcrPropertyValue $ChangePlan 'planId') -or
+        $identityMismatch -or $adapterMismatch -or $baselineMismatch -or
+        $inverseTargetMismatch -or $inverseCurrentMismatch -or
+        $changeBaselineMismatch -or
+        [string](Get-HcrPropertyValue $changeTarget 'mode') -ne 'disconnected') {
+        Throw-HcrError 'PLAN_INVALID' 'The disconnect plan is not bound to an exact usable recovery plan.'
+    }
+    return $recoveryPlan
+}
+
 function Invoke-HcrApplyVmNetwork {
     param([Parameter(Mandatory = $true)][object]$Arguments)
 
@@ -580,15 +634,7 @@ function Invoke-HcrApplyVmNetwork {
         [string](Get-HcrPropertyValue $plan 'target') -eq 'disconnected') {
         $pairedRecoveryId = [string](Get-HcrPropertyValue $plan 'pairedPlanId')
         $pairedRecoveryRecord = Get-HcrNetworkPlanRecord $pairedRecoveryId
-        if ([int](Get-HcrPropertyValue $pairedRecoveryRecord 'schemaVersion' 0) -ne 2) {
-            Throw-HcrError 'PLAN_INVALID' 'The paired recovery record has an unsupported schema version.'
-        }
-        $pairedRecoveryPlan = Get-HcrPropertyValue $pairedRecoveryRecord 'plan'
-        if ([string](Get-HcrPropertyValue $pairedRecoveryRecord 'planKind') -ne 'vmNetwork' -or
-            [string](Get-HcrPropertyValue $pairedRecoveryPlan 'planRole') -ne 'recovery' -or
-            [string](Get-HcrPropertyValue $pairedRecoveryPlan 'pairedPlanId') -ne $planId) {
-            Throw-HcrError 'PLAN_INVALID' 'The disconnect plan is not bound to an available paired recovery plan.'
-        }
+        [void](Assert-HcrPairedNetworkRecoveryUsable $plan $pairedRecoveryRecord)
     }
     $recoveryPlanId = if (
         [string](Get-HcrPropertyValue $plan 'planRole') -eq 'change' -and
