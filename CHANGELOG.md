@@ -4,6 +4,26 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
+## Unreleased - CI-only maintenance
+
+### Changed
+
+- Pin `actions/checkout` v7.0.1 and `actions/setup-python` v7.0.0 to their
+  verified full 40-character commit SHAs in the public-release workflow.
+- Bind each required GitHub Action to its exact SHA and exact version comment
+  in the public-release contract, with regression checks that reject the
+  previous SHA, an incorrect version comment, and a non-40-character ref.
+
+### Safety and release boundary
+
+- This is CI-only maintenance. It changes no plugin runtime, MCP schema/tool,
+  Windows PowerShell behavior, installation payload, plugin version, tag, or
+  GitHub Release.
+- The immutable `v0.2.0` tag/Release and the installed
+  `0.2.0+codex.20260722114845` personal build remain untouched. No real VM,
+  VHDX, checkpoint, guest, credential, package, portable, WebDriver, UI, or
+  clean-machine operation is performed; those lanes remain `notPerformed`.
+
 ## 0.2.0 - Source release - 2026-07-22
 
 ### Added
