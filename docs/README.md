@@ -19,6 +19,12 @@ contract into plugin source `0.2.0` as 20 MCP tools, preserving the exact first
 16 tools and five public schema-v1 files while installing seven schema-v2
 files. H2 validation is mock/parser/static only; release, installation,
 clean-machine, and every real operation remain `notPerformed`.
+Gate 8/H3 published the immutable source-only `v0.2.0` release, Gate 9/H4
+validated the release-derived personal installation, and H5A now repairs
+automatic-checkpoint ownership without changing the 20-tool or schema
+contracts. Future creation disables automatic checkpoints; pre-fix
+differencing chains are recognized only when they terminate at the unchanged
+recorded base with a complete canonical identity fingerprint.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.
@@ -89,6 +95,11 @@ Gate 7/H2 已将合同集成到 plugin `0.2.0` source：保留精确 16 个 v1 t
 public schema-v1 文件，新增四个 tools，合计 20 MCP tools，并安装 seven schema-v2
 文件。H2 只执行 mock、parser 与 static 验证；发布、安装、clean-machine 与全部真实
 operation 仍为 `notPerformed`。
+Gate 8/H3 已发布不可变、source-only 的 `v0.2.0` release，Gate 9/H4 已验收由 release
+派生的 personal installation；H5A 现修复 automatic-checkpoint ownership，同时保持
+20-tool 与 schema contract 不变。新建 VM 会禁用 automatic checkpoints；pre-fix
+differencing chain 只有在完整 canonical identity fingerprint 终止于未改变的 recorded
+base 时才会被识别。
 继承的 Gate 2 测试仍在 Windows PowerShell 5.1 下使用 mock
 adapter、parser、production-adapter static seam、严格文档
 检查和有界真实 host 只读 smoke。Production guest adapter 已包含固定的 administrator-supervised

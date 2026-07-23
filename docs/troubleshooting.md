@@ -171,6 +171,28 @@ Compare the VM ID, name, path, VHDX, Hyper-V Notes marker, and state record.
 Read-only inspection remains safe. Do not edit the marker or state merely to
 force agreement; establish resource provenance first.
 
+If `inspect_vm` reports an active `.avhdx`, compare
+`ownership.recordedBaseVhdxPath`, `ownership.activeVhdxPath`, and
+`ownership.storageBinding`. A legitimate automatic-checkpoint chain is verified
+only as `verifiedDifferencingChain`: every identity-bearing parent link must be
+complete and acyclic, the chain fingerprint must match, and the terminal VHDX
+must be the unchanged recorded base. Do not replace the recorded path with the
+leaf, hand-edit ownership, or delete/merge/rename the checkpoint to make the
+check pass. An unrelated, incomplete, or forged chain must remain
+`OWNERSHIP_UNVERIFIED`.
+
+### Power transitions are rejected until automatic checkpoints are disabled
+
+New H5A-created VMs disable automatic checkpoints before ownership
+publication. A pre-fix VM can remain chain-verified while the setting is true
+or unavailable, but `plan_vm_power` rejects both actions with
+`VM_STATE_UNSUPPORTED`. Preserve the current power state and follow the
+reviewed recovery sequence in
+[operations.md](operations.md#pre-fix-automatic-checkpoint-recovery): one
+separately approved setting-only disablement, read-only reinspection, and only
+then a fresh guarded power plan. Do not force-off the VM or change its
+checkpoint/disk chain.
+
 ## Credential profiles and PowerShell Direct
 
 ### `CREDENTIAL_PROFILE_NOT_FOUND`

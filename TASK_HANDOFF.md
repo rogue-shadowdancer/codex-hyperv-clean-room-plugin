@@ -1,117 +1,160 @@
-# TaskHandoff - GitHub Actions v7 CI maintenance
+# TaskHandoff - H5A automatic-checkpoint ownership repair
 
 `relayProtocolVersion: 1`
 
 ## Objective and outcome
 
-This gate is a CI-only maintenance update based on accepted `master` commit
-`5d60300f450ed2c57594d94c2065873f12f6bbce`. It replaces the two independently
-opened Dependabot proposals with one human-owned candidate that updates:
+H5A repairs the fail-closed ownership deadlock caused when Hyper-V attaches an
+automatic-checkpoint `.avhdx` leaf to a managed VM whose schema-v1 ownership
+record remains bound to its original base `.vhdx`.
 
-- `actions/checkout` to v7.0.1 at full commit SHA
-  `3d3c42e5aac5ba805825da76410c181273ba90b1`;
-- `actions/setup-python` to v7.0.0 at full commit SHA
-  `5fda3b95a4ea91299a34e894583c3862153e4b97`.
+The backward-compatible repair has two parts:
 
-The public-release contract binds each Action to its exact SHA and exact
-version comment. Its regression checks reject the previous SHA, an incorrect
-version comment, and any non-40-character Action ref.
+- new VM creation disables `AutomaticCheckpointsEnabled` immediately after
+  `New-VM`, before publishing the Notes ownership marker, and fails closed
+  unless a fresh Hyper-V readback returns the Boolean value `false`;
+- an existing differencing leaf is ownership verified only through a complete,
+  bounded, acyclic, identity-bearing chain whose exact parent links terminate
+  at the unchanged recorded base VHDX and whose canonical SHA-256 fingerprint
+  agrees with the inspected chain.
 
-The candidate must be accepted only after its protected ready PR has both
-exact-head `push` and `pull_request` `public-release-validation` runs pass, all
-review threads are resolved, it is merged normally with a two-parent merge
-commit, and the exact post-merge `master` run passes. PR #8 and PR #9 remain
-open and unmerged until that complete remote acceptance succeeds; they may then
-be commented as superseded and closed without merging.
+Recognition is read-only. It never adopts the active leaf, rewrites ownership
+state, changes Notes, or modifies checkpoints or disks. While automatic
+checkpoints remain true or unavailable, both guarded power actions are
+rejected because starting or stopping can change the differencing-disk
+lifecycle.
 
-## Release-source and change boundary
+## Release-source and compatibility boundary
 
-- The immutable annotated tag object
-  `05ef3f5f61c78865e399eeb7e1673383dccc2db4` still peels exactly to release
-  commit `642f20d1d74a54ecbb08115b1a921ca65ef01fb8`.
-- The source-only, non-draft, non-prerelease `v0.2.0` GitHub Release remains
-  unchanged with zero uploaded assets.
-- The accepted H4/G9 installed-source commit is
-  `65ff0b9cfc8c924156238295f33dfce7bb143920`. The single owned personal build
-  remains `0.2.0+codex.20260722114845`, with 31 payload files and exactly 20
-  MCP tools. H4/G9 acceptance through `scripts/validate-gate4.ps1` remains
-  commit-bound; this gate neither reinstalls nor edits that copy.
-- Advancing `master` for this CI-only change does not invalidate the H4
-  commit-bound installed-source acceptance: the immutable release and the
-  installed source commit remain fixed, while the maintenance commit changes
-  no plugin payload file.
-- No plugin runtime, MCP schema/tool, Windows PowerShell behavior, installation
-  content, public version, tag, or Release changes in this gate.
+- Candidate branch: `codex/h5a-checkpoint-ownership`.
+- Candidate base: accepted `origin/master`
+  `b1e68d32ff8d29fb475ba3f43b59353086060f33`.
+- Candidate cachebuster: `0.2.0+codex.20260723113253`.
+- The immutable public version, annotated `v0.2.0` tag, and source-only GitHub
+  Release are unchanged.
+- The 20 MCP tool names, five schema-v1 files, seven schema-v2 files, plan
+  consumption rules, and existing schema fields remain backward compatible.
+  New inspection fields are additive.
+- The previous accepted H4/G9 installed build
+  `0.2.0+codex.20260722114845` remains the baseline until this exact candidate
+  passes protected publication acceptance and is then installed.
+
+## Changed areas
+
+- `hyperv-clean-room/mcp/lib/Adapters.ps1`
+  - disables automatic checkpoints before ownership publication;
+  - reads the setting back from Hyper-V;
+  - builds a bounded VHD/AVHDX identity chain from `Get-VHD`;
+  - re-verifies ownership at ordinary and restore adapter mutation boundaries.
+- `hyperv-clean-room/mcp/lib/Tools.Host.ps1`
+  - canonicalizes and hashes VHD-chain identities;
+  - accepts only a verified chain ending at the recorded base;
+  - reports the storage-binding mode and recovery state from `inspect_vm`.
+- `hyperv-clean-room/mcp/lib/Tools.Host.V2.ps1`
+  - includes the chain and automatic-checkpoint setting in mutation invariants;
+  - blocks both guarded power actions until automatic checkpoints are disabled.
+- `tests/gate2-runtime.tests.ps1`
+  - covers future creation, valid automatic-checkpoint chains, broken links,
+    unrelated bases, forged fingerprints, cycles, missing identities,
+    oversized chains, adapter-dispatch ownership drift, and power blocking.
+- The specification, operations, security, troubleshooting, user README,
+  repository skill, changelog, plugin cachebuster, and this handoff describe
+  the same guarded behavior.
+
+No MCP input accepts a chain, leaf, or replacement ownership identity. The
+real adapter derives all chain evidence from the currently attached Hyper-V
+disk and local ordinary non-reparse files.
 
 ## Repository state
 
 `projectPath: E:\study\great_projects\codex-hyperv-clean-room-plugin`
 
-- Candidate branch: `codex/ci-actions-v7`.
-- Candidate base: accepted H4 `master` merge
-  `5d60300f450ed2c57594d94c2065873f12f6bbce`.
-- Gate-owned files are limited to `.github/workflows/ci.yml`,
-  `tests/public_release_contract_tests.py`, `CHANGELOG.md`, and this handoff.
-- No pre-existing user changes existed in the root checkout when ownership was
-  taken. The installed plugin directory is outside this repository and remains
-  read-only and untouched.
-- At baseline, Dependabot PR #8 and PR #9 were open, unmerged, and limited to
-  separate workflow-pin proposals. They are not ancestry inputs to this human
-  candidate.
+- This isolated worktree started clean at the exact candidate base.
+- All listed changes belong to H5A; no pre-existing user changes were present.
+- Runtime fixtures and prepared test dependencies are ignored under
+  `.artifacts` and are not publication candidates.
+- No VM, VHDX, checkpoint, ISO, credential, evidence, installed-state, or
+  machine-specific state file is tracked.
 
-## Verification contract
+## Verification
 
-Before committing and publishing the exact candidate:
+Completed during implementation:
 
-- run `public_release_contract_tests.py`,
-  `publication_hygiene_policy_tests.py`, and
-  `publication_hygiene_tests.py` with the repository-prepared test Python;
-- run `git diff --check`, `validate-docs.ps1`,
-  `validate-gate4-ci.ps1`,
-  `validate-gate7.ps1 -SkipInheritedBaseline`, and the complete
-  `validate-public-release.ps1`;
-- require all mock/real-operation counters to remain zero;
-- stage only the four gate-owned files and review the exact staged candidate
-  for correctness, supply-chain safety, compatibility, publication contract,
-  and scope, reaching ZERO ACTIONABLE FINDINGS.
+- Windows PowerShell 5.1 parsing passed for the modified runtime and test files.
+- `tests/gate2-runtime.tests.ps1` passed 1,298 assertions with 20 tools and
+  `realHyperVMutations: 0`.
+- `tests/gate7-runtime.tests.ps1` passed 216 assertions with all real host,
+  Hyper-V, guest, portable, WebDriver, and UI operation counters at zero.
+- `scripts/validate-docs.ps1` passed 17 documents, 98 local links, strict UTF-8,
+  and zero mojibake markers.
+- Two independent reviews identified missing behavioral coverage for
+  cycle/missing-identity rejection and adapter-dispatch ownership drift. Those
+  cases were added and the affected suites passed afterward.
 
-Remote acceptance additionally requires both exact-head PR event runs, branch
-protection readback, zero unresolved review threads, normal protected merge,
-and the exact post-merge `master` run. No force-push, rebase, squash, admin
-bypass, protection change, tag, or Release operation is permitted.
+The exact candidate also passed:
 
-## Safety boundary and unresolved work
+```powershell
+.\scripts\validate-gate4-ci.ps1
+.\scripts\validate-gate7.ps1 -SkipInheritedBaseline
+.\scripts\validate-public-release.ps1
+git diff --check
+```
 
-`blockers[]`: none for preparing this CI-only candidate.
+Gate 4 CI-safe reported 31 source files, 20 tools, five v1 schemas, seven v2
+schemas, 33 installer assertions, and zero install, marketplace, installed-copy,
+host, guest, or Hyper-V mutation operations. Gate 7 reported 216 runtime
+assertions and zero real host, Hyper-V, guest, portable, WebDriver, or UI
+operations. The aggregate public-release gate passed 13 checks with
+`realGuestOperations: 0` and `realHyperVMutations: 0`.
 
-No real VM, VHDX, checkpoint, power/network transition, credential enrollment,
-PowerShell Direct guest action, package lifecycle, portable deployment,
-WebDriver, UI, evidence/manual, or clean-machine operation is performed. All
-remain `notPerformed`.
+The substantive staged review must still reach `ZERO ACTIONABLE FINDINGS`.
+Remote acceptance requires exact-head protected CI, zero unresolved actionable
+review threads, normal merge without bypass, and exact accepted-source
+installation. After installation, `validate-gate4.ps1` and installed
+manifest/source readback must pass before the installed plugin is used for
+read-only inspection.
 
-This gate does not modify `.github/dependabot.yml`, add bot identities to a
-publication-hygiene allowlist, skip bot CI, weaken full-SHA pinning, or change
-branch protection. It does not change plugin `0.2.0`, the 20-tool catalog, five
-public schema-v1 files, seven schema-v2 files, the `v0.2.0` tag/Release, or the
-installed personal build.
+## Existing pre-fix VM recovery boundary
 
-## Next product gate
+H5A performs no recovery mutation. For the already running pre-fix managed VM:
 
-Carry forward H5/G10 unchanged: the separately authorized clean-machine and
-real-operation gate may begin only from the accepted installed-source baseline
-and only after explicit authorization names the host, VM, credential profile,
-artifact, profile, and intended mutation. Without that authorization, limit
-the successor to read-only planning and keep every real-operation lane
+1. Install and verify only the exact protected, accepted H5A source candidate.
+2. Use installed `inspect_host` and `inspect_vm` read-only.
+3. Require the same VM ID, ownership ID, recorded base path, active leaf,
+   verified chain fingerprint, checkpoint inventory, and current power state
+   expected by the separately retained operational evidence.
+4. Preserve the current power state. Do not plan or apply start or graceful
+   shutdown while `AutomaticCheckpointsEnabled` remains true or unavailable.
+5. Separately review one setting-only host change whose only effect is setting
+   `AutomaticCheckpointsEnabled` to false in the current power state. It must
+   not change disks, checkpoints, power, Notes, ownership state, or any other
+   VM setting.
+6. If that future change is explicitly authorized and succeeds, inspect again
+   and require the same chain fingerprint and checkpoint inventory, verified
+   ownership, the setting `false`, and
+   `automaticCheckpointRecoveryRequired: false` before any power plan.
+
+Any incomplete, cyclic, identity-missing, forged, unrelated, or changed chain
+is `OWNERSHIP_UNVERIFIED`; stop without mutation.
+
+## Safety boundary, unresolved work, and next gate
+
+`blockers[]`: none for completing and publishing H5A.
+
+H5A does not delete, remove, apply, rename, merge, restore, or adopt a
+checkpoint. It does not delete, reset, force-off, recreate, or reconfigure the
+existing VM or its disks. It does not edit ownership state by hand, use
+credentials, run arbitrary PowerShell Direct, or change permanent host access.
+
+Windows installation/OOBE, credential enrollment, `inspect_guest`, graceful
+shutdown, stock-Windows checkpoint creation, package/profile/WebDriver/UI
+testing, guest evidence, and clean-machine acceptance all remain
 `notPerformed`.
 
-1. Re-read `AGENTS.md`, this handoff, `docs/specification.md`, the operations
-   and security authorities, and the installed manifest before any action.
-2. Verify the H4 installed source OID, version, cachebuster, inventory,
-   marketplace row, and 20-tool discovery without reinstalling or creating a
-   second cachebuster.
-3. Preserve `v0.2.0`, all Releases, branch protection, and repository history.
-4. Do not reopen or merge superseded Dependabot PR #8/#9 after this CI gate is
-   fully accepted and they have been closed.
+The next gate is recovery-plan evidence review only. It begins after exact H5A
+installation and read-only inspection. It may propose the single setting-only
+change above, but must not execute it without separate explicit authorization
+after the exact old-to-new setting diff and preserved invariants are reviewed.
 
 `ownership.previousTask: read-only-after-relay`
 

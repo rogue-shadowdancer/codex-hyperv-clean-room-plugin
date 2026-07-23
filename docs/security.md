@@ -52,6 +52,26 @@ operation, and ownership ID. Missing or divergent data stops every mutation
 with `OWNERSHIP_UNVERIFIED`. Read-only inspection remains available for
 recovery diagnosis.
 
+The recorded VHDX path remains the owned base-disk identity. Hyper-V may attach
+an `.avhdx` leaf after an automatic checkpoint, but the plugin accepts that
+state only when it can read a complete bounded and acyclic differencing chain
+of local ordinary non-reparse files. Every member must have a Hyper-V disk
+identifier and size identity, every parent link must equal the next member,
+the terminal member must have no parent and must equal the recorded base path,
+and a canonical SHA-256 over stable member identities must agree. A chain that
+is incomplete, broken, cyclic, forged, or terminates at another base remains
+unverified. Recognition never rewrites the ownership record or marker and
+never adopts the active leaf.
+
+New managed VMs disable automatic checkpoints immediately after `New-VM`,
+before the ownership marker is published, and read the setting back as false.
+The plugin refuses guarded start and graceful-shutdown planning while the
+setting is true or unavailable because either power transition can change the
+differencing-disk lifecycle. Disabling the setting in the current power state
+is a separately authorized host configuration action; it is not hidden inside
+a power, checkpoint, guest, package, Notes, ownership-state, or other VM
+mutation.
+
 ### Power and network transition abuse
 
 Schema v2 permits only `Off -> Running` start and `Running -> Off` graceful

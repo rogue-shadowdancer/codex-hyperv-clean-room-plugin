@@ -6,7 +6,7 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: released 0.2.0 source; personal installation validated
+### Status: released 0.2.0 source; H5A ownership repair in validation
 
 Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,
 profile, evidence, plan, and credential contracts. The first public release
@@ -64,6 +64,16 @@ exactly 20 tools, passes read-only
 and reports zero real guest operations and zero real Hyper-V mutations. Real
 VM, credential, guest, package, portable, WebDriver, network, UI, manual, and
 clean-machine operations remain `notPerformed`.
+
+H5A preserves the immutable release and 20-tool surface while repairing the
+automatic-checkpoint ownership deadlock found during the first real VM setup.
+New VMs disable automatic checkpoints before ownership publication. Existing
+pre-fix VMs are recognized only when a complete identity-bearing `.avhdx`
+chain hashes consistently and terminates at the unchanged recorded base
+`.vhdx`; unrelated, broken, cyclic, incomplete, or forged chains still fail
+closed. The H5A personal candidate uses
+`0.2.0+codex.20260723113253`. The repair does not adopt or rewrite ownership,
+delete or merge a checkpoint, or authorize Windows OOBE/package/UI work.
 
 [![public-release-validation](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
@@ -150,7 +160,7 @@ checkpoint success.
 `hyperv-clean-room` 是一个仅面向 Windows 的 Codex plugin 设计，用于受保护的
 Hyper-V VM 操作、声明式 current-user package lifecycle 测试和结构化 evidence。
 
-### 状态：0.2.0 source 已发布；personal 安装已验收
+### 状态：0.2.0 source 已发布；H5A ownership 修复正在验收
 
 Gate 2 已依据冻结的 v1 cleanup、profile、evidence、plan 和 credential 合同实现
 PowerShell 5.1 MCP runtime。首个 public release 使用 plugin base version
@@ -201,6 +211,14 @@ installed-copy 验收只启动 personal copy，读回 runtime base version `0.2.
 operation 与 real Hyper-V mutation 均为零。真实 VM、credential、guest、package、
 portable、WebDriver、network、UI、manual 与 clean-machine operation 仍为
 `notPerformed`。
+
+H5A 保持不可变 release 与 20-tool surface 不变，并修复首次真实 VM setup 暴露的
+automatic-checkpoint ownership deadlock。新建 VM 会在发布 ownership 前禁用 automatic
+checkpoints。对既有 pre-fix VM，只有完整、带 identity 的 `.avhdx` chain 具有一致 hash，
+且终点仍是 ownership record 中未改变的 base `.vhdx` 时才会通过；不相关、断裂、循环、
+不完整或伪造 chain 继续 fail closed。H5A personal candidate 为
+`0.2.0+codex.20260723113253`。该修复不会 adopt 或重写 ownership，不会删除或 merge
+checkpoint，也不授权 Windows OOBE、package 或 UI 工作。
 
 JSON-RPC transport、common envelope、持久 ownership 与原子 plan guard、原生
 profile/evidence validation、mock-backed guest/test flow、evidence export 和交互式

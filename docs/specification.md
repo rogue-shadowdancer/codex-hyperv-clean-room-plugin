@@ -9,6 +9,16 @@ Gate 7 validation is mock/parser/static only. No real host, VM, checkpoint,
 credential, guest, package, portable, WebDriver, network, UI, installation,
 release, or clean-machine operation was executed or claimed.
 
+Gate H5A adds a backward-compatible repair for Hyper-V automatic checkpoints.
+Newly created managed VMs must disable automatic checkpoints before ownership
+publication and read the setting back as disabled. A pre-fix VM whose active
+disk is an `.avhdx` remains managed only when a complete, acyclic, bounded
+Hyper-V differencing chain has ordinary-file and VHD identities, its canonical
+identity SHA-256 is internally consistent, and its terminal base path equals
+the unchanged VHDX path in the existing ownership record. The plugin does not
+adopt the leaf, rewrite ownership state, or remove, merge, rename, or restore a
+checkpoint.
+
 ## Purpose and boundary
 
 The plugin provides typed MCP tools for Windows Hyper-V host inspection,
@@ -331,6 +341,28 @@ Treat disagreement, missing markers, renamed resources, or a VM ID mismatch as
 `OWNERSHIP_UNVERIFIED`. Read-only inspection may continue, but all mutations
 must stop.
 
+The state-record VHDX path identifies the managed base disk, not an arbitrary
+currently attached leaf. Direct attachment of that exact normalized path
+retains the original ownership behavior. When Hyper-V attaches a differencing
+leaf, ownership additionally requires a complete leaf-to-base chain whose
+members are local absolute ordinary non-reparse files with readable Hyper-V
+disk identifiers, virtual sizes, and physical identities. Parent paths must
+link each identity-bearing member to the next without cycles, the chain depth
+is bounded, the final parent is empty, the terminal path equals the recorded
+base VHDX path, and a SHA-256 over normalized path, parent path, disk
+identifier, and virtual size must match the snapshot's chain fingerprint.
+An incomplete, forged, cyclic, broken, or unrelated chain remains
+`OWNERSHIP_UNVERIFIED`.
+
+Recognizing a valid chain is read-only. It never edits the schema-v1 ownership
+record or Notes marker and never adopts the active `.avhdx` as the owned base.
+`inspect_vm` reports `directBase`, `verifiedDifferencingChain`, or `unverified`
+storage binding. A verified differencing chain with automatic checkpoints
+still enabled, or with the setting unavailable, reports a bounded recovery
+warning. Guarded start and graceful-shutdown planning are both rejected until
+that setting is explicitly verified as disabled because either power
+transition can change the differencing-disk lifecycle.
+
 Plans live for 15 minutes. A VM-creation plan records normalized ISO, VM, and
 VHDX paths; ISO identity; selected switch identity; target-volume identity,
 `availableBytes`, and `requiredBytes`; relevant resource absence; host
@@ -418,7 +450,8 @@ is public.
 - Optional inputs: `processorCount`, `startupMemoryGb`, `maximumMemoryGb`, and
   `diskSizeGb`.
 - Defaults: Generation 2, 4 processors, 8 GiB startup memory, 12 GiB maximum
-  dynamic memory, 100 GiB dynamic VHDX, Secure Boot, and vTPM.
+  dynamic memory, 100 GiB dynamic VHDX, Secure Boot, vTPM, and automatic
+  checkpoints disabled.
 - Return a plan conforming to `vm-plan.schema.json`; make no mutation.
 
 #### `apply_vm_create`
@@ -427,8 +460,10 @@ is public.
 - Atomically consume an existing plan on the first well-formed apply call,
   revalidate the full plan including the current target-volume identity and
   capacity rule, then create exactly the resources described by it.
-- Mark ownership only after the VM identity is known. Report partial state
-  without deleting it if a later step fails.
+- Disable automatic checkpoints immediately after `New-VM`, before ownership
+  publication, and require a fresh `Get-VM` readback to report the setting as
+  false. Mark ownership only after the VM identity is known. Report partial
+  state without deleting it if a later step fails.
 
 #### `plan_checkpoint_create`
 
@@ -978,3 +1013,34 @@ mutations. Gate 9 does not authorize credential enrollment, a real VM or
 checkpoint operation, guest/package/portable/WebDriver/network/UI execution,
 manual attestation, evidence collection, or clean-machine validation; all of
 those scopes remain `notPerformed`.
+
+## H5A automatic-checkpoint ownership repair boundary
+
+H5A preserves plugin base version `0.2.0`, exactly 20 tools, the exact 16-tool
+schema-v1 catalog, five schema-v1 files, seven schema-v2 files, and every public
+input schema. It changes only internal VM snapshot, ownership, fingerprint,
+creation, and recovery-planning behavior plus regression tests and operator
+guidance.
+
+Mock and static validation must prove:
+
+- future VM creation disables automatic checkpoints before Notes ownership is
+  published and fails closed unless the setting reads back as false;
+- a complete automatic-checkpoint `.avhdx -> ... -> recorded .vhdx` chain is
+  recognized without changing the existing ownership record;
+- broken links, cycles, missing identities, unrelated terminal disks, and
+  forged chain fingerprints remain unverified;
+- plan/apply adapter boundaries re-run ownership verification while still
+  binding the exact active leaf observed at planning time;
+- guarded start and graceful shutdown are unavailable while automatic
+  checkpoints are enabled or the setting is unavailable; a separately
+  reviewed setting-only recovery must disable automatic checkpoints in the
+  current power state first; and
+- all 20 tool names, v1/v2 schemas, plan consumption rules, guest behavior, and
+  public contracts remain backward compatible.
+
+Repair-gate validation does not delete, merge, rename, adopt, restore, or
+create a checkpoint and does not mutate the existing live VM. After exact
+source acceptance and installation, only read-only `inspect_host` and
+`inspect_vm` are permitted until a separately reviewed recovery plan is
+authorized.
