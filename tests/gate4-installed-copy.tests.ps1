@@ -122,9 +122,9 @@ try {
 finally {
     [Console]::InputEncoding = $originalConsoleInputEncoding
 }
-if (-not $process.WaitForExit(60000)) {
+if (-not $process.WaitForExit(180000)) {
     try { $process.Kill() } catch {}
-    throw 'Installed MCP server did not exit within 60 seconds.'
+    throw 'Installed MCP server did not exit within 180 seconds.'
 }
 $stdout = [string]$stdoutTask.Result
 $stderr = [string]$stderrTask.Result
