@@ -12,6 +12,16 @@ EXPECTED_LICENSE_SHA256 = (
     "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
 )
 EXPECTED_ACTION_PINS = {
+    "actions/checkout": {
+        "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "comment": "v7.0.1",
+    },
+    "actions/setup-python": {
+        "sha": "5fda3b95a4ea91299a34e894583c3862153e4b97",
+        "comment": "v7.0.0",
+    },
+}
+REJECTED_PREVIOUS_ACTION_PINS = {
     "actions/checkout": "df4cb1c069e1874edd31b4311f1884172cec0e10",
     "actions/setup-python": "ece7cb06caefa5fff74198d8649806c4678c61a1",
 }
@@ -50,6 +60,67 @@ def read_text(relative: str) -> str:
     if content.startswith(b"\xef\xbb\xbf"):
         raise AssertionError(f"UTF-8 BOM found: {relative}")
     return content.decode("utf-8", errors="strict")
+
+
+def validate_workflow_action_pins(workflow: str) -> None:
+    action_refs = list(
+        re.finditer(r"uses:\s*([^\s@]+)@([^\s#]+)", workflow)
+    )
+    for match in action_refs:
+        if not re.fullmatch(r"[0-9a-f]{40}", match.group(2)):
+            raise AssertionError(f"workflow action is not pinned: {match.group(1)}")
+
+    for action, expected in EXPECTED_ACTION_PINS.items():
+        exact_line = re.compile(
+            rf"(?m)^[ \t]*-[ \t]+uses:\s*{re.escape(action)}@"
+            rf"{re.escape(expected['sha'])}\s+#\s*"
+            rf"{re.escape(expected['comment'])}\s*$"
+        )
+        if len(exact_line.findall(workflow)) != 1:
+            raise AssertionError(
+                f"workflow pin or exact version comment is invalid: {action}"
+            )
+        matching_action_refs = [
+            match.group(2)
+            for match in action_refs
+            if match.group(1) == action
+        ]
+        if matching_action_refs != [expected["sha"]]:
+            raise AssertionError(
+                f"workflow must contain exactly one expected pin: {action}"
+            )
+
+
+def validate_workflow_action_pin_regressions(workflow: str) -> None:
+    for action, expected in EXPECTED_ACTION_PINS.items():
+        exact_fragment = (
+            f"{action}@{expected['sha']} # {expected['comment']}"
+        )
+        mutations = {
+            "previous SHA": (
+                f"{action}@{REJECTED_PREVIOUS_ACTION_PINS[action]} "
+                f"# {expected['comment']}"
+            ),
+            "incorrect version comment": (
+                f"{action}@{expected['sha']} # v6"
+            ),
+            "non-40-character ref": (
+                f"{action}@{expected['comment']} # {expected['comment']}"
+            ),
+        }
+        for scenario, replacement in mutations.items():
+            mutated = workflow.replace(exact_fragment, replacement, 1)
+            if mutated == workflow:
+                raise AssertionError(
+                    f"workflow regression fixture is missing: {action}"
+                )
+            try:
+                validate_workflow_action_pins(mutated)
+            except AssertionError:
+                continue
+            raise AssertionError(
+                f"workflow contract accepted {scenario}: {action}"
+            )
 
 
 def main() -> int:
@@ -128,13 +199,8 @@ def main() -> int:
     for fragment in required_workflow_fragments:
         if fragment not in workflow:
             raise AssertionError(f"workflow is missing: {fragment}")
-    for action, sha in EXPECTED_ACTION_PINS.items():
-        pattern = rf"uses:\s*{re.escape(action)}@{sha}\s+#\s*v6\b"
-        if not re.search(pattern, workflow):
-            raise AssertionError(f"workflow pin is missing or not commented: {action}")
-    for match in re.finditer(r"uses:\s*([^\s@]+)@([^\s#]+)", workflow):
-        if not re.fullmatch(r"[0-9a-f]{40}", match.group(2)):
-            raise AssertionError(f"workflow action is not pinned: {match.group(1)}")
+    validate_workflow_action_pins(workflow)
+    validate_workflow_action_pin_regressions(workflow)
 
     hygiene_source = read_text("tests/publication_hygiene_tests.py")
     for fragment in (
