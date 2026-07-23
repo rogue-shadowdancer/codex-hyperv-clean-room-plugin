@@ -947,3 +947,34 @@ H2 does not publish or install plugin `0.2.0` and does not perform real
 Hyper-V, credential, guest, package, portable, WebDriver, network, UI,
 clean-machine, or manual-attestation work. Those results remain
 `notPerformed` and belong to later, separately authorized gates.
+
+## Gate 8/H3 acceptance boundary
+
+Gate 8 publishes the reviewed source from protected-master commit
+`642f20d1d74a54ecbb08115b1a921ca65ef01fb8` as the immutable annotated
+`v0.2.0` tag and source-only GitHub Release. Authenticated and anonymous
+readback binds the tag object, peeled commit, Release flags, zero uploaded
+assets, GPL detection, strict UTF-8 source, and successful commit/tag CI. It
+does not install a cachebuster or perform any machine-backed operation.
+
+## Gate 9/H4 acceptance boundary
+
+Gate 9 creates exactly one release-derived personal build,
+`0.2.0+codex.20260722114845`, through the documented `plugin-creator` helper.
+The accepted source commit must be clean and differ from the immutable release
+plugin payload only by that single build-metadata suffix. The owned personal
+installation must contain exactly the 31 tracked plugin files plus its two
+installer control files, with matching relative paths, sizes, SHA-256 values,
+source commit, version, and cachebuster. Exactly one canonical personal
+marketplace entry must be present, and `codex plugin list` must report the
+plugin installed and enabled at that version.
+
+Installed-copy acceptance starts the MCP server only from the personal plugin
+directory, requires server identity/version `hyperv-clean-room` / `0.2.0`,
+discovers exactly 20 unique tools, executes read-only
+`inspect_host`, and requires a nonexistent ISO to fail with `INVALID_ISO`
+before mutation. It reports zero real guest operations and zero real Hyper-V
+mutations. Gate 9 does not authorize credential enrollment, a real VM or
+checkpoint operation, guest/package/portable/WebDriver/network/UI execution,
+manual attestation, evidence collection, or clean-machine validation; all of
+those scopes remain `notPerformed`.

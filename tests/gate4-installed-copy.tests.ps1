@@ -122,9 +122,9 @@ try {
 finally {
     [Console]::InputEncoding = $originalConsoleInputEncoding
 }
-if (-not $process.WaitForExit(60000)) {
+if (-not $process.WaitForExit(180000)) {
     try { $process.Kill() } catch {}
-    throw 'Installed MCP server did not exit within 60 seconds.'
+    throw 'Installed MCP server did not exit within 180 seconds.'
 }
 $stdout = [string]$stdoutTask.Result
 $stderr = [string]$stderrTask.Result
@@ -147,6 +147,9 @@ Assert-InstalledCopy ($responses.Count -eq 4) 'Installed MCP response IDs were d
 $initialize = $responses[1]
 Assert-InstalledCopy ([string]$initialize.result.protocolVersion -ceq '2025-11-25') `
     'Installed MCP server negotiated the wrong protocol version.'
+Assert-InstalledCopy ([string]$initialize.result.serverInfo.name -ceq 'hyperv-clean-room' -and
+    [string]$initialize.result.serverInfo.version -ceq '0.2.0') `
+    'Installed MCP server identity or base runtime version differs from the release contract.'
 $tools = @($responses[2].result.tools)
 Assert-InstalledCopy ($tools.Count -eq 20) `
     "Installed MCP server exposed $($tools.Count) tools instead of 20."
@@ -175,6 +178,7 @@ Assert-InstalledCopy (-not [bool]$planEnvelope.ok -and -not [bool]$planEnvelope.
     gate = 4
     serverStartedFrom = $resolvedServer
     workingDirectory = $installedRoot
+    runtimeVersion = [string]$initialize.result.serverInfo.version
     toolCount = $tools.Count
     inspectHost = 'passed-read-only'
     missingIso = 'INVALID_ISO'

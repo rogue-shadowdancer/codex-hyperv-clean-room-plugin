@@ -2,12 +2,13 @@
 
 ## Current operating status
 
-Gate 4 provides an ownership-marked personal install and cachebuster-reinstall
-workflow for the Gate 2 MCP runtime. Final acceptance also requires the clean
-commit/reinstall state recorded in `TASK_HANDOFF.md`. Automated runtime
+Gate 9/H4 applies the ownership-marked personal install and cachebuster-reinstall
+workflow to the integrated plugin `0.2.0` runtime. Final acceptance requires the
+clean commit/reinstall state recorded in `TASK_HANDOFF.md`. Automated runtime
 acceptance still uses mock adapters and static seams for guest behavior. The
 installed-copy smoke starts only from `%USERPROFILE%\plugins\hyperv-clean-room`
-and performs read-only `inspect_host` plus a missing-ISO rejection. It does not
+and discovers exactly 20 tools, performs read-only `inspect_host`, and exercises
+only a missing-ISO rejection before mutation. It does not
 authorize or prove a real Hyper-V mutation, real credential enrollment, guest
 transfer, package lifecycle, or clean-machine result.
 
@@ -76,8 +77,8 @@ After preparation, the complete Gate 2 validation has no arguments:
 .\scripts\validate-gate2.ps1
 ```
 
-After personal installation and one cachebuster rehearsal, run the complete
-Gate 4 validation:
+After the single personal cachebuster installation, run the complete Gate 9/H4
+installed-copy validation (the historical script name is retained):
 
 ```powershell
 .\scripts\validate-gate4.ps1

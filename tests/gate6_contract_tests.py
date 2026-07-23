@@ -812,8 +812,14 @@ def assert_contract_metadata(catalog: dict[str, Any]) -> None:
     }:
         raise AssertionError("tool catalog schema dispatch is not exact and fail closed")
     manifest = load_json(PLUGIN_MANIFEST_PATH)
-    if manifest["version"] != "0.2.0":
-        raise AssertionError("H2 did not set the exact plugin runtime version")
+    if not re.fullmatch(
+        r"0\.2\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?",
+        str(manifest["version"]),
+    ):
+        raise AssertionError(
+            "the integrated manifest must preserve base 0.2.0 with at most "
+            "one Codex cachebuster"
+        )
 
 
 def assert_v1_compatibility(catalog: dict[str, Any]) -> tuple[int, int]:

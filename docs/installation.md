@@ -2,8 +2,10 @@
 
 ## Proven boundary
 
-Gate 4 validates a local personal installation of `hyperv-clean-room` on
-Windows. It copies the reviewed plugin payload to
+Gate 4 established the local personal-install mechanism for the 16-tool v1
+runtime. Gate 9/H4 applies that same fail-closed mechanism exactly once to the
+immutable-release-derived plugin `0.2.0` source. It copies the reviewed plugin
+payload to
 `%USERPROFILE%\plugins\hyperv-clean-room`, creates or updates exactly one entry
 in the default personal marketplace through the `plugin-creator` helper, and
 runs:
@@ -13,7 +15,8 @@ codex plugin add hyperv-clean-room@personal
 ```
 
 The installed MCP server is then started from the installed directory, not the
-repository. Acceptance requires exactly 16 tools, a successful read-only
+repository. Current acceptance requires server identity/version
+`hyperv-clean-room` / `0.2.0`, exactly 20 tools, a successful read-only
 `inspect_host`, and an `INVALID_ISO` rejection before mutation. This proves
 local installation, marketplace visibility, and cache pickup only. It does not
 prove a real VM or checkpoint mutation, credential enrollment, PowerShell
@@ -45,10 +48,10 @@ Validation rejects reparse points, untracked or missing payload files,
 reserved install-state files, forbidden VM/credential/evidence file types,
 unsafe relative paths, oversized files, an unexpected manifest name or path,
 and any version outside base `0.2.0` with at most one
-`+codex.<cachebuster>` suffix. The Gate 7 source payload contains exactly 31
-Git-tracked ordinary files: five public schema-v1 files and seven schema-v2
-files are included. H2 did not install this payload; installation acceptance
-belongs to a later gate.
+`+codex.<cachebuster>` suffix. The integrated source payload contains exactly
+31 Git-tracked ordinary files: five public schema-v1 files and seven schema-v2
+files are included. Gate 9/H4 uses the single build
+`0.2.0+codex.20260722114845`; the immutable `v0.2.0` tag remains unchanged.
 
 ## Install the personal copy
 
@@ -116,10 +119,10 @@ The JSON report includes:
 - `marketplaceError` — the bounded marketplace/CLI visibility reason, or
   `null`.
 
-Gate 4 is acceptable only when all four booleans are `true`, the marketplace
+Gate 9/H4 is acceptable only when all four booleans are `true`, the marketplace
 entry count is one, and every paired metadata field matches.
 
-Run the complete acceptance suite with:
+Run the complete acceptance suite, whose historical name is retained, with:
 
 ```powershell
 .\scripts\validate-gate4.ps1
