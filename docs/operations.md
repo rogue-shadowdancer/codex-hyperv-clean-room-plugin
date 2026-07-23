@@ -12,6 +12,14 @@ only a missing-ISO rejection before mutation. It does not
 authorize or prove a real Hyper-V mutation, real credential enrollment, guest
 transfer, package lifecycle, or clean-machine result.
 
+H5A repairs the automatic-checkpoint ownership deadlock without changing the
+20-tool surface. Future VM creation disables automatic checkpoints before
+ownership publication and verifies the setting by readback. For a pre-fix
+managed VM, `inspect_vm` may verify an active differencing leaf only when its
+complete identity-bearing chain terminates at the unchanged recorded base
+VHDX. Recognition is read-only: it never adopts the leaf, rewrites state, or
+changes a checkpoint.
+
 Do not infer operational readiness from a green mock run. Real use requires a
 separately approved host, owned VM, credential profile, artifact, profile, and
 mutation scope. Gate 2 validation itself performs only real `inspect_host` and
@@ -159,8 +167,49 @@ to retry the same plan; create a new plan.
 
 Apply creates only the declared Generation 2 VM, dynamic VHDX, memory/CPU
 settings, Secure Boot, DVD attachment, local key protector, vTPM, switch
-connection, and ownership Notes marker. If a later step fails, partial
-resources are preserved and reported. The plugin provides no deletion command.
+connection, automatic-checkpoint disablement, and ownership Notes marker. It
+disables automatic checkpoints immediately after `New-VM` and requires a fresh
+readback to report false before final ownership publication succeeds. If a
+later step fails, partial resources are preserved and reported. The plugin
+provides no deletion command.
+
+## Pre-fix automatic-checkpoint recovery
+
+Start with the exact accepted installed candidate and use `inspect_host`, then
+`inspect_vm`. A recoverable pre-fix VM must report:
+
+- `ownership.verified: true`;
+- `ownership.storageBinding: verifiedDifferencingChain`;
+- the unchanged recorded base VHDX path;
+- the currently attached differencing leaf and a lowercase 64-character chain
+  fingerprint;
+- `automaticCheckpointRecoveryRequired: true` while automatic checkpoints are
+  enabled or their setting is unavailable.
+
+The chain is accepted only when every local ordinary VHD/AVHDX member has a
+readable Hyper-V disk identity, parent links are exact and acyclic, and the
+terminal path is the recorded base. Do not edit the ownership record or Notes,
+adopt the active leaf, or delete, merge, rename, restore, or recreate a
+checkpoint.
+
+Recovery is a separate mutation review:
+
+1. Preserve the current VM power state. Do not plan or apply either start or
+   graceful shutdown while automatic checkpoints remain enabled or the setting
+   is unavailable because either transition can change the differencing-disk
+   lifecycle.
+2. Because the 20-tool contract has no arbitrary VM-setting tool, separately
+   approve one host configuration change whose only effect is disabling
+   `AutomaticCheckpointsEnabled` in the current power state. It must not change
+   power, disk attachment, checkpoint inventory, Notes, VM identity, ownership
+   state, or any other VM setting.
+3. Inspect again. Require automatic checkpoints false, ownership still
+   verified, the same active chain fingerprint and checkpoint inventory, and
+   `automaticCheckpointRecoveryRequired: false`.
+4. Only then prepare the ordinary guarded power plan appropriate to the
+   operational goal.
+
+H5A itself performs none of these recovery mutations.
 
 ## Checkpoint create and restore
 

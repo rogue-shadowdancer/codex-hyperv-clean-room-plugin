@@ -23,6 +23,8 @@ function Get-HcrVmFingerprint {
         notes = [string](Get-HcrPropertyValue $Vm 'notes')
         vmPath = [string](Get-HcrPropertyValue $Vm 'vmPath')
         vhdxPath = [string](Get-HcrPropertyValue $Vm 'vhdxPath')
+        vhdxChainFingerprint = [string](Get-HcrPropertyValue $Vm 'vhdxChainFingerprint')
+        automaticCheckpointsEnabled = Get-HcrPropertyValue $Vm 'automaticCheckpointsEnabled'
         processorCount = Get-HcrPropertyValue $Vm 'processorCount'
         startupMemoryGb = Get-HcrPropertyValue $Vm 'startupMemoryGb'
         maximumMemoryGb = Get-HcrPropertyValue $Vm 'maximumMemoryGb'
@@ -61,6 +63,120 @@ function Get-HcrCurrentStateFingerprint {
     return Get-HcrSha256Text (ConvertTo-HcrJson $state 10)
 }
 
+function Get-HcrVhdChainFingerprint {
+    param([Parameter(Mandatory = $true)][object[]]$Chain)
+
+    $identity = @($Chain | ForEach-Object {
+        $path = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $_ 'path'))
+        $parentPath = [string](Get-HcrPropertyValue $_ 'parentPath')
+        [ordered]@{
+            path = $path.ToLowerInvariant()
+            parentPath = if ([string]::IsNullOrWhiteSpace($parentPath)) {
+                $null
+            }
+            else {
+                (Get-HcrNormalizedPath $parentPath).ToLowerInvariant()
+            }
+            diskIdentifier = ([string](Get-HcrPropertyValue $_ 'diskIdentifier')).ToLowerInvariant()
+            virtualSize = [int64](Get-HcrPropertyValue $_ 'virtualSize')
+        }
+    })
+    return Get-HcrSha256Text (ConvertTo-HcrJson $identity 30)
+}
+
+function Get-HcrVmStorageOwnershipBinding {
+    param(
+        [Parameter(Mandatory = $true)][object]$Vm,
+        [Parameter(Mandatory = $true)][string]$RecordedVhdxPath
+    )
+
+    $unverified = [pscustomobject][ordered]@{
+        verified = $false
+        mode = 'unverified'
+        recordedBaseVhdxPath = $RecordedVhdxPath
+        activeVhdxPath = [string](Get-HcrPropertyValue $Vm 'vhdxPath')
+        chainFingerprint = $null
+    }
+    try {
+        $recordedBase = Get-HcrNormalizedPath $RecordedVhdxPath
+        $activePath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Vm 'vhdxPath'))
+        if ($recordedBase -eq $activePath) {
+            return [pscustomobject][ordered]@{
+                verified = $true
+                mode = 'directBase'
+                recordedBaseVhdxPath = $recordedBase
+                activeVhdxPath = $activePath
+                chainFingerprint = $null
+            }
+        }
+
+        if (-not [bool](Get-HcrPropertyValue $Vm 'vhdxChainVerified' $false)) {
+            return $unverified
+        }
+        $basePath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Vm 'baseVhdxPath'))
+        $chain = @((Get-HcrPropertyValue $Vm 'vhdxChain' @()))
+        if ($basePath -ne $recordedBase -or
+            $chain.Count -lt 2 -or
+            $chain.Count -gt 64) {
+            return $unverified
+        }
+
+        $seen = @{}
+        for ($index = 0; $index -lt $chain.Count; $index++) {
+            $entry = $chain[$index]
+            $entryPath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $entry 'path'))
+            $key = $entryPath.ToLowerInvariant()
+            if ($seen.ContainsKey($key)) { return $unverified }
+            $seen[$key] = $true
+
+            $diskIdentifier = [string](Get-HcrPropertyValue $entry 'diskIdentifier')
+            $parsedDiskIdentifier = [Guid]::Empty
+            if (-not [Guid]::TryParse($diskIdentifier, [ref]$parsedDiskIdentifier) -or
+                $parsedDiskIdentifier -eq [Guid]::Empty -or
+                $null -eq (Get-HcrPropertyValue $entry 'virtualSize') -or
+                [int64](Get-HcrPropertyValue $entry 'virtualSize') -lt 1 -or
+                $null -eq (Get-HcrPropertyValue $entry 'physicalFileSize') -or
+                [int64](Get-HcrPropertyValue $entry 'physicalFileSize') -lt 1 -or
+                $null -eq (Get-HcrPropertyValue $entry 'fileLength') -or
+                [int64](Get-HcrPropertyValue $entry 'fileLength') -lt 1) {
+                return $unverified
+            }
+
+            $parentPath = [string](Get-HcrPropertyValue $entry 'parentPath')
+            if ($index -lt ($chain.Count - 1)) {
+                if ([string]::IsNullOrWhiteSpace($parentPath)) { return $unverified }
+                $nextPath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $chain[$index + 1] 'path'))
+                if ((Get-HcrNormalizedPath $parentPath) -ne $nextPath) { return $unverified }
+            }
+            elseif (-not [string]::IsNullOrWhiteSpace($parentPath)) {
+                return $unverified
+            }
+        }
+
+        if ((Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $chain[0] 'path'))) -ne $activePath -or
+            (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $chain[$chain.Count - 1] 'path'))) -ne
+                $recordedBase) {
+            return $unverified
+        }
+        $storedFingerprint = [string](Get-HcrPropertyValue $Vm 'vhdxChainFingerprint')
+        $computedFingerprint = Get-HcrVhdChainFingerprint $chain
+        if ($storedFingerprint -notmatch '^[a-f0-9]{64}$' -or
+            $computedFingerprint -cne $storedFingerprint) {
+            return $unverified
+        }
+        return [pscustomobject][ordered]@{
+            verified = $true
+            mode = 'verifiedDifferencingChain'
+            recordedBaseVhdxPath = $recordedBase
+            activeVhdxPath = $activePath
+            chainFingerprint = $computedFingerprint
+        }
+    }
+    catch {
+        return $unverified
+    }
+}
+
 function Get-HcrCheckpointFingerprint {
     param([Parameter(Mandatory = $true)][object]$Checkpoint)
 
@@ -89,10 +205,24 @@ function Get-HcrOwnershipStatus {
             verified = $false
             status = 'unmanaged'
             record = $null
+            storageBinding = [pscustomobject][ordered]@{
+                verified = $false
+                mode = 'unverified'
+                recordedBaseVhdxPath = $null
+                activeVhdxPath = [string](Get-HcrPropertyValue $Vm 'vhdxPath')
+                chainFingerprint = $null
+            }
         }
     }
     $ownershipId = [string](Get-HcrPropertyValue $record 'ownershipId')
     $marker = "hyperv-clean-room/v1:$ownershipId"
+    $storageBinding = [pscustomobject][ordered]@{
+        verified = $false
+        mode = 'unverified'
+        recordedBaseVhdxPath = [string](Get-HcrPropertyValue $record 'vhdxPath')
+        activeVhdxPath = [string](Get-HcrPropertyValue $Vm 'vhdxPath')
+        chainFingerprint = $null
+    }
     $verified = (
         [string](Get-HcrPropertyValue $record 'vmId') -eq $vmId -and
         [string](Get-HcrPropertyValue $record 'vmName') -eq [string](Get-HcrPropertyValue $Vm 'name') -and
@@ -104,10 +234,10 @@ function Get-HcrOwnershipStatus {
             $recordVmPath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $record 'vmPath'))
             $recordVhdxPath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $record 'vhdxPath'))
             $liveVmPath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Vm 'vmPath'))
-            $liveVhdxPath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Vm 'vhdxPath'))
+            $storageBinding = Get-HcrVmStorageOwnershipBinding $Vm $recordVhdxPath
             $verified = $recordVmRoot -eq (Get-HcrNormalizedPath (Split-Path -Parent $recordVmPath)) -and
                 $recordVmPath -eq $liveVmPath -and
-                $recordVhdxPath -eq $liveVhdxPath
+                [bool]$storageBinding.verified
         }
         catch {
             $verified = $false
@@ -117,6 +247,7 @@ function Get-HcrOwnershipStatus {
         verified = $verified
         status = if ($verified) { 'verified' } else { 'OWNERSHIP_UNVERIFIED' }
         record = $record
+        storageBinding = $storageBinding
     }
 }
 
@@ -281,6 +412,11 @@ function Invoke-HcrInspectVm {
     $vm = Invoke-HcrAdapter 'GetVm' ([pscustomobject]@{ name = [string](Get-HcrPropertyValue $Arguments 'vmName') })
     if ($null -eq $vm) { Throw-HcrError 'VM_NOT_FOUND' 'The requested VM does not exist.' }
     $ownership = Get-HcrOwnershipStatus $vm
+    $automaticCheckpointSetting = Get-HcrPropertyValue $vm 'automaticCheckpointsEnabled'
+    $automaticCheckpointsDisabled = (
+        $automaticCheckpointSetting -is [bool] -and
+        -not [bool]$automaticCheckpointSetting
+    )
     return [pscustomobject][ordered]@{
         changed = $false
         data = [pscustomobject][ordered]@{
@@ -289,9 +425,23 @@ function Invoke-HcrInspectVm {
                 verified = [bool]$ownership.verified
                 status = [string]$ownership.status
                 ownershipId = if ($null -eq $ownership.record) { $null } else { [string](Get-HcrPropertyValue $ownership.record 'ownershipId') }
+                storageBinding = [string](Get-HcrPropertyValue $ownership.storageBinding 'mode' 'unverified')
+                recordedBaseVhdxPath = Get-HcrPropertyValue $ownership.storageBinding 'recordedBaseVhdxPath'
+                activeVhdxPath = Get-HcrPropertyValue $ownership.storageBinding 'activeVhdxPath'
+                vhdxChainFingerprint = Get-HcrPropertyValue $ownership.storageBinding 'chainFingerprint'
+                automaticCheckpointRecoveryRequired = (
+                    [bool]$ownership.verified -and
+                    -not $automaticCheckpointsDisabled
+                )
             }
         }
-        warnings = @()
+        warnings = if (
+            [bool]$ownership.verified -and
+            -not $automaticCheckpointsDisabled
+        ) {
+            @('Automatic checkpoints are enabled or unavailable on this managed VM. Review and disable that setting before a future power transition; the plugin will not adopt or rewrite the current differencing chain.')
+        }
+        else { @() }
     }
 }
 
@@ -527,6 +677,10 @@ function Invoke-HcrApplyVmCreate {
         $expectedMarker = "hyperv-clean-room/v1:$ownershipId"
         if ([string](Get-HcrPropertyValue $vm 'notes') -ne $expectedMarker) {
             Throw-HcrError 'VM_CREATE_FAILED' 'The created VM does not carry the ownership marker.'
+        }
+        if ((Get-HcrPropertyValue $vm 'automaticCheckpointsEnabled') -isnot [bool] -or
+            [bool](Get-HcrPropertyValue $vm 'automaticCheckpointsEnabled')) {
+            Throw-HcrError 'VM_CREATE_FAILED' 'The created VM did not verify automatic checkpoints as disabled.'
         }
         $ownership = [pscustomobject][ordered]@{
             schemaVersion = 1

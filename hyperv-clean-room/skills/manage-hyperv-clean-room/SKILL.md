@@ -30,6 +30,8 @@ clean-room, guest, portable, driver, network, or UI run.
    `[]` when empty), globally unique execution/assertion IDs, declared
    applications, safe relative paths, and the bounded cleanup budget.
 3. Use `plan_vm_create` before `apply_vm_create`.
+   New creation must return `automaticCheckpointsEnabled: false`; stop if that
+   readback is missing or true.
 4. Use `plan_checkpoint_create` before `apply_checkpoint_create`. Use
    `plan_checkpoint_restore` before `apply_checkpoint_restore`; require the
    exact checkpoint name and confirmation token returned by the restore plan.
@@ -106,6 +108,12 @@ After H2 exposes schema v2, extend the same workflow as follows:
   Never substitute an arbitrary command, script, shell, URL, download, raw
   uninstall string, or caller-selected argument list.
 - Do not modify a VM unless the plugin reports it as plugin-managed.
+- For a pre-fix automatic-checkpoint VM, accept ownership only when
+  `inspect_vm` reports `verifiedDifferencingChain` to the unchanged recorded
+  base. Never adopt the `.avhdx` leaf or edit ownership state. If automatic
+  checkpoints remain enabled or the setting is unavailable, do not start or
+  stop the VM: preserve its current power state, separately review a
+  setting-only recovery, then inspect again.
 - Do not turn `notPerformed` or `unsupported` into `passed`.
 - Cleanup begins only after execution starts and a required assertion, action,
   timeout, or guest-adapter failure occurs. An optional assertion failure is

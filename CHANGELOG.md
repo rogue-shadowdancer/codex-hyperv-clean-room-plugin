@@ -4,10 +4,21 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
-## Unreleased - CI-only maintenance
+## Unreleased - Automatic-checkpoint ownership repair
 
 ### Changed
 
+- Disable automatic checkpoints immediately after `New-VM`, before ownership
+  publication, and require a fresh Hyper-V readback to report the setting as
+  false.
+- Recognize an existing automatic-checkpoint differencing leaf only through a
+  complete, bounded, acyclic, identity-bearing chain whose canonical SHA-256
+  terminates at the unchanged recorded base VHDX path.
+- Report the storage-binding mode and bounded recovery state from `inspect_vm`
+  and reject guarded start and graceful-shutdown planning until automatic
+  checkpoints are verified disabled.
+- Keep adapter mutation boundaries bound to the exact active leaf while
+  independently re-verifying the unchanged ownership record and base chain.
 - Pin `actions/checkout` v7.0.1 and `actions/setup-python` v7.0.0 to their
   verified full 40-character commit SHAs in the public-release workflow.
 - Bind each required GitHub Action to its exact SHA and exact version comment
@@ -16,13 +27,17 @@ the local plugin cache.
 
 ### Safety and release boundary
 
-- This is CI-only maintenance. It changes no plugin runtime, MCP schema/tool,
-  Windows PowerShell behavior, installation payload, plugin version, tag, or
-  GitHub Release.
-- The immutable `v0.2.0` tag/Release and the installed
-  `0.2.0+codex.20260722114845` personal build remain untouched. No real VM,
-  VHDX, checkpoint, guest, credential, package, portable, WebDriver, UI, or
-  clean-machine operation is performed; those lanes remain `notPerformed`.
+- Plugin base version remains `0.2.0`; exactly 20 tools, all public tool input
+  schemas, five schema-v1 files, seven schema-v2 files, and the immutable
+  `v0.2.0` tag/Release remain unchanged.
+- The repair uses one new personal cachebuster,
+  `0.2.0+codex.20260723113253`. The repair logic never adopts an `.avhdx` leaf
+  or rewrites ownership.
+- Regression validation is mock/parser/static. H5A does not delete, merge,
+  rename, restore, or create a checkpoint and performs no live VM recovery
+  mutation, credential, guest, package, portable, WebDriver, UI, or
+  clean-machine operation; those lanes remain separately authorized or
+  `notPerformed`.
 
 ## 0.2.0 - Source release - 2026-07-22
 

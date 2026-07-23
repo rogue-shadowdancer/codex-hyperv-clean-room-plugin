@@ -567,6 +567,216 @@ Assert-ErrorCode $vmReplay 'PLAN_ALREADY_CONSUMED' 'VM plan replay was accepted.
 
 $mock = Read-HcrMockAdapterState
 $ownershipId = [string]$vmApply.data.ownershipId
+Assert-True ($mock.vms[0].automaticCheckpointsEnabled -is [bool] -and
+    -not [bool]$mock.vms[0].automaticCheckpointsEnabled) `
+    'A newly created VM did not verify automatic checkpoints as disabled.'
+$originalOwnedVm = Copy-HcrObject $mock.vms[0]
+$recordedBasePath = [string]$mock.vms[0].vhdxPath
+$automaticLeafPath = Join-Path ([string]$mock.vms[0].vmPath) `
+    'cleanroom-test_A1B2C3D4-E5F6-47A8-9012-3456789ABCDE.avhdx'
+$automaticChain = @(
+    [pscustomobject][ordered]@{
+        path = $automaticLeafPath
+        fileLength = 8388608
+        diskIdentifier = [Guid]::NewGuid().ToString()
+        virtualSize = 40GB
+        physicalFileSize = 8388608
+        parentPath = $recordedBasePath
+    }
+    [pscustomobject][ordered]@{
+        path = $recordedBasePath
+        fileLength = 4194304
+        diskIdentifier = [Guid]::NewGuid().ToString()
+        virtualSize = 40GB
+        physicalFileSize = 4194304
+        parentPath = $null
+    }
+)
+$mock.vms[0].vhdxPath = $automaticLeafPath
+$mock.vms[0].baseVhdxPath = $recordedBasePath
+$mock.vms[0].vhdxChain = $automaticChain
+$mock.vms[0].vhdxChainVerified = $true
+$mock.vms[0].vhdxChainFingerprint = Get-HcrVhdChainFingerprint $automaticChain
+$mock.vms[0].automaticCheckpointsEnabled = $true
+$mock.vms[0].checkpoints = @([pscustomobject][ordered]@{
+    id = [Guid]::NewGuid().ToString()
+    name = 'Automatic Checkpoint - cleanroom-test'
+    parentId = $null
+    configurationFingerprint = Get-HcrSha256Text 'automatic-checkpoint'
+    createdAt = [DateTimeOffset]::UtcNow.ToString('o')
+})
+Write-HcrMockAdapterState $mock
+$ownershipRecordPath = Get-HcrStateSubpath 'ownership' `
+    "$((Get-HcrRecordKey ([string]$mock.vms[0].id))).json"
+$ownershipRecordHash = Get-HcrSha256File $ownershipRecordPath
+$automaticChainInspect = Invoke-TestTool 'inspect_vm' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+})
+Assert-True $automaticChainInspect.ok 'The automatic-checkpoint VM could not be inspected.'
+Assert-True ([bool]$automaticChainInspect.data.ownership.verified) `
+    'A complete automatic-checkpoint chain ending at the recorded base was not ownership verified.'
+Assert-Equal ([string]$automaticChainInspect.data.ownership.storageBinding) `
+    'verifiedDifferencingChain' `
+    'The automatic-checkpoint chain did not report its verified storage-binding mode.'
+Assert-True ([bool]$automaticChainInspect.data.ownership.automaticCheckpointRecoveryRequired) `
+    'The pre-fix VM did not report that automatic-checkpoint recovery is still required.'
+Assert-True (@($automaticChainInspect.warnings | Where-Object {
+    $_ -match 'Automatic checkpoints are enabled or unavailable'
+}).Count -eq 1) `
+    'The pre-fix VM inspection did not return its bounded automatic-checkpoint warning.'
+Assert-Equal (Get-HcrSha256File $ownershipRecordPath) $ownershipRecordHash `
+    'Read-only differencing-chain recognition rewrote the existing ownership record.'
+
+$automaticChainCheckpointPlan = Invoke-TestTool 'plan_checkpoint_create' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+    checkpointName = 'chain-verified-plan'
+})
+Assert-True $automaticChainCheckpointPlan.ok `
+    'A verified automatic-checkpoint chain remained deadlocked at read-only mutation planning.'
+$mock = Read-HcrMockAdapterState
+$mock | Add-Member `
+    -NotePropertyName dispatchOwnershipDrift `
+    -NotePropertyValue 'chainFingerprint' `
+    -Force
+Write-HcrMockAdapterState $mock
+$automaticChainDispatchApply = Invoke-TestTool 'apply_checkpoint_create' ([pscustomobject]@{
+    planId = [string]$automaticChainCheckpointPlan.data.plan.planId
+})
+Assert-ErrorCode $automaticChainDispatchApply 'VM_IDENTITY_DRIFT' `
+    'A chain fingerprint forged at the ordinary adapter dispatch boundary was accepted.'
+$mock = Read-HcrMockAdapterState
+$mock.vms[0].vhdxChain = @($automaticChain | ForEach-Object { Copy-HcrObject $_ })
+$mock.vms[0].vhdxChainFingerprint = Get-HcrVhdChainFingerprint @($mock.vms[0].vhdxChain)
+Write-HcrMockAdapterState $mock
+
+$mock = Read-HcrMockAdapterState
+$mock.vms[0].state = 'Running'
+Write-HcrMockAdapterState $mock
+$automaticChainShutdownPlan = Invoke-HcrToolCall 'plan_vm_power' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+    action = 'gracefulShutdown'
+})
+Assert-Equal ([int]$automaticChainShutdownPlan.schemaVersion) 2 `
+    'The rejected automatic-checkpoint shutdown did not use the schema-v2 envelope.'
+Assert-ErrorCode $automaticChainShutdownPlan 'VM_STATE_UNSUPPORTED' `
+    'A running managed VM with automatic checkpoints enabled was allowed to prepare shutdown.'
+$mock = Read-HcrMockAdapterState
+$mock.vms[0].state = 'Off'
+Write-HcrMockAdapterState $mock
+$unsafeAutomaticStart = Invoke-HcrToolCall 'plan_vm_power' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+    action = 'start'
+})
+Assert-Equal ([int]$unsafeAutomaticStart.schemaVersion) 2 `
+    'The rejected automatic-checkpoint start did not use the schema-v2 envelope.'
+Assert-ErrorCode $unsafeAutomaticStart 'VM_STATE_UNSUPPORTED' `
+    'A managed VM with automatic checkpoints enabled was allowed to prepare a start.'
+
+$mock = Read-HcrMockAdapterState
+$mock.vms[0].vhdxChain[0].parentPath = Join-Path ([string]$mock.vms[0].vmPath) `
+    'unrelated-parent.vhdx'
+$mock.vms[0].vhdxChainFingerprint = Get-HcrVhdChainFingerprint @($mock.vms[0].vhdxChain)
+Write-HcrMockAdapterState $mock
+$brokenLinkInspect = Invoke-TestTool 'inspect_vm' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+})
+Assert-True (-not [bool]$brokenLinkInspect.data.ownership.verified) `
+    'A chain whose parent link did not match the next identity-bearing member was accepted.'
+
+$mock = Read-HcrMockAdapterState
+$unrelatedBasePath = Join-Path ([string]$mock.vms[0].vmPath) 'unrelated-base.vhdx'
+$mock.vms[0].vhdxChain[0].parentPath = $unrelatedBasePath
+$mock.vms[0].vhdxChain[1].path = $unrelatedBasePath
+$mock.vms[0].baseVhdxPath = $unrelatedBasePath
+$mock.vms[0].vhdxChainFingerprint = Get-HcrVhdChainFingerprint @($mock.vms[0].vhdxChain)
+Write-HcrMockAdapterState $mock
+$unrelatedChainInspect = Invoke-TestTool 'inspect_vm' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+})
+Assert-True (-not [bool]$unrelatedChainInspect.data.ownership.verified) `
+    'An internally consistent chain ending at an unrelated base VHDX was accepted.'
+
+$mock = Read-HcrMockAdapterState
+$mock.vms[0].vhdxChain = $automaticChain
+$mock.vms[0].baseVhdxPath = $recordedBasePath
+$mock.vms[0].vhdxChainFingerprint = ('0' * 64)
+Write-HcrMockAdapterState $mock
+$forgedChainHashInspect = Invoke-TestTool 'inspect_vm' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+})
+Assert-True (-not [bool]$forgedChainHashInspect.data.ownership.verified) `
+    'A differencing chain with a forged identity fingerprint was accepted.'
+
+$mock = Read-HcrMockAdapterState
+$cycleChain = @($automaticChain | ForEach-Object { Copy-HcrObject $_ })
+$cycleChain[$cycleChain.Count - 1].parentPath = $automaticLeafPath
+$mock.vms[0].vhdxChain = $cycleChain
+$mock.vms[0].vhdxChainFingerprint = Get-HcrVhdChainFingerprint @($cycleChain)
+Write-HcrMockAdapterState $mock
+$cycleChainInspect = Invoke-TestTool 'inspect_vm' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+})
+Assert-True (-not [bool]$cycleChainInspect.data.ownership.verified) `
+    'A differencing chain whose terminal member linked back to the active leaf was accepted.'
+
+$mock = Read-HcrMockAdapterState
+$missingIdentityChain = @($automaticChain | ForEach-Object { Copy-HcrObject $_ })
+$missingIdentityChain[0].diskIdentifier = $null
+$mock.vms[0].vhdxChain = $missingIdentityChain
+$mock.vms[0].vhdxChainFingerprint = Get-HcrVhdChainFingerprint @($missingIdentityChain)
+Write-HcrMockAdapterState $mock
+$missingIdentityInspect = Invoke-TestTool 'inspect_vm' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+})
+Assert-True (-not [bool]$missingIdentityInspect.data.ownership.verified) `
+    'A differencing chain member without a Hyper-V disk identity was accepted.'
+
+$mock = Read-HcrMockAdapterState
+$overlongChain = @()
+for ($chainIndex = 0; $chainIndex -lt 65; $chainIndex++) {
+    $chainPath = if ($chainIndex -eq 0) {
+        $automaticLeafPath
+    }
+    elseif ($chainIndex -eq 64) {
+        $recordedBasePath
+    }
+    else {
+        Join-Path ([string]$mock.vms[0].vmPath) ("chain-member-{0}.avhdx" -f $chainIndex)
+    }
+    $nextPath = if ($chainIndex -eq 64) {
+        $null
+    }
+    elseif ($chainIndex -eq 63) {
+        $recordedBasePath
+    }
+    else {
+        Join-Path ([string]$mock.vms[0].vmPath) ("chain-member-{0}.avhdx" -f ($chainIndex + 1))
+    }
+    $overlongChain += [pscustomobject][ordered]@{
+        path = $chainPath
+        fileLength = 4194304
+        diskIdentifier = [Guid]::NewGuid().ToString()
+        virtualSize = 40GB
+        physicalFileSize = 4194304
+        parentPath = $nextPath
+    }
+}
+$mock.vms[0].vhdxChain = $overlongChain
+$mock.vms[0].vhdxChainFingerprint = Get-HcrVhdChainFingerprint @($overlongChain)
+Write-HcrMockAdapterState $mock
+$overlongChainInspect = Invoke-TestTool 'inspect_vm' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+})
+Assert-True (-not [bool]$overlongChainInspect.data.ownership.verified) `
+    'A differencing chain exceeding the 64-member verification bound was accepted.'
+
+$mock = Read-HcrMockAdapterState
+$mock.vms[0] = $originalOwnedVm
+Write-HcrMockAdapterState $mock
+Assert-Equal (Get-HcrSha256File $ownershipRecordPath) $ownershipRecordHash `
+    'Automatic-checkpoint regression cases modified the existing ownership record.'
+
+$mock = Read-HcrMockAdapterState
 $mock.vms[0].notes = 'tampered-marker'
 Write-HcrMockAdapterState $mock
 $tamperedOwnership = Invoke-TestTool 'plan_checkpoint_create' ([pscustomobject]@{
@@ -755,7 +965,24 @@ foreach ($faultPhase in @('before', 'entered', 'after')) {
     Clear-TestMutationFault
 }
 
-foreach ($restoreDispatchDrift in @('state', 'currentState', 'checkpointReplacement', 'inventory')) {
+$mock = Read-HcrMockAdapterState
+$restoreBoundaryOriginalVm = Copy-HcrObject `
+    @($mock.vms | Where-Object { $_.name -eq 'cleanroom-test' })[0]
+$restoreBoundaryVm = @($mock.vms | Where-Object { $_.name -eq 'cleanroom-test' })[0]
+$restoreBoundaryVm.vhdxPath = $automaticLeafPath
+$restoreBoundaryVm.baseVhdxPath = $recordedBasePath
+$restoreBoundaryVm.vhdxChain = @($automaticChain | ForEach-Object { Copy-HcrObject $_ })
+$restoreBoundaryVm.vhdxChainVerified = $true
+$restoreBoundaryVm.vhdxChainFingerprint = Get-HcrVhdChainFingerprint @($restoreBoundaryVm.vhdxChain)
+$restoreBoundaryVm.automaticCheckpointsEnabled = $false
+Write-HcrMockAdapterState $mock
+foreach ($restoreDispatchDrift in @(
+    'state',
+    'currentState',
+    'checkpointReplacement',
+    'inventory',
+    'ownershipChainFingerprint'
+)) {
     $adapterBoundaryPlan = Invoke-TestTool 'plan_checkpoint_restore' ([pscustomobject]@{
         vmName = 'cleanroom-test'
         checkpointName = 'baseline'
@@ -778,6 +1005,9 @@ foreach ($restoreDispatchDrift in @('state', 'currentState', 'checkpointReplacem
         Write-HcrMockAdapterState $mock
     }
 }
+$mock = Read-HcrMockAdapterState
+$mock.vms[0] = $restoreBoundaryOriginalVm
+Write-HcrMockAdapterState $mock
 $mock = Read-HcrMockAdapterState
 $restoreVm = @($mock.vms | Where-Object { $_.name -eq 'cleanroom-test' })[0]
 $restoreVm.state = 'Running'
@@ -1535,6 +1765,23 @@ Assert-True ($adapterSource -notmatch 'DriveInfo remains an adequate stable fall
 Assert-True ($adapterSource -match
     '(?s)Get-HcrRevalidatedVmCreatePaths \$plan.*?\$mutationEntered = \$true.*?\$createdVm = New-VM') `
     'The production VM adapter does not revalidate the VM-root binding immediately before mutation.'
+Assert-True ($adapterSource -match
+    '(?s)\$createdVm = New-VM.*?Set-VM -VM \$createdVm -AutomaticCheckpointsEnabled \$false.*?\$preOwnershipReadback = Get-VM.*?AutomaticCheckpointsEnabled.*?Set-VM -VM \$createdVm -Notes') `
+    'Production VM creation does not verify automatic checkpoints as disabled before publishing ownership.'
+Assert-True ($adapterSource -match
+    '(?s)Get-VM -Id \$createdVm\.Id.*?AutomaticCheckpointsEnabled.*?ConvertTo-HcrRealVmSnapshot') `
+    'Production VM creation does not read back automatic-checkpoint disablement before returning.'
+foreach ($vhdChainSeam in @(
+    'Get-HcrRealVhdChainSnapshot',
+    'The VHD chain contains a cycle.',
+    'The VHD chain exceeded the bounded depth.',
+    'Get-VHD -Path $normalizedPath -ErrorAction Stop',
+    'vhdxChainFingerprint',
+    'baseVhdxPath'
+)) {
+    Assert-True ($adapterSource -match [regex]::Escape($vhdChainSeam)) `
+        "The production differencing-chain identity seam is missing: $vhdChainSeam."
+}
 foreach ($partialMutationCode in @(
     'VM_CREATE_FAILED',
     'CHECKPOINT_CREATE_FAILED',

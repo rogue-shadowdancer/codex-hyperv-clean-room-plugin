@@ -65,10 +65,20 @@ function Assert-HcrMockDispatchVm {
         Throw-HcrError 'VM_IDENTITY_DRIFT' 'The adapter could not resolve the previously verified VM identity.'
     }
     $vm = $matches[0]
+    $ownershipDrift = [string](Get-HcrPropertyValue $State 'dispatchOwnershipDrift')
+    if ($ownershipDrift -eq 'chainFingerprint') {
+        $vm.vhdxChainFingerprint = ('0' * 64)
+        $State.PSObject.Properties.Remove('dispatchOwnershipDrift')
+        Write-HcrMockAdapterState $State
+    }
     $marker = 'hyperv-clean-room/v1:' + [string](Get-HcrPropertyValue $Arguments 'expectedOwnershipId')
+    $ownership = Get-HcrOwnershipStatus $vm
     if ([string](Get-HcrPropertyValue $vm 'id') -ne $expectedId -or
         [string](Get-HcrPropertyValue $vm 'name') -ne [string](Get-HcrPropertyValue $Arguments 'expectedVmName') -or
         [string](Get-HcrPropertyValue $vm 'notes') -ne $marker -or
+        -not [bool]$ownership.verified -or
+        [string](Get-HcrPropertyValue $ownership.record 'ownershipId') -ne
+            [string](Get-HcrPropertyValue $Arguments 'expectedOwnershipId') -or
         (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $vm 'vmPath'))) -ne
             (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Arguments 'expectedVmPath'))) -or
         (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $vm 'vhdxPath'))) -ne
@@ -207,6 +217,14 @@ function Invoke-HcrMockAdapter {
             if ($null -eq $mockSwitch) {
                 Throw-HcrError 'VM_CREATE_FAILED' 'The planned mock switch disappeared before VM creation.'
             }
+            $baseDisk = [pscustomobject][ordered]@{
+                path = [string](Get-HcrPropertyValue $plan 'vhdxPath')
+                fileLength = 4194304
+                diskIdentifier = [Guid]::NewGuid().ToString()
+                virtualSize = [int64](Get-HcrPropertyValue $plan 'diskSizeGb') * 1GB
+                physicalFileSize = 4194304
+                parentPath = $null
+            }
             $vm = [pscustomobject][ordered]@{
                 id = $vmId
                 name = $name
@@ -215,6 +233,11 @@ function Invoke-HcrMockAdapter {
                 notes = "hyperv-clean-room/v1:$ownershipId"
                 vmPath = [string](Get-HcrPropertyValue $plan 'vmPath')
                 vhdxPath = [string](Get-HcrPropertyValue $plan 'vhdxPath')
+                baseVhdxPath = [string](Get-HcrPropertyValue $plan 'vhdxPath')
+                vhdxChain = @($baseDisk)
+                vhdxChainVerified = $true
+                vhdxChainFingerprint = Get-HcrVhdChainFingerprint @($baseDisk)
+                automaticCheckpointsEnabled = $false
                 processorCount = [int](Get-HcrPropertyValue $plan 'processorCount')
                 startupMemoryGb = [int](Get-HcrPropertyValue $plan 'startupMemoryGb')
                 maximumMemoryGb = [int](Get-HcrPropertyValue $plan 'maximumMemoryGb')
@@ -436,6 +459,9 @@ function Invoke-HcrMockAdapter {
                             createdAt = Get-HcrUtcTimestamp
                         })
                     }
+                    'ownershipChainFingerprint' {
+                        $vm.vhdxChainFingerprint = ('0' * 64)
+                    }
                 }
                 $state.PSObject.Properties.Remove('restoreDispatchDrift')
                 Write-HcrMockAdapterState $state
@@ -624,9 +650,13 @@ function Assert-HcrRealDispatchVm {
     }
     $snapshot = ConvertTo-HcrRealVmSnapshot $matches[0]
     $expectedMarker = 'hyperv-clean-room/v1:' + [string](Get-HcrPropertyValue $Arguments 'expectedOwnershipId')
+    $ownership = Get-HcrOwnershipStatus $snapshot
     if ([string](Get-HcrPropertyValue $snapshot 'id') -ne $expectedId -or
         [string](Get-HcrPropertyValue $snapshot 'name') -ne [string](Get-HcrPropertyValue $Arguments 'expectedVmName') -or
         [string](Get-HcrPropertyValue $snapshot 'notes') -ne $expectedMarker -or
+        -not [bool]$ownership.verified -or
+        [string](Get-HcrPropertyValue $ownership.record 'ownershipId') -ne
+            [string](Get-HcrPropertyValue $Arguments 'expectedOwnershipId') -or
         (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $snapshot 'vmPath'))) -ne
             (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Arguments 'expectedVmPath'))) -or
         (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $snapshot 'vhdxPath'))) -ne
@@ -644,11 +674,15 @@ function Assert-HcrRestoreAdapterBindings {
 
     $expectedMarker = 'hyperv-clean-room/v1:' +
         [string](Get-HcrPropertyValue $Arguments 'expectedOwnershipId')
+    $ownership = Get-HcrOwnershipStatus $VmSnapshot
     if ([string](Get-HcrPropertyValue $VmSnapshot 'id') -ne
             [string](Get-HcrPropertyValue $Arguments 'expectedVmId') -or
         [string](Get-HcrPropertyValue $VmSnapshot 'name') -ne
             [string](Get-HcrPropertyValue $Arguments 'expectedVmName') -or
         [string](Get-HcrPropertyValue $VmSnapshot 'notes') -ne $expectedMarker -or
+        -not [bool]$ownership.verified -or
+        [string](Get-HcrPropertyValue $ownership.record 'ownershipId') -ne
+            [string](Get-HcrPropertyValue $Arguments 'expectedOwnershipId') -or
         (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $VmSnapshot 'vmPath'))) -ne
             (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Arguments 'expectedVmPath'))) -or
         (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $VmSnapshot 'vhdxPath'))) -ne
@@ -723,6 +757,83 @@ function Get-HcrRealTargetVolume {
     }
 }
 
+function Get-HcrRealVhdChainSnapshot {
+    param([Parameter(Mandatory = $true)][string]$LeafPath)
+
+    $entries = New-Object System.Collections.Generic.List[object]
+    $seen = @{}
+    $currentPath = $LeafPath
+    try {
+        for ($depth = 0; $depth -lt 64; $depth++) {
+            if ([string]::IsNullOrWhiteSpace($currentPath) -or
+                -not (Test-HcrLocalAbsolutePath $currentPath)) {
+                throw 'The VHD chain contains a non-local path.'
+            }
+            $normalizedPath = Get-HcrNormalizedPath $currentPath
+            $key = $normalizedPath.ToLowerInvariant()
+            if ($seen.ContainsKey($key)) {
+                throw 'The VHD chain contains a cycle.'
+            }
+            $seen[$key] = $true
+
+            $file = Get-Item -LiteralPath $normalizedPath -Force -ErrorAction Stop
+            if ($file.PSIsContainer -or
+                ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+                [int64]$file.Length -lt 1) {
+                throw 'The VHD chain member is not an ordinary non-empty file.'
+            }
+            $vhd = Get-VHD -Path $normalizedPath -ErrorAction Stop
+            $diskIdentifier = [string](Get-HcrPropertyValue $vhd 'DiskIdentifier')
+            $parsedDiskIdentifier = [Guid]::Empty
+            $virtualSize = Get-HcrPropertyValue $vhd 'Size'
+            $physicalFileSize = Get-HcrPropertyValue $vhd 'FileSize'
+            if (-not [Guid]::TryParse($diskIdentifier, [ref]$parsedDiskIdentifier) -or
+                $parsedDiskIdentifier -eq [Guid]::Empty -or
+                $null -eq $virtualSize -or [int64]$virtualSize -lt 1 -or
+                $null -eq $physicalFileSize -or [int64]$physicalFileSize -lt 1) {
+                throw 'The VHD chain member identity is incomplete.'
+            }
+            $parentPath = [string](Get-HcrPropertyValue $vhd 'ParentPath')
+            if (-not [string]::IsNullOrWhiteSpace($parentPath)) {
+                if (-not (Test-HcrLocalAbsolutePath $parentPath)) {
+                    throw 'The VHD parent path is not local and absolute.'
+                }
+                $parentPath = Get-HcrNormalizedPath $parentPath
+            }
+            else {
+                $parentPath = $null
+            }
+            $entries.Add([pscustomobject][ordered]@{
+                path = $normalizedPath
+                fileLength = [int64]$file.Length
+                diskIdentifier = $diskIdentifier
+                virtualSize = [int64]$virtualSize
+                physicalFileSize = [int64]$physicalFileSize
+                parentPath = $parentPath
+            })
+            if ($null -eq $parentPath) {
+                $chain = @($entries | ForEach-Object { $_ })
+                return [pscustomobject][ordered]@{
+                    verified = $true
+                    entries = $chain
+                    basePath = [string](Get-HcrPropertyValue $chain[$chain.Count - 1] 'path')
+                    fingerprint = Get-HcrVhdChainFingerprint $chain
+                }
+            }
+            $currentPath = $parentPath
+        }
+        throw 'The VHD chain exceeded the bounded depth.'
+    }
+    catch {
+        return [pscustomobject][ordered]@{
+            verified = $false
+            entries = @()
+            basePath = $null
+            fingerprint = $null
+        }
+    }
+}
+
 function ConvertTo-HcrRealVmSnapshot {
     param(
         [Parameter(Mandatory = $true)][object]$Vm,
@@ -741,6 +852,7 @@ function ConvertTo-HcrRealVmSnapshot {
         ([string]$Vm.State -ne 'Off' -or $hardDrives.Count -lt 1)) {
         Throw-HcrError 'RESTORE_DISK_IDENTITY_UNAVAILABLE' 'Checkpoint restore requires an Off VM with a readable attached disk inventory.'
     }
+    $hardDrives = @($hardDrives | Sort-Object ControllerType, ControllerNumber, ControllerLocation, Path)
     $hardDrive = @($hardDrives | Select-Object -First 1)
     $currentStateDisks = @($hardDrives | ForEach-Object {
         $drive = $_
@@ -793,6 +905,20 @@ function ConvertTo-HcrRealVmSnapshot {
             parentPath = if ($null -eq $vhd) { $null } else { [string](Get-HcrPropertyValue $vhd 'ParentPath') }
         }
     } | Sort-Object controllerType, controllerNumber, controllerLocation, path)
+    $primaryVhdChain = if ($hardDrive.Count -eq 0) {
+        [pscustomobject][ordered]@{
+            verified = $false
+            entries = @()
+            basePath = $null
+            fingerprint = $null
+        }
+    }
+    else {
+        Get-HcrRealVhdChainSnapshot ([string]$hardDrive[0].Path)
+    }
+    if ($RequireOfflineDiskIdentity -and -not [bool]$primaryVhdChain.verified) {
+        Throw-HcrError 'RESTORE_DISK_IDENTITY_UNAVAILABLE' 'The complete attached VHDX chain identity is unavailable for checkpoint restore.'
+    }
     $network = @(Get-VMNetworkAdapter -VM $Vm -ErrorAction SilentlyContinue)
     $networkAdapters = @($network | ForEach-Object {
         $adapter = $_
@@ -852,6 +978,11 @@ function ConvertTo-HcrRealVmSnapshot {
         notes = [string]$Vm.Notes
         vmPath = [string]$Vm.Path
         vhdxPath = if ($hardDrive.Count -eq 0) { $null } else { [string]$hardDrive[0].Path }
+        baseVhdxPath = Get-HcrPropertyValue $primaryVhdChain 'basePath'
+        vhdxChain = @((Get-HcrPropertyValue $primaryVhdChain 'entries' @()))
+        vhdxChainVerified = [bool](Get-HcrPropertyValue $primaryVhdChain 'verified' $false)
+        vhdxChainFingerprint = Get-HcrPropertyValue $primaryVhdChain 'fingerprint'
+        automaticCheckpointsEnabled = Get-HcrPropertyValue $Vm 'AutomaticCheckpointsEnabled'
         processorCount = [int]$Vm.ProcessorCount
         startupMemoryGb = [int][Math]::Round([double]$Vm.MemoryStartup / 1GB)
         maximumMemoryGb = [int][Math]::Round([double]$Vm.MemoryMaximum / 1GB)
@@ -2582,6 +2713,7 @@ function Invoke-HcrRealAdapter {
                     -MemoryStartupBytes ([int64](Get-HcrPropertyValue $boundPlan 'startupMemoryGb') * 1GB) `
                     -SwitchName ([string](Get-HcrPropertyValue $boundPlan 'switchName')) `
                     -ErrorAction Stop
+                Set-VM -VM $createdVm -AutomaticCheckpointsEnabled $false -ErrorAction Stop
                 Set-VMMemory -VM $createdVm -DynamicMemoryEnabled $true `
                     -MinimumBytes 2GB `
                     -StartupBytes ([int64](Get-HcrPropertyValue $boundPlan 'startupMemoryGb') * 1GB) `
@@ -2592,8 +2724,17 @@ function Invoke-HcrRealAdapter {
                 [void](Add-VMDvdDrive -VM $createdVm -Path ([string](Get-HcrPropertyValue $boundPlan 'isoPath')) -ErrorAction Stop)
                 Set-VMKeyProtector -VM $createdVm -NewLocalKeyProtector -ErrorAction Stop
                 Enable-VMTPM -VM $createdVm -ErrorAction Stop
+                $preOwnershipReadback = Get-VM -Id $createdVm.Id -ErrorAction Stop
+                if ((Get-HcrPropertyValue $preOwnershipReadback 'AutomaticCheckpointsEnabled') -isnot [bool] -or
+                    [bool](Get-HcrPropertyValue $preOwnershipReadback 'AutomaticCheckpointsEnabled')) {
+                    Throw-HcrError 'VM_CREATE_FAILED' 'Automatic checkpoints were not verified as disabled before ownership publication.'
+                }
                 Set-VM -VM $createdVm -Notes "hyperv-clean-room/v1:$ownershipId" -ErrorAction Stop
                 $refreshed = Get-VM -Id $createdVm.Id -ErrorAction Stop
+                if ((Get-HcrPropertyValue $refreshed 'AutomaticCheckpointsEnabled') -isnot [bool] -or
+                    [bool](Get-HcrPropertyValue $refreshed 'AutomaticCheckpointsEnabled')) {
+                    Throw-HcrError 'VM_CREATE_FAILED' 'Automatic checkpoints were not verified as disabled after VM creation.'
+                }
                 return ConvertTo-HcrRealVmSnapshot $refreshed
             }
             catch {

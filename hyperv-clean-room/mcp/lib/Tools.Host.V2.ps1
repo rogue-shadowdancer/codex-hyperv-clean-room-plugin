@@ -99,6 +99,8 @@ function Get-HcrVmNetworkInvariantFingerprint {
         notes = [string](Get-HcrPropertyValue $Vm 'notes')
         vmPath = [string](Get-HcrPropertyValue $Vm 'vmPath')
         vhdxPath = [string](Get-HcrPropertyValue $Vm 'vhdxPath')
+        vhdxChainFingerprint = [string](Get-HcrPropertyValue $Vm 'vhdxChainFingerprint')
+        automaticCheckpointsEnabled = Get-HcrPropertyValue $Vm 'automaticCheckpointsEnabled'
         processorCount = Get-HcrPropertyValue $Vm 'processorCount'
         startupMemoryGb = Get-HcrPropertyValue $Vm 'startupMemoryGb'
         maximumMemoryGb = Get-HcrPropertyValue $Vm 'maximumMemoryGb'
@@ -150,6 +152,12 @@ function Invoke-HcrPlanVmPower {
     }
     if ($state -ne $expected[0]) {
         Throw-HcrError 'VM_STATE_UNSUPPORTED' 'The VM is not in the exact state required for the requested transition.'
+    }
+    if (
+        (Get-HcrPropertyValue $owned.vm 'automaticCheckpointsEnabled') -isnot [bool] -or
+        [bool](Get-HcrPropertyValue $owned.vm 'automaticCheckpointsEnabled')
+    ) {
+        Throw-HcrError 'VM_STATE_UNSUPPORTED' 'Automatic checkpoints must be verified as disabled before a managed VM power transition.'
     }
     $created = [DateTimeOffset]::UtcNow
     $plan = [pscustomobject][ordered]@{
