@@ -103,6 +103,76 @@ Documentation can be checked independently without Python:
 .\scripts\validate-docs.ps1
 ```
 
+### HCI1 local static validation
+
+HCI1 adds a cross-platform Python 3.12 repository core for the future
+`hyperv-static-linux` lane. Local contract validation is intentionally
+separate from remote dispatch. With the development dependency path prepared
+for the selected interpreter, run:
+
+```powershell
+$runtime = Get-Content -Raw .artifacts\test-python\runtime.json |
+  ConvertFrom-Json
+$env:PYTHONPATH = $runtime.dependencyPath
+& $runtime.pythonExecutable -S -B tests\hci1_static_runner_tests.py
+& $runtime.pythonExecutable -S -B tests\gate7_implementation_tests.py `
+  --static-only
+```
+
+The complete Linux-safe suite is the fixed `SUITE_CHECKS` tuple in
+`scripts/run_hyperv_static_linux.py`. It contains repository-format,
+publication-hygiene policy, publication-hygiene, public-release contract,
+schema contract, static quality, Gate 7 static integration, and HCI1
+runner-contract checks. `runtime_artifact_schema_tests.py` and
+`gate6_contract_tests.py` are not Linux lane inputs: the former requires the
+Windows mock runtime samples and the latter invokes Windows PowerShell.
+
+The repository core accepts no production command-line request. Direct
+execution returns a canonical incomplete receipt with both
+`controllerAdapter` and `remoteProof` equal to `notPerformed`. A future
+infrastructure runner-integration gate must provide the fixed service seam and
+convert the admitted C1 request plus already-verified Git bundle and wheel
+bytes into internal `PreparedInputs`.
+
+Do not create `/srv/codex-ci/hyperv-static-linux`, its physical backing path,
+the `ci-hyperv-static` account, a mount, a service, or dependency files from
+this repository runner. Do not substitute a home-directory lane, clone from
+the network, or download wheels on the runner. The core validates the
+pre-existing C2 lane facts and creates only the five fixed descendant classes
+defined in the specification.
+
+Remote execution remains disabled until all of these are independently read
+back:
+
+1. C2 Apply/Verify for the fixed account, ext4 bind mount, visible lane, and
+   allowlisted service;
+2. a later infrastructure runner-integration gate that binds the spool,
+   source-bundle handoff, runtime, fixed invocation/result seam, evidence
+   publication, and runner-image enforcement; and
+3. an exact pushed HCI1 commit and tree with successful local validation and
+   staged review.
+
+At the HCI1 repository gate, remote directory/account/mount creation,
+dependency installation, service start, suite enablement, and exact-SHA proof
+are `notPerformed`. A timeout, SSH disconnect, or uncertain terminal state is
+incomplete; read the operation's ambiguity state before considering any new
+operation and never blind-retry.
+
+Never reuse an operation ID with different request material. The core
+validates an existing ambiguity record's request hash, idempotency key, source,
+suite, and runner-image bindings before a transition and refuses to replace a
+conflicting record. Distinct operations are serialized while changing the
+lane, and capacity for the full bounded operation is reserved before the
+workspace starts; a retention-capacity rejection is incomplete, not a request
+to delete completed evidence.
+
+The core publishes an immutable summary while the operation workspace is
+still retained. After the adapter reads the summary back by exact SHA-256, it
+may invoke the bounded cleanup helper for that operation ID and idempotency
+key. A wrong or missing summary hash, workspace marker, or fixed path prevents
+cleanup. The repository core never deletes the workspace before result
+publication/readback and never removes another or unknown path.
+
 ## Credential enrollment
 
 Credential setup is intentionally outside MCP. Run it interactively on the

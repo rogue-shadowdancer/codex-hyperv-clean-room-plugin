@@ -6,7 +6,7 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: released 0.2.0 source; H5A ownership repair in validation
+### Status: released 0.2.0 source; HCI1 static foundation in validation
 
 Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,
 profile, evidence, plan, and credential contracts. The first public release
@@ -74,6 +74,17 @@ chain hashes consistently and terminates at the unchanged recorded base
 closed. The H5A personal candidate uses
 `0.2.0+codex.20260723113253`. The repair does not adopt or rewrite ownership,
 delete or merge a checkpoint, or authorize Windows OOBE/package/UI work.
+
+HCI1 adds the repository-owned core and immutable evidence contracts for a
+future `hyperv-static-linux` exact-commit lane. Its closed request binds the
+repository, commit, tree, content-addressed source bundle, suite contract, and
+runner image. The core accepts only internally prepared, hash-verified bundle
+and wheel bytes, performs eight Linux-safe static checks, and requires every
+real host, Hyper-V, guest, portable, WebDriver, and UI operation counter to be
+zero. The infrastructure controller adapter, C2 remote Apply/Verify, suite
+enablement, and remote exact-SHA proof are separate gates and remain
+`notPerformed`; the existing Windows `public-release-validation` workflow is
+unchanged.
 
 [![public-release-validation](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)

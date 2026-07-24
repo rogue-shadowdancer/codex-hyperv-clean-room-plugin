@@ -1044,3 +1044,117 @@ create a checkpoint and does not mutate the existing live VM. After exact
 source acceptance and installation, only read-only `inspect_host` and
 `inspect_vm` are permitted until a separately reviewed recovery plan is
 authorized.
+
+## HCI1 Hyper-V static Linux foundation boundary
+
+HCI1 defines the repository-owned, path-independent execution and evidence
+contract for `hyperv-static-linux`. It does not enable the suite or define the
+infrastructure-owned service adapter. The closed controller request is
+schema version 1 and contains exactly:
+
+- `operationId`;
+- `repositoryId` equal to `hyperv-clean-room`;
+- exact pushed `commitSha` and `treeSha`;
+- `suiteId` equal to `hyperv-static-linux`;
+- `suiteContractVersion` equal to `1`;
+- the content-addressed `sourceBundleSha256`; and
+- a `runnerImageDigest` in `sha256:<hex>` form.
+
+The idempotency key is SHA-256 over
+`repositoryId|commitSha|treeSha|sourceBundleSha256|suiteId|`
+`suiteContractVersion|runnerImageDigest`. `operationId` is deliberately not
+part of that material. One non-blocking exclusive lock protects each key. A
+complete immutable result is validated and reused; it is never overwritten.
+An interrupted, disconnected, timed-out, or otherwise uncertain operation
+remains `incomplete` and is bound to
+`ambiguity/<operationId>/state.json`; it must be reconciled before a new
+operation is considered.
+
+Each operation ID has one immutable request identity. An existing ambiguity
+record may transition from running to incomplete or resolved, and from
+incomplete to resolved only after an exact immutable-summary readback. A
+resolved record remains byte-identical. Reusing an operation ID for a
+different request, idempotency key, source identity, or runner image is
+rejected without replacing the earlier state.
+
+The future infrastructure adapter supplies only already-admitted
+`PreparedInputs` to the repository core: one ordinary, single-link Git bundle
+whose exact SHA-256 matches the request, and wheel files addressed by their
+committed SHA-256. These paths are internal values, not command-line, JSON,
+environment, URL, username, credential, or caller-path inputs. HCI1 deliberately
+does not freeze the spool bundle name, auxiliary files, adapter argv/stdin,
+working directory, timeout/result seam, or content-cache handoff. Until an
+infrastructure runner-integration gate binds those details, the production
+entrypoint returns `incomplete` with `controllerAdapter: notPerformed` and
+`remoteProof: notPerformed`.
+
+The core verifies that the Git bundle advertises only the requested commit,
+contains its complete reachable history, and checks out a clean detached HEAD
+with the exact requested commit and tree before and after the suite. Submodules,
+Git LFS pointers, source symlinks, dirty source, source drift, and runner bytes
+that differ from the candidate are rejected.
+
+The committed wheel lock is the complete seven-package closure for CPython
+3.12.10, ABI `cp312`, Linux x86-64. It binds package name, normalized version,
+wheel filename, size, SHA-256, Python constraint, and fixed
+`files.pythonhosted.org` provenance. The core performs no download. A future
+adapter may supply only bytes already verified against that lock. Installation
+is restricted to the exact operation workspace venv with wheel-only,
+hash-required, no-dependency, no-index, no-input, no-user-site controls.
+Missing, extra, mismatched, ABI-incompatible, or source-distribution inputs
+fail closed.
+
+The only persistent runner descendants are:
+
+- `workspaces/<operationId>/`;
+- `locks/<idempotency>.lock`;
+- `results/<idempotency>/summary.json`;
+- `content/sha256/<first2>/<sha256>`; and
+- `ambiguity/<operationId>/state.json`.
+
+The visible lane root is fixed at
+`/srv/codex-ci/hyperv-static-linux`. The runner neither creates that root nor
+walks the physical backing path. Production admission requires the C2
+service-account, bind-mount, ext4 UUID, ownership, mode, mount-option, device,
+ordinary-file, no-symlink, no-hardlink, no-special-file, and no-nested-mount
+facts recorded in the summary schema. Workspace, retention, log, and wheel
+limits are respectively 2 GiB, 10 GiB, 16 MiB, and 32 MiB. Exceeding a limit
+fails closed and never deletes an existing complete result to recover space.
+In addition to the per-idempotency writer lock, the runner holds an advisory
+lock on the already-existing lane directory while it changes lane state. This
+creates no sixth path class and serializes distinct operations so retention
+admission cannot race. The runner reserves the bounded worst-case workspace,
+log, wheel, summary, and metadata footprint before starting, then rechecks
+each content object and the summary before atomic publication.
+The immutable summary is published and rehashed before workspace cleanup. At
+publication it records the workspace as retained. Only the future trusted
+adapter may call the bounded cleanup helper after exact summary readback; that
+helper binds the operation marker, idempotency key, summary path, and summary
+SHA-256 and never follows symlinks.
+
+Summary, log-manifest, ambiguity, and wheel-lock contracts are schema version
+1. Logs are atomically published by SHA-256 and referenced from the immutable
+summary. The summary schema fixes all eight required check IDs and order plus
+the one Windows-runtime `notPerformed` placeholder, re-derives the terminal
+status from the required checks, and fixes the publication-time cleanup state
+to retained. The log schema fixes all twelve log IDs, categories, and order;
+reuse also requires every check/log-manifest reference to agree exactly. Every
+content-addressed reuse is rehashed. A valid summary requires
+all of these counters to be exactly zero:
+`realHostOperations`, `realHyperVMutations`, `realGuestOperations`,
+`portableDeployments`, `webDriverLaunches`, and `uiOperations`.
+
+The Linux suite runs repository-format, publication-hygiene policy,
+publication-hygiene, public-release contract, schema contract, static quality,
+Gate 7 static integration, and HCI1 runner-contract tests. Gate 7's Windows
+mock runtime artifact is explicitly `notPerformed` in this lane rather than
+fabricated. `hyperv-mock-windows` and aggregate `hyperv-validation` inputs and
+status derivation are defined but remain `notPerformed`; Linux success cannot
+prove Windows PowerShell, mock runtime, a real host, Hyper-V, guest, portable,
+WebDriver, or UI behavior. The existing Windows
+`public-release-validation` workflow remains unchanged.
+
+Remote proof requires all three independently accepted inputs: C2 Apply/Verify,
+a future infrastructure runner-integration gate, and an exact committed HCI1
+candidate. At this gate C2 remote Apply/Verify, controller adapter, suite
+enablement, and remote exact-SHA proof are all `notPerformed`.

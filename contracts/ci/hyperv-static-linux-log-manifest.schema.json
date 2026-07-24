@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/ci/hyperv-static-linux-log-manifest.schema.json",
+  "title": "Hyper-V static Linux content-addressed log manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "suiteId",
+    "operationId",
+    "idempotencyKey",
+    "entries"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "suiteId": {
+      "const": "hyperv-static-linux"
+    },
+    "operationId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "idempotencyKey": {
+      "$ref": "#/$defs/sha256"
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/bundleVerify"
+        },
+        {
+          "$ref": "#/$defs/bundleFetch"
+        },
+        {
+          "$ref": "#/$defs/venvCreate"
+        },
+        {
+          "$ref": "#/$defs/venvInstall"
+        },
+        {
+          "$ref": "#/$defs/repositoryFormats"
+        },
+        {
+          "$ref": "#/$defs/publicationHygienePolicy"
+        },
+        {
+          "$ref": "#/$defs/publicationHygiene"
+        },
+        {
+          "$ref": "#/$defs/publicReleaseContract"
+        },
+        {
+          "$ref": "#/$defs/schemaContract"
+        },
+        {
+          "$ref": "#/$defs/staticQuality"
+        },
+        {
+          "$ref": "#/$defs/gate7StaticIntegration"
+        },
+        {
+          "$ref": "#/$defs/hci1RunnerContract"
+        }
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "category",
+        "sha256",
+        "bytes",
+        "contentPath"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+        },
+        "category": {
+          "enum": [
+            "bootstrap",
+            "dependency",
+            "check"
+          ]
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
+        "contentPath": {
+          "type": "string",
+          "pattern": "^content/sha256/[0-9a-f]{2}/[0-9a-f]{64}$"
+        }
+      }
+    },
+    "bundleVerify": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entry"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "bundle-verify"
+            },
+            "category": {
+              "const": "bootstrap"
+            }
+          }
+        }
+      ]
+    },
+    "bundleFetch": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entry"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "bundle-fetch"
+            },
+            "category": {
+              "const": "bootstrap"
+            }
+          }
+        }
+      ]
+    },
+    "venvCreate": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entry"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "venv-create"
+            },
+            "category": {
+              "const": "dependency"
+            }
+          }
+        }
+      ]
+    },
+    "venvInstall": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entry"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "venv-install"
+            },
+            "category": {
+              "const": "dependency"
+            }
+          }
+        }
+      ]
+    },
+    "repositoryFormats": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entry"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "repository-formats"
+            },
+            "category": {
+              "const": "check"
+            }
+          }
+        }
+      ]
+    },
+    "publicationHygienePolicy": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entry"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "publication-hygiene-policy"
+            },
+            "category": {
+              "const": "check"
+            }
+          }
+        }
+      ]
+    },
+    "publicationHygiene": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entry"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "publication-hygiene"
+            },
+            "category": {
+              "const": "check"
+            }
+          }
+        }
+      ]
+    },
+    "publicReleaseContract": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entry"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "public-release-contract"
+            },
+            "category": {
+              "const": "check"
+            }
+          }
+        }
+      ]
+    },
+    "schemaContract": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entry"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "schema-contract"
+            },
+            "category": {
+              "const": "check"
+            }
+          }
+        }
+      ]
+    },
+    "staticQuality": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entry"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "static-quality"
+            },
+            "category": {
+              "const": "check"
+            }
+          }
+        }
+      ]
+    },
+    "gate7StaticIntegration": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entry"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "gate7-static-integration"
+            },
+            "category": {
+              "const": "check"
+            }
+          }
+        }
+      ]
+    },
+    "hci1RunnerContract": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/entry"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "hci1-runner-contract"
+            },
+            "category": {
+              "const": "check"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

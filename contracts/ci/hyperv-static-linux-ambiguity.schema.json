@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/ci/hyperv-static-linux-ambiguity.schema.json",
+  "title": "Hyper-V static Linux ambiguity state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "suiteId",
+    "operationId",
+    "idempotencyKey",
+    "repositoryId",
+    "commitSha",
+    "treeSha",
+    "sourceBundleSha256",
+    "suiteContractVersion",
+    "runnerImageDigest",
+    "requestSha256",
+    "status",
+    "updatedAtUtc",
+    "summaryPath",
+    "summarySha256",
+    "message"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "suiteId": {
+      "const": "hyperv-static-linux"
+    },
+    "operationId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "idempotencyKey": {
+      "$ref": "#/$defs/sha256"
+    },
+    "repositoryId": {
+      "const": "hyperv-clean-room"
+    },
+    "commitSha": {
+      "$ref": "#/$defs/gitSha"
+    },
+    "treeSha": {
+      "$ref": "#/$defs/gitSha"
+    },
+    "sourceBundleSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "suiteContractVersion": {
+      "const": 1
+    },
+    "runnerImageDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "requestSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "status": {
+      "enum": [
+        "running",
+        "incomplete",
+        "resolved"
+      ]
+    },
+    "updatedAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summaryPath": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^results/[0-9a-f]{64}/summary\\.json$"
+    },
+    "summarySha256": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "message": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 512
+    }
+  },
+  "$defs": {
+    "gitSha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

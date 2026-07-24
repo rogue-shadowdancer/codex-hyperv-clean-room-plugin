@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "suiteContractVersion": 1,
+  "repositoryId": "hyperv-clean-room",
+  "repositoryIdentity": "rogue-shadowdancer/codex-hyperv-clean-room-plugin",
+  "controllerRequest": {
+    "schemaVersion": 1,
+    "requiredFields": [
+      "schemaVersion",
+      "operationId",
+      "repositoryId",
+      "commitSha",
+      "treeSha",
+      "suiteId",
+      "suiteContractVersion",
+      "sourceBundleSha256",
+      "runnerImageDigest"
+    ],
+    "forbiddenCallerFields": [
+      "command",
+      "credential",
+      "endpoint",
+      "environment",
+      "path",
+      "shell",
+      "token",
+      "url",
+      "username"
+    ]
+  },
+  "idempotency": {
+    "algorithm": "sha256",
+    "canonicalMaterial": "repositoryId|commitSha|treeSha|sourceBundleSha256|suiteId|suiteContractVersion|runnerImageDigest",
+    "operationIdExcluded": true
+  },
+  "infrastructureAdmission": {
+    "repository": "rogue-shadowdancer/codex-ci-infrastructure",
+    "commitSha": "964c411ea0579b6adaca7a7bf7800d76f19028e2",
+    "treeSha": "0bffd80a2b1f64ee3e091ff759c11110d988f2c6",
+    "serviceAccount": "ci-hyperv-static",
+    "physicalLane": "/mnt/sdb/tianyi.zhang/codex-ci/hyperv-static-linux",
+    "visibleLane": "/srv/codex-ci/hyperv-static-linux",
+    "serviceUnit": "codex-ci-hyperv-static@.service",
+    "filesystemType": "ext4",
+    "filesystemUuid": "dcebb074-2279-4a4d-bb21-e084cdda68b0",
+    "requiredMountOptions": [
+      "rw",
+      "nosuid",
+      "nodev"
+    ],
+    "forbiddenMountOptions": [
+      "noexec"
+    ],
+    "runnerMayCreateLaneRoot": false
+  },
+  "integrationState": {
+    "c2ApplyVerify": "notPerformed",
+    "controllerAdapter": "notPerformed",
+    "remoteExactShaProof": "notPerformed",
+    "missingControllerBindings": [
+      "source and dependency materialization",
+      "fixed runner invocation and timeout",
+      "runner image enforcement",
+      "terminal and ambiguity publication wiring",
+      "suite enablement"
+    ]
+  },
+  "lanes": {
+    "hyperv-static-linux": {
+      "platform": "linux-x86_64-cpython-3.12",
+      "implementedByGate": "HCI1",
+      "resultStatuses": [
+        "passed",
+        "failed",
+        "incomplete"
+      ],
+      "proves": [
+        "exact committed source, tree, bundle, and full-history identity",
+        "repository formats and publication hygiene",
+        "schema and static production-source contracts"
+      ],
+      "doesNotProve": [
+        "Windows PowerShell 5.1 parsing or mock runtime execution",
+        "real Hyper-V host or guest behavior",
+        "portable deployment, WebDriver, or foreground UI behavior"
+      ]
+    },
+    "hyperv-mock-windows": {
+      "platform": "windows-powershell-5.1",
+      "implementedByGate": "HCI2",
+      "initialStatus": "notPerformed",
+      "requiredBinding": [
+        "repositoryId",
+        "commitSha",
+        "treeSha",
+        "sourceBundleSha256",
+        "suiteContractVersion",
+        "runnerImageDigest"
+      ]
+    },
+    "hyperv-validation": {
+      "kind": "aggregate",
+      "implementedByGate": "HCI2",
+      "initialStatus": "notPerformed",
+      "inputs": [
+        "hyperv-static-linux",
+        "hyperv-mock-windows"
+      ],
+      "statusSemantics": {
+        "passed": "Both inputs passed with identical repository, commit, tree, source-bundle, suite-contract, and runner-image bindings and every real-operation counter is zero.",
+        "failed": "An input failed, a binding differs, or any real-operation counter is nonzero.",
+        "incomplete": "An input is missing, notPerformed, incomplete, transport-ambiguous, or cannot be hash-verified."
+      }
+    }
+  },
+  "requiredZeroCounters": [
+    "realHostOperations",
+    "realHyperVMutations",
+    "realGuestOperations",
+    "portableDeployments",
+    "webDriverLaunches",
+    "uiOperations"
+  ],
+  "hostedCheckBoundary": {
+    "preservedCheckName": "public-release-validation",
+    "linuxLaneMayReplacePreservedCheck": false
+  }
+}

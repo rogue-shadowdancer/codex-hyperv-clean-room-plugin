@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import re
@@ -46,6 +47,15 @@ def sha(path: Path) -> str:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Validate Gate 7 source integration and optional runtime samples."
+    )
+    parser.add_argument(
+        "--static-only",
+        action="store_true",
+        help="Skip Windows mock-runtime sample validation for the Linux static lane.",
+    )
+    arguments = parser.parse_args()
     compatibility = load(CONTRACT / "compatibility.json")
     catalog = load(CONTRACT / "tool-catalog.json")
     manifest = load(PLUGIN / ".codex-plugin" / "plugin.json")
@@ -202,46 +212,62 @@ def main() -> int:
     if "Assert-HcrPairedNetworkRecoveryUsable $plan $pairedRecoveryRecord" not in host_v2:
         raise AssertionError("disconnect mutation does not validate exact paired recovery bindings")
 
-    artifact_roots = sorted(
-        (ROOT / ".artifacts").glob("gate7-tests-*"),
-        key=lambda path: path.stat().st_mtime_ns,
-        reverse=True,
-    )
-    if not artifact_roots:
-        raise AssertionError("Gate 7 runtime evidence is unavailable")
-    evidence_paths = list(artifact_roots[0].glob("state/evidence-staging/*/evidence.json"))
-    v2_evidence_paths = [path for path in evidence_paths if load(path).get("schemaVersion") == 2]
-    if len(v2_evidence_paths) != 5:
-        raise AssertionError(
-            "Gate 7 runtime must emit one passed and four failed schema-v2 evidence documents"
+    evidence_documents: list[object] = []
+    if not arguments.static_only:
+        artifact_roots = sorted(
+            (ROOT / ".artifacts").glob("gate7-tests-*"),
+            key=lambda path: path.stat().st_mtime_ns,
+            reverse=True,
         )
-    schemas = {name: load(CONTRACT / "schemas" / name) for name in V2_NAMES}
-    registry = Registry()
-    for schema in schemas.values():
-        registry = registry.with_resource(schema["$id"], Resource.from_contents(schema))
-    evidence_documents = [load(path) for path in v2_evidence_paths]
-    for evidence in evidence_documents:
-        errors = list(
-            Draft202012Validator(
-                schemas["evidence.schema.json"],
-                registry=registry,
-                format_checker=FormatChecker(),
-            ).iter_errors(evidence)
+        if not artifact_roots:
+            raise AssertionError("Gate 7 runtime evidence is unavailable")
+        evidence_paths = list(
+            artifact_roots[0].glob("state/evidence-staging/*/evidence.json")
         )
-        if errors:
+        v2_evidence_paths = [
+            path for path in evidence_paths if load(path).get("schemaVersion") == 2
+        ]
+        if len(v2_evidence_paths) != 5:
             raise AssertionError(
-                f"generated evidence-v2 violates its schema: {errors[0].message}"
+                "Gate 7 runtime must emit one passed and four failed "
+                "schema-v2 evidence documents"
             )
-    if any(evidence["runtime"]["adapterMode"] != "mock" for evidence in evidence_documents):
-        raise AssertionError("Gate 7 runtime evidence escaped its mock-only boundary")
-    if sorted(evidence["machineStatus"] for evidence in evidence_documents) != [
-        "failed",
-        "failed",
-        "failed",
-        "failed",
-        "passed",
-    ]:
-        raise AssertionError("Gate 7 runtime did not preserve passed and failed evidence")
+        schemas = {name: load(CONTRACT / "schemas" / name) for name in V2_NAMES}
+        registry = Registry()
+        for schema in schemas.values():
+            registry = registry.with_resource(
+                schema["$id"],
+                Resource.from_contents(schema),
+            )
+        evidence_documents = [load(path) for path in v2_evidence_paths]
+        for evidence in evidence_documents:
+            errors = list(
+                Draft202012Validator(
+                    schemas["evidence.schema.json"],
+                    registry=registry,
+                    format_checker=FormatChecker(),
+                ).iter_errors(evidence)
+            )
+            if errors:
+                raise AssertionError(
+                    "generated evidence-v2 violates its schema: "
+                    f"{errors[0].message}"
+                )
+        if any(
+            evidence["runtime"]["adapterMode"] != "mock"
+            for evidence in evidence_documents
+        ):
+            raise AssertionError("Gate 7 runtime evidence escaped its mock-only boundary")
+        if sorted(evidence["machineStatus"] for evidence in evidence_documents) != [
+            "failed",
+            "failed",
+            "failed",
+            "failed",
+            "passed",
+        ]:
+            raise AssertionError(
+                "Gate 7 runtime did not preserve passed and failed evidence"
+            )
 
     print(
         json.dumps(
@@ -254,6 +280,9 @@ def main() -> int:
                 "v1SchemasPreserved": len(V1_NAMES),
                 "v2SchemasInstalled": len(V2_NAMES),
                 "generatedEvidenceValidated": len(evidence_documents),
+                "runtimeEvidence": (
+                    "notPerformed" if arguments.static_only else "validated"
+                ),
                 "realHostOperations": 0,
                 "realGuestOperations": 0,
                 "portableDeployments": 0,

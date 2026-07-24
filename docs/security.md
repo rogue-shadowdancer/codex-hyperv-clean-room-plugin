@@ -298,6 +298,64 @@ reopened; its exact operation/file membership drives a final size and SHA-256
 readback of every copied file. Any state/source/copied/claimed/inventory
 disagreement stops the export. Caller paths never become live evidence roots.
 
+### Remote static-runner dispatch or evidence confusion
+
+The HCI1 Linux core is not a general SSH, shell, checkout, download, or test
+service. Its closed request contains only the C1 schema version, operation ID,
+allowlisted repository and suite IDs, exact commit and tree, suite contract
+version, source-bundle SHA-256, and runner-image digest. It accepts no caller
+command, path, URL, endpoint, username, environment override, credential,
+token, index, or extra test argument. Source-bundle and wheel paths are
+internal `PreparedInputs` owned by a future infrastructure adapter and are
+never deserialized from the request.
+
+The idempotency key binds repository, commit, tree, source bundle, suite,
+contract version, and runner image. `operationId` identifies one attempt but
+cannot create a second result for identical input. A non-blocking exclusive
+lock permits one writer, a complete result is immutable, and every reused
+summary or content blob is revalidated. Uncertain completion publishes or
+preserves an operation-scoped ambiguity state; blind retry is forbidden.
+An operation ID can never be rebound: existing ambiguity identity fields are
+read and compared before every state transition, and a conflicting request
+cannot overwrite even a resolved record.
+Distinct idempotency keys are serialized while changing lane state by locking
+the already-existing lane directory. Admission reserves the full bounded
+operation footprint, and each content/summary publication rechecks capacity,
+so concurrent writers cannot race the 10 GiB retention limit.
+The operation workspace remains present when its immutable summary is
+published. Bounded removal is available only after exact summary-hash
+readback, and binds the fixed workspace marker, operation ID, idempotency key,
+and summary identity before removing that one tree without following
+symlinks.
+
+Summary reuse is not based on top-level status alone. It requires the exact
+eight Linux check IDs/order, the fixed Windows-runtime placeholder, matching
+counts, a freshly derived terminal status, the exact twelve-entry log order,
+and byte-identical check-to-manifest content references before returning a
+terminal exit code.
+
+The runner validates the already-created visible lane and its secure mount
+facts before creating descendants. It rejects symlinks, cross-device
+descendants, nested mounts, special files, multi-link files, unexpected modes
+or owners, source drift, incomplete Git history, submodules, Git LFS, and
+nonordinary tracked source. Content publication stages an ordinary file,
+rehashes it, and uses atomic no-overwrite publication. Workspace and retention
+limits are checked without deleting complete evidence.
+
+The dependency closure is a committed, exact seven-wheel manifest for one
+Python ABI/platform. The core downloads nothing and installs only verified
+wheel bytes into the operation venv with no index, dependency resolution,
+source builds, scripts from a caller, user site, or persistent package cache.
+All real host, Hyper-V, guest, portable, WebDriver, and UI counters must be
+zero for a valid Linux summary.
+
+The current infrastructure dispatcher performs admission only and all suites
+remain disabled. The repository entrypoint therefore fails closed with the
+controller adapter and remote proof `notPerformed`. Service wiring, fixed
+runtime provisioning, spool/bundle handoff, result publication, image
+enforcement, and suite enablement require a separate reviewed infrastructure
+gate. No secret or GitHub check-writing credential belongs on the remote lane.
+
 ### Secret or machine-state files entering Git
 
 The repository ignores `.artifacts`, state, evidence, plans, credentials,

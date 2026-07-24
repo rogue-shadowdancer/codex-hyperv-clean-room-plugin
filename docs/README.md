@@ -25,6 +25,11 @@ automatic-checkpoint ownership without changing the 20-tool or schema
 contracts. Future creation disables automatic checkpoints; pre-fix
 differencing chains are recognized only when they terminate at the unchanged
 recorded base with a complete canonical identity fingerprint.
+HCI1 now defines the path-independent `hyperv-static-linux` repository core,
+closed request, exact source/dependency binding, and immutable evidence
+contracts. Controller adapter wiring, C2 remote Apply/Verify, suite enablement,
+and exact-SHA remote proof remain `notPerformed`; the Windows
+`public-release-validation` workflow is unchanged.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.

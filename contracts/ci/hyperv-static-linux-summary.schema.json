@@ -1,0 +1,1153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/ci/hyperv-static-linux-summary.schema.json",
+  "title": "Hyper-V static Linux CI summary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "requestSchemaVersion",
+    "repositoryId",
+    "suiteId",
+    "suiteContractVersion",
+    "status",
+    "operationId",
+    "idempotencyKey",
+    "requestSha256",
+    "sourceBundleSha256",
+    "runnerImageDigest",
+    "startedAtUtc",
+    "finishedAtUtc",
+    "repository",
+    "infrastructure",
+    "runner",
+    "dependencyClosure",
+    "checks",
+    "counts",
+    "logManifest",
+    "relatedSuites",
+    "operationCounters",
+    "cleanup",
+    "ambiguity",
+    "diskUsage",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "requestSchemaVersion": {
+      "const": 1
+    },
+    "repositoryId": {
+      "const": "hyperv-clean-room"
+    },
+    "suiteId": {
+      "const": "hyperv-static-linux"
+    },
+    "suiteContractVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "failed",
+        "incomplete"
+      ]
+    },
+    "operationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "idempotencyKey": {
+      "$ref": "#/$defs/sha256"
+    },
+    "requestSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "sourceBundleSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "runnerImageDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "startedAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finishedAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "repositoryId",
+        "sourceBundleSha256",
+        "requestedCommitSha",
+        "requestedTreeSha",
+        "beforeCommitSha",
+        "beforeTreeSha",
+        "afterCommitSha",
+        "afterTreeSha",
+        "detachedHead",
+        "fullHistory",
+        "cleanBefore",
+        "cleanAfter",
+        "submodules",
+        "symlinks",
+        "lfsPointers"
+      ],
+      "properties": {
+        "identity": {
+          "const": "rogue-shadowdancer/codex-hyperv-clean-room-plugin"
+        },
+        "repositoryId": {
+          "const": "hyperv-clean-room"
+        },
+        "sourceBundleSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "requestedCommitSha": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "requestedTreeSha": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "beforeCommitSha": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "beforeTreeSha": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "afterCommitSha": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "afterTreeSha": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "detachedHead": {
+          "const": true
+        },
+        "fullHistory": {
+          "const": true
+        },
+        "cleanBefore": {
+          "const": true
+        },
+        "cleanAfter": {
+          "const": true
+        },
+        "submodules": {
+          "const": 0
+        },
+        "symlinks": {
+          "const": 0
+        },
+        "lfsPointers": {
+          "const": 0
+        }
+      }
+    },
+    "infrastructure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "visibleRoot",
+        "serviceAccount",
+        "serviceUnit",
+        "ownerUid",
+        "ownerGid",
+        "mount",
+        "infrastructureRepository",
+        "infrastructureCommit",
+        "infrastructureTree"
+      ],
+      "properties": {
+        "visibleRoot": {
+          "const": "/srv/codex-ci/hyperv-static-linux"
+        },
+        "serviceAccount": {
+          "const": "ci-hyperv-static"
+        },
+        "serviceUnit": {
+          "const": "codex-ci-hyperv-static@.service"
+        },
+        "ownerUid": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ownerGid": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mount": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "target",
+            "source",
+            "filesystemRoot",
+            "filesystemType",
+            "filesystemUuid",
+            "options",
+            "propagation"
+          ],
+          "properties": {
+            "target": {
+              "const": "/srv/codex-ci/hyperv-static-linux"
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "filesystemRoot": {
+              "const": "/tianyi.zhang/codex-ci/hyperv-static-linux"
+            },
+            "filesystemType": {
+              "const": "ext4"
+            },
+            "filesystemUuid": {
+              "const": "dcebb074-2279-4a4d-bb21-e084cdda68b0"
+            },
+            "options": {
+              "type": "array",
+              "minItems": 3,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "rw"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "nosuid"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "nodev"
+                  }
+                },
+                {
+                  "not": {
+                    "contains": {
+                      "const": "noexec"
+                    }
+                  }
+                }
+              ]
+            },
+            "propagation": {
+              "enum": [
+                "private",
+                "unbindable"
+              ]
+            }
+          }
+        },
+        "infrastructureRepository": {
+          "const": "rogue-shadowdancer/codex-ci-infrastructure"
+        },
+        "infrastructureCommit": {
+          "const": "964c411ea0579b6adaca7a7bf7800d76f19028e2"
+        },
+        "infrastructureTree": {
+          "const": "0bffd80a2b1f64ee3e091ff759c11110d988f2c6"
+        }
+      }
+    },
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operatingSystem",
+        "architecture",
+        "pythonImplementation",
+        "pythonVersion",
+        "pythonAbi",
+        "pythonExecutableSha256",
+        "gitVersion",
+        "gitExecutableSha256",
+        "runnerSourceSha256",
+        "runnerImageIdentitySha256",
+        "isolation"
+      ],
+      "properties": {
+        "operatingSystem": {
+          "const": "Linux"
+        },
+        "architecture": {
+          "const": "x86_64"
+        },
+        "pythonImplementation": {
+          "const": "CPython"
+        },
+        "pythonVersion": {
+          "const": "3.12.10"
+        },
+        "pythonAbi": {
+          "const": "cp312"
+        },
+        "pythonExecutableSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "gitVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "gitExecutableSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "runnerSourceSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "runnerImageIdentitySha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "isolation": {
+          "const": "operation-scoped-venv"
+        }
+      }
+    },
+    "dependencyClosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wheelLockSha256",
+        "requirementsSha256",
+        "inventorySha256",
+        "pipVersion",
+        "packages",
+        "wheelObjects"
+      ],
+      "properties": {
+        "wheelLockSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "requirementsSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "inventorySha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "pipVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "packages": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "version"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            }
+          }
+        },
+        "wheelObjects": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "filename",
+              "bytes",
+              "sha256",
+              "source",
+              "contentPath"
+            ],
+            "properties": {
+              "filename": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.+-]+\\.whl$",
+                "maxLength": 255
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 33554432
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "source": {
+                "enum": [
+                  "prepared-input",
+                  "content-cache"
+                ]
+              },
+              "contentPath": {
+                "$ref": "#/$defs/contentPath"
+              }
+            }
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "allOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/check"
+          }
+        },
+        {
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/repositoryFormatsCheck"
+            },
+            {
+              "$ref": "#/$defs/publicationHygienePolicyCheck"
+            },
+            {
+              "$ref": "#/$defs/publicationHygieneCheck"
+            },
+            {
+              "$ref": "#/$defs/publicReleaseContractCheck"
+            },
+            {
+              "$ref": "#/$defs/schemaContractCheck"
+            },
+            {
+              "$ref": "#/$defs/staticQualityCheck"
+            },
+            {
+              "$ref": "#/$defs/gate7StaticIntegrationCheck"
+            },
+            {
+              "$ref": "#/$defs/hci1RunnerContractCheck"
+            },
+            {
+              "$ref": "#/$defs/runtimeArtifactSchemaCheck"
+            }
+          ],
+          "items": false
+        }
+      ]
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checks",
+        "executed",
+        "passed",
+        "failed",
+        "incomplete",
+        "notPerformed",
+        "commandAssertions",
+        "reportedTestCases"
+      ],
+      "properties": {
+        "checks": {
+          "const": 9
+        },
+        "executed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "incomplete": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "notPerformed": {
+          "const": 1
+        },
+        "commandAssertions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reportedTestCases": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "logManifest": {
+      "$ref": "#/$defs/contentObject"
+    },
+    "relatedSuites": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hyperv-mock-windows",
+        "hyperv-validation"
+      ],
+      "properties": {
+        "hyperv-mock-windows": {
+          "const": "notPerformed"
+        },
+        "hyperv-validation": {
+          "const": "notPerformed"
+        }
+      }
+    },
+    "operationCounters": {
+      "$ref": "#/$defs/zeroCounters"
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspace",
+        "unknownEntries",
+        "symlinksFollowed"
+      ],
+      "properties": {
+        "workspace": {
+          "const": "retained"
+        },
+        "unknownEntries": {
+          "const": 0
+        },
+        "symlinksFollowed": {
+          "const": 0
+        }
+      }
+    },
+    "ambiguity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "statePath",
+        "blindRetries"
+      ],
+      "properties": {
+        "status": {
+          "const": "resolved"
+        },
+        "statePath": {
+          "type": "string",
+          "pattern": "^ambiguity/[0-9a-f-]{36}/state\\.json$"
+        },
+        "blindRetries": {
+          "const": 0
+        }
+      }
+    },
+    "diskUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspacePeakBytes",
+        "publishedContentBytes",
+        "rootBytesBeforeSummaryPublish",
+        "workspaceLimitBytes",
+        "retentionLimitBytes"
+      ],
+      "properties": {
+        "workspacePeakBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483648
+        },
+        "publishedContentBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10737418240
+        },
+        "rootBytesBeforeSummaryPublish": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10737418240
+        },
+        "workspaceLimitBytes": {
+          "const": 2147483648
+        },
+        "retentionLimitBytes": {
+          "const": 10737418240
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "status": {
+          "const": "passed"
+        },
+        "checks": {
+          "prefixItems": [
+            {
+              "properties": {
+                "status": {
+                  "const": "passed"
+                }
+              }
+            },
+            {
+              "properties": {
+                "status": {
+                  "const": "passed"
+                }
+              }
+            },
+            {
+              "properties": {
+                "status": {
+                  "const": "passed"
+                }
+              }
+            },
+            {
+              "properties": {
+                "status": {
+                  "const": "passed"
+                }
+              }
+            },
+            {
+              "properties": {
+                "status": {
+                  "const": "passed"
+                }
+              }
+            },
+            {
+              "properties": {
+                "status": {
+                  "const": "passed"
+                }
+              }
+            },
+            {
+              "properties": {
+                "status": {
+                  "const": "passed"
+                }
+              }
+            },
+            {
+              "properties": {
+                "status": {
+                  "const": "passed"
+                }
+              }
+            }
+          ]
+        },
+        "counts": {
+          "properties": {
+            "executed": {
+              "const": 8
+            },
+            "passed": {
+              "const": 8
+            },
+            "failed": {
+              "const": 0
+            },
+            "incomplete": {
+              "const": 0
+            },
+            "notPerformed": {
+              "const": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "status": {
+          "const": "failed"
+        },
+        "checks": {
+          "contains": {
+            "type": "object",
+            "required": [
+              "requiredForSuite",
+              "status"
+            ],
+            "properties": {
+              "requiredForSuite": {
+                "const": true
+              },
+              "status": {
+                "const": "failed"
+              }
+            }
+          }
+        },
+        "counts": {
+          "properties": {
+            "executed": {
+              "const": 8
+            },
+            "failed": {
+              "minimum": 1
+            },
+            "notPerformed": {
+              "const": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "status": {
+          "const": "incomplete"
+        },
+        "checks": {
+          "allOf": [
+            {
+              "not": {
+                "contains": {
+                  "type": "object",
+                  "required": [
+                    "requiredForSuite",
+                    "status"
+                  ],
+                  "properties": {
+                    "requiredForSuite": {
+                      "const": true
+                    },
+                    "status": {
+                      "const": "failed"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "contains": {
+                "type": "object",
+                "required": [
+                  "requiredForSuite",
+                  "status"
+                ],
+                "properties": {
+                  "requiredForSuite": {
+                    "const": true
+                  },
+                  "status": {
+                    "const": "incomplete"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "counts": {
+          "properties": {
+            "executed": {
+              "const": 8
+            },
+            "failed": {
+              "const": 0
+            },
+            "incomplete": {
+              "minimum": 1
+            },
+            "notPerformed": {
+              "const": 1
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "gitSha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "contentPath": {
+      "type": "string",
+      "pattern": "^content/sha256/[0-9a-f]{2}/[0-9a-f]{64}$"
+    },
+    "contentObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "bytes",
+        "contentPath"
+      ],
+      "properties": {
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
+        "contentPath": {
+          "$ref": "#/$defs/contentPath"
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "requiredForSuite",
+        "status",
+        "command",
+        "exitCode",
+        "durationMilliseconds",
+        "commandAssertions",
+        "reportedTestCases",
+        "reportedMetrics",
+        "log",
+        "notPerformedReason"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+        },
+        "requiredForSuite": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "incomplete",
+            "notPerformed"
+          ]
+        },
+        "command": {
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exitCode": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "durationMilliseconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "commandAssertions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reportedTestCases": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reportedMetrics": {
+          "type": "object"
+        },
+        "log": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/contentObject"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notPerformedReason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
+      }
+    },
+    "requiredCheck": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/check"
+        },
+        {
+          "properties": {
+            "requiredForSuite": {
+              "const": true
+            },
+            "status": {
+              "enum": [
+                "passed",
+                "failed",
+                "incomplete"
+              ]
+            },
+            "command": {
+              "type": "array"
+            },
+            "exitCode": {
+              "type": "integer"
+            },
+            "log": {
+              "$ref": "#/$defs/contentObject"
+            },
+            "notPerformedReason": {
+              "type": "null"
+            }
+          }
+        }
+      ]
+    },
+    "repositoryFormatsCheck": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/requiredCheck"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "repository-formats"
+            }
+          }
+        }
+      ]
+    },
+    "publicationHygienePolicyCheck": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/requiredCheck"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "publication-hygiene-policy"
+            }
+          }
+        }
+      ]
+    },
+    "publicationHygieneCheck": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/requiredCheck"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "publication-hygiene"
+            }
+          }
+        }
+      ]
+    },
+    "publicReleaseContractCheck": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/requiredCheck"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "public-release-contract"
+            }
+          }
+        }
+      ]
+    },
+    "schemaContractCheck": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/requiredCheck"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "schema-contract"
+            }
+          }
+        }
+      ]
+    },
+    "staticQualityCheck": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/requiredCheck"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "static-quality"
+            }
+          }
+        }
+      ]
+    },
+    "gate7StaticIntegrationCheck": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/requiredCheck"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "gate7-static-integration"
+            }
+          }
+        }
+      ]
+    },
+    "hci1RunnerContractCheck": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/requiredCheck"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "hci1-runner-contract"
+            }
+          }
+        }
+      ]
+    },
+    "runtimeArtifactSchemaCheck": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/check"
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "runtime-artifact-schema"
+            },
+            "requiredForSuite": {
+              "const": false
+            },
+            "status": {
+              "const": "notPerformed"
+            },
+            "command": {
+              "type": "null"
+            },
+            "exitCode": {
+              "type": "null"
+            },
+            "durationMilliseconds": {
+              "const": 0
+            },
+            "commandAssertions": {
+              "const": 0
+            },
+            "reportedTestCases": {
+              "const": 0
+            },
+            "reportedMetrics": {
+              "const": {}
+            },
+            "log": {
+              "type": "null"
+            },
+            "notPerformedReason": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "zeroCounters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "realHostOperations",
+        "realHyperVMutations",
+        "realGuestOperations",
+        "portableDeployments",
+        "webDriverLaunches",
+        "uiOperations"
+      ],
+      "properties": {
+        "realHostOperations": {
+          "const": 0
+        },
+        "realHyperVMutations": {
+          "const": 0
+        },
+        "realGuestOperations": {
+          "const": 0
+        },
+        "portableDeployments": {
+          "const": 0
+        },
+        "webDriverLaunches": {
+          "const": 0
+        },
+        "uiOperations": {
+          "const": 0
+        }
+      }
+    }
+  }
+}

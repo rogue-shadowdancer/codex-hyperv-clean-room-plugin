@@ -56,6 +56,68 @@ mojibake problems, and broken repository-relative links. Save Markdown as
 UTF-8 without BOM. Do not trust a terminal's mojibake display over a strict
 file decode.
 
+### HCI1 direct runner reports `controllerAdapter: notPerformed`
+
+This is the required HCI1 repository-gate behavior, not a request to invent an
+adapter. The committed C2 dispatcher currently admits and validates a closed
+request and lane environment, then exits; its suites remain disabled. The
+repository core deliberately has no public argv/stdin/env/path seam for the
+Git bundle or wheel inputs.
+
+Do not add a temporary controller path, home-directory root, network clone,
+wheel download, SSH wrapper, or caller-supplied command. A later infrastructure
+runner-integration gate must bind the fixed spool, verified bundle and wheels,
+runtime identity, service invocation, timeouts, evidence publication, and
+runner-image digest. Until that gate and C2 Apply/Verify both pass, remote
+exact-SHA proof remains `notPerformed`.
+
+### HCI1 rejects the lane root or a descendant
+
+The production root is exactly
+`/srv/codex-ci/hyperv-static-linux` and must already exist. Rejection is
+expected for an incorrect service account, owner/group or mode, a missing bind
+mount, the wrong ext4 UUID or filesystem root, missing `rw`, `nosuid`, or
+`nodev`, present `noexec`, a symlink, nested mount, device crossing,
+multi-link file, FIFO/socket/device, or an unexpected descendant.
+
+Do not repair these facts from the repository runner and do not traverse the
+physical backing path. Stop and return the observed mismatch to the
+infrastructure Apply/Verify owner. The runner may create only the fixed
+`workspaces`, `locks`, `results`, `content/sha256`, and `ambiguity`
+descendants after admission succeeds.
+
+### HCI1 rejects a source bundle or wheel
+
+For a source bundle, compare the request SHA-256, advertised commit, requested
+tree, complete reachable history, detached checkout, before/after identity,
+clean status, and committed runner bytes. Submodules, LFS pointers, symlinks,
+dirty files, and incomplete history are intentionally unsupported.
+
+For a wheel, compare package/version, exact filename, size, SHA-256,
+ABI/platform tags, and the committed `files.pythonhosted.org` provenance. The
+core never downloads a replacement. Missing or mismatched prepared input is
+incomplete and must return to the infrastructure adapter; do not fall back to
+an index, source distribution, local build, user site, or persistent cache.
+
+### HCI1 result is busy, incomplete, or ambiguous
+
+`busy` means another process owns the non-blocking lock for the same
+idempotency key. Do not start a competing writer. `incomplete` means a
+precondition or bounded operation failed and does not prove a test result.
+An operation-ID binding error means that ID already belongs to different
+request material; preserve the existing ambiguity state and issue a new
+controller operation ID only after reconciliation. Never overwrite the state.
+After a timeout, transport disconnect, or uncertain terminal state, reconcile
+`ambiguity/<operationId>/state.json` and any immutable summary by hash before
+deciding whether a new operation is safe. Never blind-retry, overwrite a
+complete summary, or delete completed content to recover quota.
+
+For a terminal result, retain the workspace until the immutable summary has
+been read back at its exact SHA-256. Only then may the trusted adapter invoke
+the bounded cleanup helper with the same operation ID and idempotency key. If
+the marker or summary binding differs, stop; do not clean manually or broaden
+the target.
+
 ## Plugin installation
 
 ### Source validation fails

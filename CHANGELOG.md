@@ -4,10 +4,26 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
-## Unreleased - Automatic-checkpoint ownership repair
+## Unreleased
+
+### Added
+
+- Define the repository-owned `hyperv-static-linux` suite contract, exact
+  commit/tree/source-bundle/runner-image request binding, idempotency key,
+  exclusive-lock behavior, immutable content-addressed logs and summary, and
+  operation-scoped ambiguity state.
+- Add a complete seven-wheel CPython 3.12.10 Linux x86-64 lock with filename,
+  size, SHA-256, ABI/platform, Python constraint, and fixed origin provenance.
+- Add cross-platform HCI1 contract tests and a static-only Gate 7 mode that
+  never fabricates the Windows mock runtime artifact.
 
 ### Changed
 
+- Keep the repository runner path-independent and fail closed until a separate
+  infrastructure runner-integration gate supplies an admitted Git bundle and
+  verified wheel bytes. The fixed visible lane is
+  `/srv/codex-ci/hyperv-static-linux`; remote Apply/Verify, adapter wiring,
+  suite enablement, and exact-SHA proof remain `notPerformed`.
 - Disable automatic checkpoints immediately after `New-VM`, before ownership
   publication, and require a fresh Hyper-V readback to report the setting as
   false.
@@ -30,6 +46,10 @@ the local plugin cache.
 - Plugin base version remains `0.2.0`; exactly 20 tools, all public tool input
   schemas, five schema-v1 files, seven schema-v2 files, and the immutable
   `v0.2.0` tag/Release remain unchanged.
+- HCI1 changes no MCP tool or schema, performs no remote execution or
+  dependency installation, preserves `public-release-validation` unchanged,
+  and requires all real host, Hyper-V, guest, portable, WebDriver, and UI
+  operation counters to be zero.
 - The repair uses one new personal cachebuster,
   `0.2.0+codex.20260723113253`. The repair logic never adopts an `.avhdx` leaf
   or rewrites ownership.
