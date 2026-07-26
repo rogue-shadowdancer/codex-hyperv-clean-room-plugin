@@ -1,4 +1,4 @@
-# TaskHandoff - H5C guarded power-state recovery complete
+# TaskHandoff - H5C native administrator-token diagnostic blocked before prompt
 
 `relayProtocolVersion: 1`
 
@@ -8,24 +8,26 @@
 
 `projectPath: E:\study\great_projects\codex-hyperv-clean-room-plugin`
 
-H5C power-state recovery was limited to one public, guarded start transition
-for the existing ownership-verified managed VM. The gate revalidated the exact
-installed plugin, host readiness, VM ownership, automatic-checkpoint recovery
-state, and the complete structural non-power baseline before planning.
+This H5C gate was limited to one newly created, fixed, interactive native
+administrator-token diagnostic for the existing ownership-verified managed
+VM. Execution was permitted only while the VM remained `Running` and the
+accepted installed, host, ownership, storage, checkpoint, network, security,
+CPU, memory, and automatic-checkpoint invariants all matched.
 
-The plugin created one schema-v2 `vmPower` plan with the exact effect:
+The fresh helper passed local syntax, native interop, command-boundary, and
+safety review, then ran once through a user-controlled elevated process. Its
+installed and live read-only preflight confirmed the exact plugin payload,
+20-tool surface, elevated Hyper-V host readiness, credential absence, and the
+complete accepted non-power VM baseline.
 
-```text
-Off -> Running
-```
+The VM power state had nevertheless changed from the preceding accepted
+`Running` postflight to `Off`. The helper therefore stopped at the required
+live-preflight boundary before opening the credential prompt or attempting a
+PowerShell Direct session.
 
-The plan was applied once. The apply returned `changed: true` and
-`effectState: confirmed`. Read-only postflight inspection reported `Running`
-and proved that the structural non-power baseline remained unchanged.
-
-The power-state recovery gate therefore passed. The separately authorized
-native administrator-token diagnostic remains `notPerformed` and belongs to a
-fresh task after this documentation candidate is merged and read back.
+The native token diagnostic remains `notPerformed`. The helper was not
+relaunched, and this gate performed no power recovery, guest-policy diagnosis,
+classification fix, credential enrollment, or other mutation.
 
 ## Specification paths
 
@@ -37,95 +39,132 @@ fresh task after this documentation candidate is merged and read back.
 - `docs/operations.md`
 - `docs/security.md`
 - `docs/troubleshooting.md`
-- the installed `hyperv-clean-room` manifest, MCP server, and clean-room skill
+- the installed `hyperv-clean-room` skill, manifest, MCP server, and credential
+  initializer
 
 ## Completed work
 
 `completedWork[]`:
 
-- Re-read every repository authority and the installed clean-room skill before
-  taking action.
-- Re-fetched Git and GitHub state and started from the protected merge of the
-  preceding blocked diagnostic documentation gate.
-- Reverified the installed personal plugin as
+- Re-read every repository authority and the complete installed clean-room
+  skill before taking live action.
+- Re-read the installed plugin manifest, MCP entry point, and interactive
+  credential initializer.
+- Started the required Task Mail session and found no pending coordination
+  request.
+- Fetched current Git and GitHub state and verified that protected
+  `origin/master` is the exact merge of the preceding H5C power-recovery
+  documentation gate.
+- Verified the preceding candidate and merge trees match and that the
+  post-merge protected check passed.
+- Created the new gate branch from exact protected `origin/master` without
+  cleaning, moving, deleting, overwriting, or reusing any ignored operational
+  evidence.
+- Reverified the personal plugin as
   `0.2.0+codex.20260723113253`, bound to source commit
   `66df2c63bbfb70e3de1aa01f4b2cf768342210ff`.
 - Preserved the accepted H4/G9 personal installation without reinstalling or
-  changing its cachebuster. This narrow real-power gate did not rerun the
+  changing its cachebuster. This narrow diagnostic gate did not rerun the
   historical complete `validate-gate4.ps1`; it independently performed the
   exact manifest, payload, tool-discovery, and live read-only checks recorded
   below.
 - Rehashed all 31 installed manifest payloads and found zero missing,
-  mismatched, or extra payloads.
+  mismatched, extra, duplicate, reparse, size-drifted, or hash-drifted
+  payloads.
 - Rediscovered exactly 20 unique MCP tools with the exact expected tool set.
-- Confirmed that the credential root remains absent.
-- Ran an elevated, read-only `inspect_host` and `inspect_vm` preflight.
-- Required the host to remain elevated and Hyper-V-ready and required both
-  inspection envelopes to remain `changed: false`.
-- Required the VM to remain exactly `Off`, ownership-verified, bound through a
-  verified differencing chain, and free of an automatic-checkpoint recovery
-  requirement.
-- Compared the live structural baseline with the earlier accepted baseline.
-  The VM and ownership identities, base/active disk binding, chain member
-  count and structural fingerprint, checkpoint inventory, primary network
-  attachment, Secure Boot, vTPM, processor count, memory configuration, and
-  automatic-checkpoint setting all matched.
-- Triaged one older-snapshot difference in the active disk's growable physical
-  file length. Path/parent linkage, disk identity, virtual size, chain
-  membership, verification, and the structural chain fingerprint were
-  unchanged. The public power-plan fingerprint deliberately binds those
-  structural facts rather than a growable physical allocation length.
-- Created exactly one public `plan_vm_power` request with action `start`.
-- Required the returned plan to have schema version 2, kind `vmPower`, an
-  exact closed field set, a 900-second lifetime, all three required
-  preconditions true, and the exact `Off -> Running` transition.
-- Applied that plan exactly once through `apply_vm_power`; the plan was not
-  replayed.
-- Re-ran elevated read-only host and VM inspection after apply.
-- Required `Running` and proved that every structural non-power invariant
-  matched both preflight and the accepted baseline.
-- Preserved all create-only local wrappers and results under `.artifacts`
-  without upload, overwrite, move, deletion, or cleanup.
-- Passed focused documentation validation and the complete 13-check
-  public-release validation on the exact staged documentation candidate.
-- Completed substantive review of the exact staged diff with zero actionable
-  findings.
+- Confirmed that the credential root remained absent before and after the
+  attempt.
+- Built a fresh create-only diagnostic helper and a fresh create-only result
+  target.
+- Corrected the earlier local-helper defect without replaying or modifying the
+  prior helper or result. The new helper never assigns to PowerShell's
+  read-only automatic host variable.
+- Removed the earlier helper's optional policy reads. The new probe contains
+  only legacy administrator comparisons and the native
+  `TokenIntegrityLevel`, `TokenElevationType`, and `TokenElevation` queries.
+- Verified the helper with the Windows PowerShell parser, isolated native
+  interop compilation, pure-helper execution, exact command counts, automatic
+  variable checks, and forbidden-operation scans.
+- Confirmed exactly one `Get-Credential` command, exactly one fixed
+  `Invoke-Command` probe, and zero initializer, credential-persistence,
+  `inspect_guest`, plan/apply, account/policy mutation, or VM mutation calls.
+- Executed the fresh helper exactly once through a user-controlled elevation
+  boundary.
+- Ran installed `inspect_host` and `inspect_vm` read-only during that attempt.
+- Required both envelopes to remain successful with `changed: false`.
+- Confirmed the host remained elevated, Hyper-V-ready, and matched the
+  accepted host fingerprint.
+- Confirmed VM ownership remained verified through the accepted differencing
+  chain.
+- Confirmed automatic checkpoints remained disabled and automatic-checkpoint
+  recovery remained unnecessary.
+- Confirmed the checkpoint inventory, primary network attachment, Secure Boot,
+  vTPM, processor count, startup memory, maximum memory, storage identities,
+  ownership identities, and all other structural non-power invariants matched
+  the accepted baseline.
+- Observed the sole live drift: expected `Running`, observed `Off`.
+- Stopped before the credential prompt, native probe, or PowerShell Direct
+  session, as required.
+- Preserved the new ignored create-only helper and sanitized result without
+  upload, overwrite, move, deletion, cleanup, or reuse.
+- Did not retry or start another elevated process after the stopped attempt.
 
-## Fail-closed client diagnostics
+## Sanitized diagnostic result
 
-Three local guard-client attempts stopped before the power-plan boundary and
-were preserved:
+The create-only local result contains only bounded metadata, categories,
+Booleans, and counts:
 
-- the first stopped at JSON-RPC initialization because a missing optional
-  response member conflicted with PowerShell strict mode;
-- the second completed installed/tool discovery and stopped during read-only
-  result projection because a local variable conflicted with PowerShell's
-  read-only automatic host variable; and
-- the third launcher stopped before executing its guarded source because an
-  exact static replacement count was intentionally fail-closed.
+```text
+status = blocked
+stage = live-preflight
+category = live-invariant-drift
 
-Those attempts created no power plan, consumed no plan, attempted no apply, and
-performed no Hyper-V mutation. A separate read-only client then confirmed the
-live preflight. The corrected guarded client created the gate's sole plan and
-performed its sole apply.
+installed manifest = valid
+payloads = 31 / 31
+payload missing = 0
+payload mismatch = 0
+payload extra = 0
+MCP tools = 20 / 20 unique
+
+host ready = true
+host elevated = true
+host read-only = true
+
+VM expected state = Running
+VM observed state = Off
+ownership verified = true
+non-power invariants match = true
+
+credential root before = absent
+credential root after = absent
+prompt opened = false
+probe attempted = false
+session opened = false
+native token status = notPerformed
+```
+
+The local result contains no credential material, username, SID value, VM or
+machine identity, local machine path, raw exception, stack, environment,
+screen capture, plan capability, or native transport payload.
 
 ## Changed files and repository state
 
 `changedFiles[]`:
 
-- `TASK_HANDOFF.md` - this sanitized H5C power-recovery handoff.
-- Ignored create-only wrappers and results under `.artifacts` are local
-  operational state and are not publication candidates.
+- `TASK_HANDOFF.md` - this sanitized blocked-gate handoff.
+- Ignored create-only local operational files are preserved local state and
+  are not publication candidates.
 
 `repositoryState`:
 
-- Branch: `codex/h5c-power-state-recovery`.
+- Branch: `codex/h5c-native-token-diagnostic`.
 - Base: protected `origin/master` merge commit
-  `4dab9302bd1b1614f038499613ac51c400a7c7e5`.
+  `1fec41e6a5ed4c38566de52a306f4b48427ff64f`.
 - The tracked worktree was clean before this handoff edit.
 - No pre-existing tracked user change was present.
-- The earlier merged remote gate branch remains untouched.
-- Publication must use a pull request; direct `master` push, automatic merge,
+- Existing remote gate branches and ignored operational evidence remain
+  untouched.
+- Publication must use a pull request. Direct `master` push, automatic merge,
   force-push, branch deletion, tag creation, and GitHub Release publication
   remain outside this gate.
 
@@ -141,10 +180,21 @@ performed its sole apply.
   extra.
 - MCP server: `hyperv-clean-room` version `0.2.0`.
 - MCP tools: 20 expected, 20 observed, 20 unique, exact set.
-- Credential root and profiles: absent.
-- Preflight `inspect_host`: successful, elevated, ready, and read-only.
-- Preflight `inspect_vm`: successful, read-only, ownership-verified, and
-  `Off`.
+- Credential root and profiles: absent before and after.
+- Helper PowerShell parse errors: zero.
+- Helper fixed credential prompts: one.
+- Helper fixed PowerShell Direct probe calls: one.
+- Helper policy reads or writes: zero.
+- Helper `inspect_guest`, initializer, persistence, plan/apply, and VM mutation
+  calls: zero.
+- Native interop declaration: compiled successfully in an isolated local
+  process before execution.
+- Native interop contract: `TokenIntegrityLevel`,
+  `TokenElevationType`, and `TokenElevation` only.
+- Elevated installed `inspect_host`: successful, read-only, elevated, ready,
+  and baseline-matched.
+- Elevated installed `inspect_vm`: successful, read-only, ownership-verified,
+  and structurally baseline-matched.
 - Storage binding: `verifiedDifferencingChain`.
 - Automatic checkpoints: disabled.
 - Automatic-checkpoint recovery required: false.
@@ -152,60 +202,59 @@ performed its sole apply.
 - Network inventory: one unchanged primary adapter and attachment.
 - Secure Boot and vTPM: enabled and unchanged.
 - VM processor and memory configuration: unchanged.
-- Power plan: schema 2, `vmPower`, `start`, exact closed shape, 900-second
-  lifetime, `Off -> Running`, all preconditions true.
-- Power apply: one attempt, successful, `changed: true`,
-  `effectState: confirmed`.
-- Postflight `inspect_host`: successful, elevated, ready, read-only, and
-  unchanged.
-- Postflight `inspect_vm`: successful, read-only, ownership-verified, and
-  `Running`.
-- Postflight structural non-power invariants: unchanged.
-- Power-plan replay: zero.
+- VM state: `Off`; required state: `Running`.
+- One fresh helper execution: completed with bounded blocked result.
+- Credential prompt opened: false.
+- Native probe attempted: false.
+- PowerShell Direct session opened: false.
+- Native integrity category: `notPerformed`.
+- `TokenElevationType`: `notPerformed`.
+- `TokenElevation`: `notPerformed`.
+- Power, reset, pause, save, checkpoint, restore, network, disk, Notes,
+  ownership, guest account, UAC, registry, password, ACL, DPAPI, credential,
+  package, portable, UI, and evidence mutation: zero.
 - `scripts/validate-docs.ps1`: passed with 17 documents, 98 local links,
   strict UTF-8, and zero mojibake markers.
 - `scripts/validate-public-release.ps1`: all 13 checks passed with zero real
   guest operations and zero real Hyper-V mutations.
 - Exact staged `git diff --check`: passed.
 - Exact staged substantive review: zero actionable findings.
-- `inspect_guest`, credential initializer, PowerShell Direct token probe,
-  checkpoint, network, shutdown, reset, force, guest, account, policy, ACL,
-  DPAPI, disk-binding, Notes, and ownership mutation: zero.
 
-The local create-only result reports `status: passed` and contains no
-credential material. It remains ignored operational state and is not public
-evidence.
-
-These facts establish only the guarded host power transition and its read-only
-postflight. They do not establish a native guest-token category, guest
-credential enrollment, a clean guest baseline, package/profile/UI execution,
+These facts establish only a credential-free installed/host/VM preflight and a
+fail-closed stop. They do not establish a native guest-token category, a
+credential profile, a clean guest baseline, package/profile/UI execution,
 evidence collection, or manual attestation.
 
 ## Unresolved issues and blockers
 
 `unresolvedIssues[]`:
 
-- The cause and authority of the earlier unplanned `Running -> Off` transition
-  remain unknown.
+- The cause and authority of the recurring unplanned `Running -> Off`
+  transition remain unknown.
 - The orchestration administrator's native integrity category,
   `TokenElevationType`, and `TokenElevation` remain unknown.
-- The earlier legacy comparison remains limited to Administrators SID present,
+- The earlier legacy comparison remains Administrators SID present,
   administrator role true, legacy integrity unknown, and legacy high/system
   false.
-- Safe future reset means a separately reviewed guarded restore of one exact
-  verified checkpoint while the VM is `Off`. Hard reset remains unauthorized.
+- No evidence identifies a guest account, UAC, token-filtering, or plugin
+  classification defect.
+- Safe future reset still means a separately reviewed guarded restore of one
+  exact verified checkpoint while the VM is `Off`. Hard reset remains
+  unauthorized.
 - A future shutdown must be graceful, separately plan-bound, and separately
   authorized.
 
 `blockers[]`:
 
-- This documentation candidate still requires protected pull-request checks
-  and separate user confirmation before merge.
-- The native token diagnostic must not run in this task.
+- At this documentation commit boundary, local validation and substantive
+  staged review are complete. Only protected exact-head pull-request checks
+  and separate user merge confirmation remain.
+- The VM is `Off`; the native token diagnostic requires `Running`.
+- This task must not relaunch the helper or perform power recovery.
 
 ## Next gate and commands
 
-`nextGate: H5C native administrator-token diagnostic`
+`nextGate: H5C recurring power-state recovery review`
 
 `nextCommands[]`:
 
@@ -214,40 +263,44 @@ evidence collection, or manual attestation.
 2. Request separate user confirmation before merge.
 3. After an authorized protected merge, verify the exact remote merge commit
    and post-merge required check.
-4. Relay one fresh task that re-reads all authorities and the live installed
-   state.
-5. In that fresh task only, use the user's existing authorization for exactly
-   one fixed interactive native administrator-token diagnostic. Do not reuse
-   any prior result target or retry after a prompt, session, transport, or
-   probe ambiguity.
+4. Relay one fresh task that re-reads all authorities, the installed payload,
+   and the live host/VM state.
+5. In that fresh task, investigate the recurring `Running -> Off` state only
+   through read-only evidence first.
+6. If the VM remains `Off` and every structural invariant still matches, create
+   a fresh public guarded `Off -> Running` power plan, present its exact effect,
+   and obtain separate immediate confirmation before apply.
+7. Do not infer a start, restore, reset, shutdown, guest-policy, or
+   classification mutation from the unperformed token-probe authorization.
+8. After a separately authorized and verified power recovery, relay another
+   fresh native-token diagnostic task. Use a new helper and new create-only
+   result target; do not replay or reuse this stopped attempt.
 
-If the future native result is high/system and elevated while the legacy
-method remains unknown, relay to a native token-classification code-fix gate
-without guest mutation. If it shows a limited or medium token, present the
-exact Boolean/integrity/elevation and policy delta before proposing any guest
-policy change.
+The user's one-later-probe authorization was not exercised because no
+credential prompt or native probe occurred. It is not permission for an
+automatic retry in this task or for a power, reset, restore, shutdown, account,
+UAC, registry, or token-policy mutation.
 
 ## Safety constraints
 
 `safetyConstraints[]`:
 
-- Do not run the native token probe, `inspect_guest`, or the credential
-  initializer in this gate.
+- Do not relaunch the native token helper in this gate.
+- Do not run `inspect_guest` or the credential initializer.
 - Do not create or publish a credential profile.
-- Do not start the VM again; it is already `Running`.
-- Do not stop, reset, pause, save, restore, checkpoint, reconnect, or
+- Do not start, stop, reset, pause, save, restore, checkpoint, reconnect, or
   reconfigure the VM.
-- Do not replay the consumed start plan.
+- Do not create or apply a power or network plan.
 - Do not change guest accounts, group membership, UAC policy, registry,
   password, ACL, DPAPI data, network, disks, checkpoint inventory, Notes, or
   ownership state.
-- Do not record or upload a username, SID, password, credential object,
+- Do not record or upload a username, SID value, password, credential object,
   serialized credential, raw exception, stack, environment, machine identity,
   local machine path, VM/VHDX/checkpoint identity, screenshot, plan ID, or
-  `.artifacts` content.
+  ignored operational content.
 - Do not push directly to `master`, force-push, delete branches, merge
   automatically, tag, or publish a Release.
-- Preserve every existing local wrapper and result.
+- Preserve every existing and newly created local wrapper and result.
 
 `ownership.previousTask: read-only-after-relay`
 
