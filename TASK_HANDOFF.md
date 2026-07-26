@@ -246,9 +246,9 @@ evidence collection, or manual attestation.
 
 `blockers[]`:
 
-- This documentation candidate requires exact local validation, substantive
-  staged review, protected pull-request checks, and separate user confirmation
-  before merge.
+- At this documentation commit boundary, local validation and substantive
+  staged review are complete. Only protected exact-head pull-request checks
+  and separate user merge confirmation remain.
 - The VM is `Off`; the native token diagnostic requires `Running`.
 - This task must not relaunch the helper or perform power recovery.
 
