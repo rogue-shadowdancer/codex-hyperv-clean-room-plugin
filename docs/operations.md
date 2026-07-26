@@ -24,9 +24,13 @@ H5D records a documentation-only baseline decision for the one existing
 managed VM in the H5 operational sequence. Its protected structural comparison
 uses 8 GiB startup memory and 8 GiB maximum dynamic memory. The public
 `plan_vm_create` defaults remain 8 GiB startup memory and 12 GiB maximum
-dynamic memory for newly planned VMs. The H5D decision neither changes the live
-VM nor resolves the unknown cause or authority of the earlier maximum-memory
-difference.
+dynamic memory for newly planned VMs. The recorded basis is the last
+authoritative elevated read-only preflight preceding H5D, which observed
+8 GiB startup and 8 GiB maximum memory. The preceding H5C handoff's generic
+"matched the accepted baseline" wording did not state or reconcile those
+values with the earlier protected 12 GiB maximum; H5D supersedes that wording
+for this one field. The decision neither changes the live VM nor resolves the
+unknown cause or authority of the earlier maximum-memory difference.
 
 Do not infer operational readiness from a green mock run. Real use requires a
 separately approved host, owned VM, credential profile, artifact, profile, and

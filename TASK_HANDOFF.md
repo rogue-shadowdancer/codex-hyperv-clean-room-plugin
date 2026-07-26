@@ -20,6 +20,15 @@ The revision is intentionally local to that existing VM. The public
 `plan_vm_create` contract remains unchanged: omitted memory inputs still
 default to 8 GiB startup memory and 12 GiB maximum dynamic memory.
 
+The last authoritative elevated read-only preflight preceding H5D is the
+recorded observation establishing the new baseline: startup memory was 8 GiB
+and maximum dynamic memory was 8 GiB. The preceding H5C handoff's generic
+statement that both memory values matched "the accepted baseline" omitted
+those values and did not reconcile the observed maximum with the earlier
+protected 12 GiB expectation. H5D supersedes that statement for the
+maximum-memory field; it is not evidence that the VM still had a 12 GiB
+maximum.
+
 H5D changes no runtime, schema, tool catalog, compatibility fixture, test,
 installed payload, or general VM-creation behavior. It performs and authorizes
 no Hyper-V, guest, credential, plan/apply, H5E, or `0.3.0` work.
@@ -52,6 +61,10 @@ no Hyper-V, guest, credential, plan/apply, H5E, or `0.3.0` work.
 - Reconfirmed that the public `plan_vm_create` 12 GiB maximum default is
   present in the specification, tool schema, runtime default, compatibility
   snapshot, fixtures, and tests.
+- Reconciled the preceding H5C handoff's unspecified "matched the accepted
+  baseline" wording with the recorded authoritative 8 GiB startup and 8 GiB
+  maximum-memory observation, and explicitly superseded that wording for the
+  maximum-memory field.
 - Added the narrow H5D acceptance boundary to `docs/specification.md`.
 - Added a short operational-status note to `docs/operations.md` so operators
   do not conflate the one existing VM's 8 GiB accepted maximum with the
@@ -94,6 +107,9 @@ no Hyper-V, guest, credential, plan/apply, H5E, or `0.3.0` work.
 
 - Source occurrence review confirms that the public
   `maximumMemoryGb` default remains 12.
+- Baseline evidence review confirms that the last authoritative elevated
+  read-only preflight preceding H5D observed 8 GiB startup memory and 8 GiB
+  maximum dynamic memory; H5D performs no new live readback.
 - `scripts/validate-docs.ps1`: passed with 17 documents, 98 local links,
   strict UTF-8, and zero mojibake markers.
 - `scripts/validate-public-release.ps1`: all 13 aggregate checks passed.

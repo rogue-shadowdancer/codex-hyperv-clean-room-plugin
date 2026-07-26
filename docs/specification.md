@@ -1050,9 +1050,17 @@ authorized.
 H5D is a documentation-only acceptance decision for the one existing managed
 VM used by the H5 operational sequence. For that VM only, the protected
 structural comparison baseline is 8 GiB startup memory and 8 GiB maximum
-dynamic memory. This supersedes the earlier 12 GiB expected maximum only in
-that VM's H5 operational baseline; it does not establish when, why, or by
-whose authority the observed maximum changed.
+dynamic memory. The last authoritative elevated read-only preflight preceding
+H5D is the observation that establishes those values: it reported 8 GiB
+startup memory and 8 GiB maximum dynamic memory.
+
+The preceding H5C handoff's generic statement that startup and maximum memory
+matched "the accepted baseline" was incomplete: it did not state those values
+or reconcile the observed 8 GiB maximum with the earlier protected 12 GiB
+expectation. H5D supersedes that statement for the maximum-memory field; it
+must not be read as evidence that the VM still had a 12 GiB maximum. The
+revision applies only to this VM's H5 operational baseline and does not
+establish when, why, or by whose authority the observed maximum changed.
 
 The public `plan_vm_create` contract is unchanged: when its memory inputs are
 omitted, it continues to default to 8 GiB startup memory and 12 GiB maximum
