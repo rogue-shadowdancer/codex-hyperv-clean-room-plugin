@@ -20,6 +20,14 @@ complete identity-bearing chain terminates at the unchanged recorded base
 VHDX. Recognition is read-only: it never adopts the leaf, rewrites state, or
 changes a checkpoint.
 
+H5D records a documentation-only baseline decision for the one existing
+managed VM in the H5 operational sequence. Its protected structural comparison
+uses 8 GiB startup memory and 8 GiB maximum dynamic memory. The public
+`plan_vm_create` defaults remain 8 GiB startup memory and 12 GiB maximum
+dynamic memory for newly planned VMs. The H5D decision neither changes the live
+VM nor resolves the unknown cause or authority of the earlier maximum-memory
+difference.
+
 Do not infer operational readiness from a green mock run. Real use requires a
 separately approved host, owned VM, credential profile, artifact, profile, and
 mutation scope. Gate 2 validation itself performs only real `inspect_host` and

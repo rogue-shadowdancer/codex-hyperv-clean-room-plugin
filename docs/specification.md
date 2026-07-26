@@ -1044,3 +1044,27 @@ create a checkpoint and does not mutate the existing live VM. After exact
 source acceptance and installation, only read-only `inspect_host` and
 `inspect_vm` are permitted until a separately reviewed recovery plan is
 authorized.
+
+## H5D existing-managed-VM memory baseline revision boundary
+
+H5D is a documentation-only acceptance decision for the one existing managed
+VM used by the H5 operational sequence. For that VM only, the protected
+structural comparison baseline is 8 GiB startup memory and 8 GiB maximum
+dynamic memory. This supersedes the earlier 12 GiB expected maximum only in
+that VM's H5 operational baseline; it does not establish when, why, or by
+whose authority the observed maximum changed.
+
+The public `plan_vm_create` contract is unchanged: when its memory inputs are
+omitted, it continues to default to 8 GiB startup memory and 12 GiB maximum
+dynamic memory. H5D changes no tool, schema, runtime behavior, compatibility
+fixture, test, installed payload, or general VM-creation contract.
+
+Accepting the 8 GiB maximum means only that a subsequent read-only comparison
+of this same managed VM may treat that one value as matching its protected H5D
+baseline. Every other host, ownership, storage, checkpoint, network, security,
+processor, memory, automatic-checkpoint, and power-state invariant remains
+independently reviewable. H5D performs no Hyper-V or guest mutation and does
+not authorize a power transition, credential operation, plan/apply call, H5E
+work, or a `0.3.0` change. The cause and authority of the earlier
+12 GiB-to-8 GiB difference and the recurring `Running`-to-`Off` transitions
+remain unresolved.
