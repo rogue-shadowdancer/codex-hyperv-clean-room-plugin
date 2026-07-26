@@ -1,160 +1,201 @@
-# TaskHandoff - H5A automatic-checkpoint ownership repair
+# TaskHandoff - H5C native token diagnostic blocked before probe
 
 `relayProtocolVersion: 1`
 
+`relayAttempt: 1`
+
 ## Objective and outcome
-
-H5A repairs the fail-closed ownership deadlock caused when Hyper-V attaches an
-automatic-checkpoint `.avhdx` leaf to a managed VM whose schema-v1 ownership
-record remains bound to its original base `.vhdx`.
-
-The backward-compatible repair has two parts:
-
-- new VM creation disables `AutomaticCheckpointsEnabled` immediately after
-  `New-VM`, before publishing the Notes ownership marker, and fails closed
-  unless a fresh Hyper-V readback returns the Boolean value `false`;
-- an existing differencing leaf is ownership verified only through a complete,
-  bounded, acyclic, identity-bearing chain whose exact parent links terminate
-  at the unchanged recorded base VHDX and whose canonical SHA-256 fingerprint
-  agrees with the inspected chain.
-
-Recognition is read-only. It never adopts the active leaf, rewrites ownership
-state, changes Notes, or modifies checkpoints or disks. While automatic
-checkpoints remain true or unavailable, both guarded power actions are
-rejected because starting or stopping can change the differencing-disk
-lifecycle.
-
-## Release-source and compatibility boundary
-
-- Candidate branch: `codex/h5a-checkpoint-ownership`.
-- Candidate base: accepted `origin/master`
-  `b1e68d32ff8d29fb475ba3f43b59353086060f33`.
-- Candidate cachebuster: `0.2.0+codex.20260723113253`.
-- The immutable public version, annotated `v0.2.0` tag, and source-only GitHub
-  Release are unchanged.
-- The 20 MCP tool names, five schema-v1 files, seven schema-v2 files, plan
-  consumption rules, and existing schema fields remain backward compatible.
-  New inspection fields are additive.
-- The previous accepted H4/G9 installed build
-  `0.2.0+codex.20260722114845` remains the baseline until this exact candidate
-  passes protected publication acceptance and is then installed.
-
-## Changed areas
-
-- `hyperv-clean-room/mcp/lib/Adapters.ps1`
-  - disables automatic checkpoints before ownership publication;
-  - reads the setting back from Hyper-V;
-  - builds a bounded VHD/AVHDX identity chain from `Get-VHD`;
-  - re-verifies ownership at ordinary and restore adapter mutation boundaries.
-- `hyperv-clean-room/mcp/lib/Tools.Host.ps1`
-  - canonicalizes and hashes VHD-chain identities;
-  - accepts only a verified chain ending at the recorded base;
-  - reports the storage-binding mode and recovery state from `inspect_vm`.
-- `hyperv-clean-room/mcp/lib/Tools.Host.V2.ps1`
-  - includes the chain and automatic-checkpoint setting in mutation invariants;
-  - blocks both guarded power actions until automatic checkpoints are disabled.
-- `tests/gate2-runtime.tests.ps1`
-  - covers future creation, valid automatic-checkpoint chains, broken links,
-    unrelated bases, forged fingerprints, cycles, missing identities,
-    oversized chains, adapter-dispatch ownership drift, and power blocking.
-- The specification, operations, security, troubleshooting, user README,
-  repository skill, changelog, plugin cachebuster, and this handoff describe
-  the same guarded behavior.
-
-No MCP input accepts a chain, leaf, or replacement ownership identity. The
-real adapter derives all chain evidence from the currently attached Hyper-V
-disk and local ordinary non-reparse files.
-
-## Repository state
 
 `projectPath: E:\study\great_projects\codex-hyperv-clean-room-plugin`
 
-- This isolated worktree started clean at the exact candidate base.
-- All listed changes belong to H5A; no pre-existing user changes were present.
-- Runtime fixtures and prepared test dependencies are ignored under
-  `.artifacts` and are not publication candidates.
-- No VM, VHDX, checkpoint, ISO, credential, evidence, installed-state, or
-  machine-specific state file is tracked.
+H5C was limited to one fixed, interactive, sanitized diagnostic of the
+orchestration administrator's live PowerShell Direct token. The planned probe
+would compare the existing `WindowsIdentity.Groups` classification with native
+`OpenProcessToken` and `GetTokenInformation` reads for
+`TokenIntegrityLevel`, `TokenElevationType`, and `TokenElevation`.
+
+The native guest probe did not run. Its fixed preflight stopped before the
+credential prompt because the managed VM no longer matched the required
+`Running` power-state invariant. A second, credential-free read-only check
+confirmed this exact delta:
+
+```text
+VM power state: expected Running -> observed Off
+```
+
+The result is therefore:
+
+```text
+status = blocked
+category = diagnostic-internal-error
+promptOpened = false
+probeAttempted = false
+sessionOpened = false
+nativeTokenStatus = not-performed
+```
+
+The initial wrapper reported the generic internal category because its
+sanitization path did not project this unexpected power-state drift into a
+stable public category. The bounded follow-up readback identified the drift
+without prompting for a credential or opening a guest session. No retry is
+authorized or inferred.
+
+## Specification paths
+
+`specificationPaths[]`:
+
+- `AGENTS.md`
+- `TASK_HANDOFF.md`
+- `docs/specification.md`
+- `docs/operations.md`
+- `docs/security.md`
+- `docs/troubleshooting.md`
+- the installed credential initializer and installed clean-room skill
+
+## Completed work
+
+`completedWork[]`:
+
+- Re-read every H5C authority and the exact installed initializer and skill.
+- Confirmed the repository branch and `origin/master` both started at
+  `175bc4d7745e7d6b7c384d413a2fcd9001a1abc9`.
+- Confirmed the installed plugin remains
+  `0.2.0+codex.20260723113253`, bound to source commit
+  `66df2c63bbfb70e3de1aa01f4b2cf768342210ff`.
+- The historical H4/G9 installed candidate was not modified. This blocked
+  docs-only gate did not rerun the complete `validate-gate4.ps1`; it performed
+  the narrower exact-manifest and installed read-only checks listed below.
+- Reverified all 31 installed payloads with zero mismatch and exactly 20
+  unique tools before the blocked prompt boundary.
+- Built the fixed ignored native-token wrapper with exactly one
+  `Get-Credential`, exactly one fixed `Invoke-Command`, and no
+  `inspect_guest`, initializer, credential persistence, or mutation command.
+- Verified Windows PowerShell 5.1 parsing and exercised the same native API
+  declarations read-only against a local process token.
+- Completed an independent native P/Invoke and safety review with zero
+  actionable findings.
+- Ran the fixed H5C wrapper once. It did not prompt, did not attempt the guest
+  probe, and did not create a PowerShell Direct session.
+- Ran one credential-free, read-only installed-copy readback. `inspect_host`
+  and `inspect_vm` both returned successful `changed: false` envelopes;
+  ownership remained verified, while VM state read back as `Off`.
+- Preserved the earlier sanitized administrator comparison:
+  `hasAdministratorsSid=true`, `isAdministrator=true`,
+  legacy integrity `unknown`, and legacy `highOrSystem=false`.
+- Confirmed the credential root and target profile remain absent.
+
+## Changed files and repository state
+
+`changedFiles[]`:
+
+- `TASK_HANDOFF.md` - this sanitized blocked-gate handoff.
+- Ignored local diagnostic wrappers and results under `.artifacts` were
+  created and preserved. They are not tracked or publication candidates.
+
+`repositoryState`:
+
+- Branch: `codex/h5c-windows-guest-baseline`.
+- Base HEAD: `175bc4d7745e7d6b7c384d413a2fcd9001a1abc9`.
+- The tracked worktree was clean before this handoff edit.
+- No pre-existing tracked user change was present.
+- Existing and new ignored local VM/diagnostic artifacts belong to local
+  operational evidence and must be preserved without upload.
 
 ## Verification
 
-Completed during implementation:
+`verification[]`:
 
-- Windows PowerShell 5.1 parsing passed for the modified runtime and test files.
-- `tests/gate2-runtime.tests.ps1` passed 1,298 assertions with 20 tools and
-  `realHyperVMutations: 0`.
-- `tests/gate7-runtime.tests.ps1` passed 216 assertions with all real host,
-  Hyper-V, guest, portable, WebDriver, and UI operation counters at zero.
-- `scripts/validate-docs.ps1` passed 17 documents, 98 local links, strict UTF-8,
-  and zero mojibake markers.
-- Two independent reviews identified missing behavioral coverage for
-  cycle/missing-identity rejection and adapter-dispatch ownership drift. Those
-  cases were added and the affected suites passed afterward.
+- Installed manifest: valid.
+- Installed payloads: 31 expected, 31 observed, zero mismatch.
+- MCP tools: 20 expected, 20 observed, 20 unique.
+- Installed `inspect_host`: successful and read-only.
+- Installed `inspect_vm`: successful and read-only.
+- VM ownership: verified.
+- VM state: `Off`; required H5C state: `Running`.
+- Credential prompt: not opened.
+- Native token probe: not performed.
+- PowerShell Direct session: not opened.
+- Credential root and target profile: absent.
+- Credential persistence: not performed.
+- `inspect_guest`: not called.
+- Guest account, policy, registry, group membership, password, network, power,
+  disk, checkpoint, and ownership mutation: zero.
 
-The exact candidate also passed:
+These facts do not establish the administrator's native integrity or elevation
+state and do not establish a plugin classification defect or guest token
+filtering.
 
-```powershell
-.\scripts\validate-gate4-ci.ps1
-.\scripts\validate-gate7.ps1 -SkipInheritedBaseline
-.\scripts\validate-public-release.ps1
-git diff --check
-```
+Credential enrollment, `inspect_guest`, stock-clean baseline creation,
+Birdsgone package/profile/UI execution, evidence collection, and manual
+attestation remain `notPerformed`.
 
-Gate 4 CI-safe reported 31 source files, 20 tools, five v1 schemas, seven v2
-schemas, 33 installer assertions, and zero install, marketplace, installed-copy,
-host, guest, or Hyper-V mutation operations. Gate 7 reported 216 runtime
-assertions and zero real host, Hyper-V, guest, portable, WebDriver, or UI
-operations. The aggregate public-release gate passed 13 checks with
-`realGuestOperations: 0` and `realHyperVMutations: 0`.
+## Unresolved issues and blocker
 
-The substantive staged review must still reach `ZERO ACTIONABLE FINDINGS`.
-Remote acceptance requires exact-head protected CI, zero unresolved actionable
-review threads, normal merge without bypass, and exact accepted-source
-installation. After installation, `validate-gate4.ps1` and installed
-manifest/source readback must pass before the installed plugin is used for
-read-only inspection.
+`unresolvedIssues[]`:
 
-## Existing pre-fix VM recovery boundary
+- The orchestration administrator's native integrity category,
+  `TokenElevationType`, and `TokenElevation` remain unknown.
+- The cause and authority for the unplanned `Running -> Off` VM transition are
+  unknown.
+- The initial wrapper's stable result was less specific than the later
+  credential-free readback; the preserved evidence must not be rewritten.
 
-H5A performs no recovery mutation. For the already running pre-fix managed VM:
+`blockers[]`:
 
-1. Install and verify only the exact protected, accepted H5A source candidate.
-2. Use installed `inspect_host` and `inspect_vm` read-only.
-3. Require the same VM ID, ownership ID, recorded base path, active leaf,
-   verified chain fingerprint, checkpoint inventory, and current power state
-   expected by the separately retained operational evidence.
-4. Preserve the current power state. Do not plan or apply start or graceful
-   shutdown while `AutomaticCheckpointsEnabled` remains true or unavailable.
-5. Separately review one setting-only host change whose only effect is setting
-   `AutomaticCheckpointsEnabled` to false in the current power state. It must
-   not change disks, checkpoints, power, Notes, ownership state, or any other
-   VM setting.
-6. If that future change is explicitly authorized and succeeds, inspect again
-   and require the same chain fingerprint and checkpoint inventory, verified
-   ownership, the setting `false`, and
-   `automaticCheckpointRecoveryRequired: false` before any power plan.
+- H5C requires the ownership-verified VM to be `Running`, but the current
+  read-only state is `Off`.
+- Starting the VM is a separate guarded Hyper-V mutation and has not been
+  approved through an exact plan/apply confirmation.
+- The one-shot token diagnostic is consumed as a blocked attempt. A fresh
+  native guest probe requires separate authorization after power-state
+  recovery; it must not be retried automatically.
 
-Any incomplete, cyclic, identity-missing, forged, unrelated, or changed chain
-is `OWNERSHIP_UNVERIFIED`; stop without mutation.
+## Next gate and commands
 
-## Safety boundary, unresolved work, and next gate
+`nextGate: H5C power-state recovery review`
 
-`blockers[]`: none for completing and publishing H5A.
+`nextCommands[]`:
 
-H5A does not delete, remove, apply, rename, merge, restore, or adopt a
-checkpoint. It does not delete, reset, force-off, recreate, or reconfigure the
-existing VM or its disks. It does not edit ownership state by hand, use
-credentials, run arbitrary PowerShell Direct, or change permanent host access.
+1. Re-read Task Mail, repository state, installed manifest, credential-profile
+   absence, and installed `inspect_host` / `inspect_vm`; stop on any additional
+   drift.
+2. Determine whether an external actor intentionally powered off the VM.
+3. If recovery is still intended, use the public guarded power workflow to
+   produce a fresh one-shot plan for the exact delta `Off -> Running`.
+4. Present the complete plan and exact power delta to the user. Do not apply it
+   without separate immediate confirmation.
+5. After an authorized apply, re-run installed read-only inspection and require
+   unchanged ownership, storage-chain fingerprint, checkpoint inventory,
+   network, security, CPU/memory, and automatic-checkpoint state.
+6. Only in a later separately authorized gate, create a fresh fixed native
+   token diagnostic with a new create-only result target. Do not reuse,
+   delete, overwrite, or reinterpret the blocked H5C result.
 
-Windows installation/OOBE, credential enrollment, `inspect_guest`, graceful
-shutdown, stock-Windows checkpoint creation, package/profile/WebDriver/UI
-testing, guest evidence, and clean-machine acceptance all remain
-`notPerformed`.
+If the future native result is high/system and elevated while the legacy method
+remains unknown, relay to the native token-classification code-fix gate without
+guest mutation. If it shows a limited or medium token, present the exact
+Boolean/integrity/elevation and policy delta before proposing any guest policy
+change.
 
-The next gate is recovery-plan evidence review only. It begins after exact H5A
-installation and read-only inspection. It may propose the single setting-only
-change above, but must not execute it without separate explicit authorization
-after the exact old-to-new setting diff and preserved invariants are reviewed.
+## Safety constraints
+
+`safetyConstraints[]`:
+
+- Do not retry the native token probe in this gate.
+- Do not start, stop, reset, pause, save, restore, checkpoint, reconnect, or
+  reconfigure the VM without the applicable guarded plan and separate
+  confirmation.
+- Do not call `inspect_guest` or the credential initializer.
+- Do not create or publish a credential profile.
+- Do not change guest accounts, group membership, UAC policy, registry,
+  password, ACL, DPAPI data, network, disks, checkpoints, Notes, or ownership
+  state.
+- Do not record or upload a username, SID, password, credential object,
+  CLIXML, raw exception, stack, environment, local machine path, VM identity,
+  VHDX identity, checkpoint identity, screenshot, or `.artifacts` content.
+- Do not push directly to `master`, force-push, delete branches, merge, tag, or
+  publish a Release.
+- Preserve the blocked result and all earlier local evidence.
 
 `ownership.previousTask: read-only-after-relay`
 
