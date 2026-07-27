@@ -213,7 +213,9 @@ prove that the VM is still `Running` or that any live invariant still matches.
 
 ## Next gate and commands
 
-`nextGate: H5E-R1 collector repair and fresh authorization proposal only; no
+`nextGate: H5E-R1 collector repair and fresh authorization proposal only, but
+only after this blocked-H5E handoff is published, merged, post-merge verified,
+reflected in Issue #19 with readback, and relayed through a fresh handoff; no
 execution authority carries forward`
 
 `nextCommands[]`:
