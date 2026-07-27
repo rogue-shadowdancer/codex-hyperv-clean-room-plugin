@@ -186,8 +186,9 @@ differences, a guest baseline, or any new machine-backed result.
 
 ## Next gate and commands
 
-`nextGate: H5D-R1 read-only operational revalidation; it is named for routing
-only and is not authorized or started by this alignment gate`
+`nextGate: protected publication and post-merge Issue #19 readback for this
+alignment candidate; H5D-R1 remains a future named operational gate and may be
+promoted only by a separately authorized post-merge task/handoff`
 
 `nextCommands[]`:
 
