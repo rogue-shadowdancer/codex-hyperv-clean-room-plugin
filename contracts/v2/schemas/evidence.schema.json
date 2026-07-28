@@ -38,7 +38,13 @@
       "properties": {
         "id": { "$ref": "#/$defs/id" },
         "schemaVersion": { "const": 2 },
-        "sha256": { "$ref": "#/$defs/sha256" }
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "fixtureIds": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        }
       }
     },
     "evidenceKind": { "const": "externalPortable" },
@@ -205,6 +211,7 @@
             { "not": { "required": ["fixtureIdentities"] } }
           ],
           "properties": {
+            "profile": { "not": { "required": ["fixtureIds"] } },
             "candidate": { "$ref": "#/$defs/embeddedCandidateIdentity" },
             "runtime": { "$ref": "#/$defs/embeddedRuntimeIdentity" },
             "guest": { "$ref": "#/$defs/embeddedGuestIdentity" },
@@ -215,6 +222,7 @@
           "required": ["evidenceKind", "fixtureIdentities"],
           "properties": {
             "evidenceKind": { "const": "externalPortable" },
+            "profile": { "required": ["fixtureIds"] },
             "candidate": { "$ref": "#/$defs/externalCandidateIdentity" },
             "runtime": { "$ref": "#/$defs/externalRuntimeIdentity" },
             "guest": { "$ref": "#/$defs/externalGuestIdentity" },

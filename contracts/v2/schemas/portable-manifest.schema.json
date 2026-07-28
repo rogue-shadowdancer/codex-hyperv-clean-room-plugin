@@ -439,7 +439,7 @@
         },
         "distributionMode": { "const": "fixed-portable" },
         "dataRoot": { "const": "data/" },
-        "unsigned": { "type": "boolean" },
+        "unsigned": { "const": true },
         "newZipSize": {
           "type": "integer",
           "minimum": 1,

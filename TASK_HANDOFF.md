@@ -153,12 +153,13 @@ The candidate must retain these exact outcomes after its final commit:
 - Gate 7 mock runtime assertions: `216`
 - generated mock evidence documents validated: `5`
 - `git diff --check`
-- Two Codex review passes found five actionable fail-closed gaps: external ZIP
+- Three Codex review passes found seven actionable fail-closed gaps: external ZIP
   artifact leaf/size binding, cleanup-only UI driver dispatch and WebView2
   cross-binding, embedded-evidence rejection of external fixture identities,
-  and non-passing external fixture-identity status derivation. All five are
-  repaired with direct regression probes; the final published candidate
-  requires a fresh zero-actionable-findings review.
+  non-passing external fixture-identity status derivation, independently bound
+  expected fixture IDs, and executable-manifest unsigned enforcement. All
+  seven are repaired with direct regression probes; the final published
+  candidate requires a fresh zero-actionable-findings review.
 - real host operations: `0`
 - real Hyper-V mutations: `0`
 - real guest operations: `0`
