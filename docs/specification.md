@@ -1174,7 +1174,8 @@ External evidence is structurally selected by
 candidate binds product/runtime/packaging commits and trees; ZIP leaf,
 profile/source/guest size and SHA; profile SHA; manifest source/path and
 profile/source/guest size/SHA; complete inventory digest/count/size; fixture
-set and each fixture identity; and conditional driver identity. The three
+set digest, the validated profile identity's independently bound declared
+fixture IDs, and each fixture identity; and conditional driver identity. The three
 manifest hashes are required and equal. Runtime evidence binds base/build
 version, source commit, installed inventory, and adapter mode. Guest evidence
 separates the elevated orchestration identity from the exact-medium

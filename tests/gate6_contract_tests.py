@@ -754,19 +754,43 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
     artifacts = evidence.get("artifacts", [])
     roles = [item.get("role") for item in artifacts]
     external = evidence.get("evidenceKind") == "externalPortable"
+    candidate = evidence.get("candidate", {})
     automation = evidence.get("automation", {})
     required_roles = {"portableZip", "portableManifest", "deployedPayload"}
     if not external or automation.get("uiRequired") is True:
         required_roles.update({"webDriverArchive", "webDriverExecutable"})
     fixture_identities = evidence.get("fixtureIdentities", [])
+    expected_fixture_ids = (
+        evidence.get("profile", {}).get("fixtureIds", []) if external else []
+    )
     expected_fixture_count = (
-        len(fixture_identities) if external else max(1, roles.count("fixture"))
+        len(expected_fixture_ids) if external else max(1, roles.count("fixture"))
     )
     if any(roles.count(role) != 1 for role in required_roles) or roles.count(
         "fixture"
     ) != expected_fixture_count:
         errors.append("portable evidence is missing required artifact roles")
         machine_facts_passed = False
+    if external:
+        fixture_identity_ids = [
+            fixture.get("id") for fixture in fixture_identities
+        ]
+        fixture_artifact_ids = [
+            artifact.get("id")
+            for artifact in artifacts
+            if artifact.get("role") == "fixture"
+        ]
+        if (
+            len(expected_fixture_ids) != len(set(expected_fixture_ids))
+            or len(fixture_identity_ids) != len(set(fixture_identity_ids))
+            or len(fixture_artifact_ids) != len(set(fixture_artifact_ids))
+            or set(fixture_identity_ids) != set(expected_fixture_ids)
+            or set(fixture_artifact_ids) != set(expected_fixture_ids)
+        ):
+            errors.append(
+                "external fixture identities do not match the candidate expected set"
+            )
+            machine_facts_passed = False
     for artifact in artifacts:
         if artifact.get("status") != "passed":
             machine_facts_passed = False
@@ -807,7 +831,6 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
     ):
         machine_facts_passed = False
 
-    candidate = evidence.get("candidate", {})
     if evidence.get("profile", {}).get("sha256") != candidate.get("profileSha256"):
         errors.append("profile hash is not bound to the candidate")
         machine_facts_passed = False
@@ -1579,6 +1602,14 @@ def assert_p3_1_contract(
         )
     ):
         raise AssertionError("neutral external fixture is not component-portable")
+    signed_external_probe = deepcopy(neutral_manifest)
+    signed_external_probe["unsigned"] = False
+    if not list(
+        validator_for(
+            "portable-manifest.schema.json", schemas, registry
+        ).iter_errors(signed_external_probe)
+    ):
+        raise AssertionError("executable external manifest accepted unsigned=false")
 
     synthetic_manifest = load_json(
         P3_1_FIXTURE_ROOT
@@ -2076,6 +2107,7 @@ def main() -> int:
         "guestSha256": "f" * 64,
         "status": "failed",
     }
+    fixture_status_probe["profile"]["fixtureIds"] = ["seed-fixture"]
     fixture_status_probe["fixtureIdentities"] = [fixture_identity]
     fixture_status_probe["artifacts"].append(
         {
@@ -2095,6 +2127,17 @@ def main() -> int:
     if not validate_evidence_semantics(fixture_status_probe):
         raise AssertionError(
             "machine-passed external evidence semantics accepted failed fixture identity"
+        )
+
+    missing_fixture_probe = deepcopy(external_evidence_probe)
+    missing_fixture_probe["profile"]["fixtureIds"] = ["seed-fixture"]
+    if list(external_evidence_validator.iter_errors(missing_fixture_probe)):
+        raise AssertionError(
+            "missing-fixture evidence probe unexpectedly failed schema validation"
+        )
+    if not validate_evidence_semantics(missing_fixture_probe):
+        raise AssertionError(
+            "external evidence accepted omission of a candidate-declared fixture"
         )
 
     data_drift_probe = deepcopy(evidence_probe)
