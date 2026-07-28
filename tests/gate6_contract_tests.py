@@ -654,6 +654,41 @@ def validate_profile_semantics(profile: dict[str, Any]) -> list[str]:
     return errors
 
 
+def validate_external_ui_bindings(
+    profile: dict[str, Any], manifest: dict[str, Any]
+) -> list[str]:
+    errors: list[str] = []
+    ui_required = any(
+        step.get("type") in UI_STEP_TYPES
+        for step in [
+            *profile.get("steps", []),
+            *profile.get("cleanupSteps", []),
+        ]
+    )
+    if not ui_required:
+        return errors
+
+    webview = manifest.get("webView2")
+    if not isinstance(webview, dict):
+        errors.append("PORTABLE_UI_COMPONENT_REQUIRED")
+        return errors
+
+    driver = profile.get("webDriver")
+    if not isinstance(driver, dict):
+        errors.append("PORTABLE_UI_DRIVER_REQUIRED")
+        return errors
+    browser_version = driver.get("browserVersion")
+    driver_version = driver.get("driverVersion")
+    manifest_version = webview.get("version")
+    if (
+        browser_version != manifest_version
+        or str(driver_version).split(".")[:3]
+        != str(manifest_version).split(".")[:3]
+    ):
+        errors.append("WEBDRIVER_VERSION_MISMATCH")
+    return errors
+
+
 def derive_status(results: list[dict[str, Any]]) -> str:
     required = [result for result in results if result.get("required") is True]
     if any(result.get("status") == "failed" for result in required):
@@ -885,6 +920,7 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
             artifact = fixture_artifacts.get(fixture.get("id"))
             if (
                 not isinstance(artifact, dict)
+                or fixture.get("status") != "passed"
                 or len(
                     {
                         fixture.get("profileSha256"),
@@ -1565,6 +1601,7 @@ def assert_p3_1_contract(
         or driver["browserVersion"] != webview["version"]
         or driver["driverVersion"].split(".")[:3]
         != webview["version"].split(".")[:3]
+        or validate_external_ui_bindings(ui_profile, synthetic_manifest)
     ):
         raise AssertionError("P3.1 external UI cross-document fixture bindings drifted")
 
@@ -1830,7 +1867,17 @@ def main() -> int:
     ui_profile_probe = load_json(
         P3_1_FIXTURE_ROOT / "test-profile.external-ui.valid.json"
     )
+    ui_manifest_probe = load_json(
+        P3_1_FIXTURE_ROOT
+        / "portable-manifest.external-birdsgone-shape.valid.json"
+    )
+    neutral_manifest_probe = load_json(
+        P3_1_FIXTURE_ROOT / "portable-manifest.external-neutral.valid.json"
+    )
     cleanup_only_ui_probe["webDriver"] = deepcopy(ui_profile_probe["webDriver"])
+    cleanup_only_ui_probe["artifact"]["fileNamePattern"] = ui_manifest_probe["fileName"]
+    cleanup_only_ui_probe["artifact"]["sizeBytes"] = ui_manifest_probe["newZipSize"]
+    cleanup_only_ui_probe["artifact"]["sha256"] = ui_manifest_probe["newZipSha256"]
     cleanup_only_ui_probe["cleanupSteps"] = [
         {
             "id": "cleanup-ui-capture",
@@ -1844,9 +1891,19 @@ def main() -> int:
             cleanup_only_ui_probe
         )
     )
-    if cleanup_only_ui_errors or validate_profile_semantics(cleanup_only_ui_probe):
+    if (
+        cleanup_only_ui_errors
+        or validate_profile_semantics(cleanup_only_ui_probe)
+        or validate_external_ui_bindings(cleanup_only_ui_probe, ui_manifest_probe)
+    ):
         raise AssertionError(
-            "external cleanup-only UI profile with fixed WebDriver was rejected"
+            "external cleanup-only UI profile with fixed WebView2/WebDriver was rejected"
+        )
+    if validate_external_ui_bindings(
+        cleanup_only_ui_probe, neutral_manifest_probe
+    ) != ["PORTABLE_UI_COMPONENT_REQUIRED"]:
+        raise AssertionError(
+            "cleanup-only UI profile without manifest WebView2 was accepted"
         )
 
     network_change = load_json(FIXTURE_ROOT / "vm-network-plan.change.valid.json")
@@ -2006,6 +2063,39 @@ def main() -> int:
         raise AssertionError("ZIP-size drift probe unexpectedly failed schema validation")
     if not validate_evidence_semantics(zip_size_drift_probe):
         raise AssertionError("external evidence accepted portable ZIP size drift")
+
+    fixture_status_probe = deepcopy(external_evidence_probe)
+    fixture_identity = {
+        "id": "seed-fixture",
+        "sourceRelativePath": "fixtures/seed.json",
+        "profileSizeBytes": 64,
+        "sourceSizeBytes": 64,
+        "guestSizeBytes": 64,
+        "profileSha256": "f" * 64,
+        "sourceSha256": "f" * 64,
+        "guestSha256": "f" * 64,
+        "status": "failed",
+    }
+    fixture_status_probe["fixtureIdentities"] = [fixture_identity]
+    fixture_status_probe["artifacts"].append(
+        {
+            "role": "fixture",
+            "id": "seed-fixture",
+            "fileName": "seed.json",
+            "sizeBytes": 64,
+            "sourceSha256": "f" * 64,
+            "guestSha256": "f" * 64,
+            "status": "passed",
+        }
+    )
+    if not list(external_evidence_validator.iter_errors(fixture_status_probe)):
+        raise AssertionError(
+            "machine-passed external evidence schema accepted failed fixture identity"
+        )
+    if not validate_evidence_semantics(fixture_status_probe):
+        raise AssertionError(
+            "machine-passed external evidence semantics accepted failed fixture identity"
+        )
 
     data_drift_probe = deepcopy(evidence_probe)
     data_drift_probe["automation"]["previousDataInventorySha256"] = "c" * 64
