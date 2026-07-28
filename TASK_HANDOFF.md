@@ -1,292 +1,227 @@
-# TaskHandoff - H5E-R1 one-shot diagnostic blocked inside initial preflight
+# Task handoff: G7/P3.1 Hyper-V Clean Room 0.3 contract freeze
 
 `relayProtocolVersion: 1`
 
-`relayAttempt: 1`
-
-## Objective and outcome
-
 `projectPath: E:\study\great_projects\codex-hyperv-clean-room-plugin`
 
-H5E-R1 repaired and independently validated a fresh create-only native-token
-diagnostic after the original H5E collector stopped in its MCP catalog check.
-The user then authorized exactly one H5E-R1 launcher/UAC boundary. That
-authorization was consumed by the single launch and does not permit a retry.
+## Status
 
-The launcher attempted UAC exactly once, created its sanitized result, and
-returned child exit code `10` with `retryPermitted=false`. The result reported
-`status=blocked`, `category=diagnostic-internal-error`, `changed=false`, and
-zero warnings.
+P3.1 freezes the schema, compatibility, fixture, and documentation target for
+plugin base version `0.3.0`. Runtime, installed copies, personal installation,
+and the latest immutable plugin Release remain `0.2.0`. P3.2 implementation
+and P3.3 source Release/install/readback remain separate atomic gates.
 
-The installed inventory passed first with the expected installed version and
-all 31 claimed payload files. MCP initialization then succeeded and the public
-catalog matched exactly: 20 expected, 20 observed, 20 unique, zero differences.
-This confirms that H5E-R1 repaired the prior exact-match
-`Compare-Object`/strict-mode catalog defect.
+This gate consumes only protected Birdsgone source results. It performs no
+Hyper-V, VM, checkpoint, guest, credential, package lifecycle, driver,
+network, UI, manual-attestation, installation, tag, or Release operation.
 
-The collector stopped during its initial live preflight before accepting any
-current host/VM state. It did not set `initialPassed` or `finalPassed`, did not
-accept `Running`, and did not accept any protected-invariant comparison.
-Current live state and eligibility therefore remain unknown.
+## Protected upstream authority
 
-The credential root was absent before and after the attempt. No credential
-prompt appeared, no PowerShell Direct session opened, no native probe ran, and
-native integrity, `TokenElevationType`, `TokenElevation`, and the
-code-defect-versus-guest-policy classification remain `notPerformed`.
+- Birdsgone protected `main`:
+  `5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c`
+- Protected tree:
+  `dbe98a0b0621353ed09cebff79d7cde64145881d`
+- G6.2 reviewed PR candidate:
+  `1b616aab0c996ae643a254df352ae9216d919c25`
+- G6.2 protected merge:
+  PR #22, rebase-merged as the protected `main` commit above
+- G6.1 amendment candidate:
+  `4ea9de2627f52a47506416b8f71da1932081a184`
+- G6.1 protected merge:
+  PR #21, rebase-merged as
+  `f3f54181769a6187eb9d584fbd2599561319d8f9`
+- Consumer contract:
+  - path: `docs/gates/hyperv-clean-room-0.3-contract.md`
+  - blob: `e2202a8de07cc90d6b31389853437e9fa025843a`
+  - bytes: `37610`
+  - SHA-256:
+    `489555e9bb0365160fb61aa4964e826405afadcec6345220178d65fc45d9102b`
+- End-user distribution contract:
+  - path: `docs/release/end-user-distribution-contract.json`
+  - blob: `65f6559b5275a5f7bb26d66caaf67c6968749980`
+  - bytes: `14330`
+  - SHA-256:
+    `dcb70fbf91155d4db25813458043d30255c2189ce8d8861a49fb05b0105f1bcb`
 
-A credential-free, synthetic Windows PowerShell 5.1 postmortem reproduced a
-second reachable collector defect without starting the MCP server or calling
-a machine tool: the initial-preflight helper assigned to `$host`. PowerShell
-variable names are case-insensitive, so this attempts to overwrite the
-read-only automatic variable `$Host` under strict mode. The assignment is
-reachable after the closed read-only preflight dispatch and before the helper
-can report an accepted state.
+The earlier `00643a13` / `runtime-and-legal-only` G6 result remains historical
+evidence only. It does not satisfy an executable external profile, a
+release-ready candidate, or a clean-room pass.
 
-The sanitized operational result intentionally did not retain a raw exception
-or narrower internal substage. The authoritative result is therefore bounded
-to an H5E-R1 collector internal error during initial preflight. The synthetic
-reproduction is a proven reachable code defect consistent with that result,
-but it is not promoted to a claim about the installed MCP runtime, current VM
-state, native token, or guest policy.
+## G6.2 package-local source result
 
-No retry occurred. H5E remains incomplete. A fresh H5E-R2 task may reconstruct
-and independently validate another ignored create-only collector, but it must
-publish a new exact one-shot proposal and receive new explicit authorization
-before any UAC, machine-tool call, credential prompt, PowerShell Direct
-session, or native query.
+Protected G6.2 verification passed twice with the system unchanged, zero
+install side effects, and zero residual owned processes. Hosted CI remained
+`notPerformed` because `ci:capacity` was
+`unknown/billing-api-unavailable`.
 
-## Specification paths
+The protected four-asset set is:
 
-`specificationPaths[]`:
+| Asset | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `Birdsgone_0.1.0_windows-x64-portable.zip` | `344467332` | `4f1028a6ce1dd15b13cc1583dbac1f7cb0ff0b4da6993eeb9f8c1ab0016b4f66` |
+| `portable-manifest.json` | `141840` | `0f141d12bcfe92a9017a3e19e905214c0e4d9f9c19e0ae485909984fb654f886` |
+| `SBOM.cdx.json` | `445475` | `aee22775cf2e5bd7902222e4cf3ed6c47b6c3673d88e378e176ea7cb82848e71` |
+| `SHA256SUMS` | `276` | `91dd656b357488f55c33c0e6952f04dd3267a1c62eb747b320d527b9019d3561` |
 
-- `AGENTS.md`
+This is package-local source evidence. Hyper-V/VM, install/uninstall, ADB,
+Win32, LAN, signing, tag, and GitHub Release remain `notPerformed`. Do not
+reinterpret G6.2 as clean-room or guest evidence.
+
+## P3.1 conclusions
+
+- Exact public tool count remains `20`; every tool name and input is unchanged.
+- The original 16 schema-v1 tools and all five public v1 schema files remain
+  compatible and byte-identical.
+- All seven schema-v2 paths and `$id` values remain stable.
+- Exact integer `schemaVersion` dispatch remains fail-closed; unknown versions
+  never fall back.
+- The embedded portable profile/manifest/evidence branch retains its `0.2.0`
+  semantics, fixed `--portable` argument, and mandatory fixed-component/driver
+  behavior.
+- External profile artifacts require:
+  - `portableManifestSource: externalProfileRelative`
+  - a safe profile-relative manifest path
+  - bounded manifest size and exact SHA-256
+  - `requiredDistributionBoundary: end-user-complete`
+- External manifests dispatch between two closed branches:
+  - `runtime-and-legal-only` is schema-readable historical evidence only and
+    cannot back a new executable profile.
+  - `end-user-complete` is the only executable branch and requires complete
+    ZIP inventory, source-to-ZIP documentation mapping, source commit/tree,
+    documentation count/bytes/digest, and retained runtime/legal digests.
+- The protected completeness inventory freezes:
+  - all tracked regular files below `docs/`
+  - six exact root mappings
+  - `62` documentation files
+  - `1371442` documentation bytes
+  - documentation digest
+    `dbd8e7fcc1b8222ccc53a94c8ce9a320e766650e05da5a50e3cdbc81499769fc`
+  - twelve required user manuals grouped into seven topics
+  - fourteen complete non-developer prerequisites
+  - exactly four manual distribution assets, with manifest/SBOM/SHA256SUMS
+    remaining external companions
+- Generic non-UI external packages may omit MaaFramework, WebView2,
+  EdgeDriver, and UI steps. UI profiles retain the closed `data-testid` DSL
+  and fixed Microsoft x64 EdgeDriver identity/version rules.
+- External evidence structurally uses `evidenceKind: externalPortable` and
+  binds the required end-user boundary, ZIP/manifest source and guest
+  identities, documentation source/inventory identity, retained runtime/legal
+  digests, fixtures, deployment/data, conditional driver, Plan/Apply,
+  recovery, assertions, cleanup, and status derivation.
+- Fixtures remain synthetic. They contain no real asset identity, local
+  machine path, OCR data, credential, token, or execution evidence.
+- P3.1 acceptance freezes six positive target fixtures, five direct
+  schema-negative fixtures, and an exact 41-case negative matrix.
+- No arbitrary command, shell, script, selector, URL, JavaScript, download,
+  executable argument, unmanaged adoption, VM deletion, or host-file deletion
+  surface is introduced.
+
+## Changed areas
+
+- `README.md`
 - `TASK_HANDOFF.md`
+- `contracts/v2/README.md`
+- `contracts/v2/compatibility.json`
+- `contracts/v2/consumer-contract.json`
+- `contracts/v2/schemas/evidence.schema.json`
+- `contracts/v2/schemas/portable-manifest.schema.json`
+- `contracts/v2/schemas/test-profile.schema.json`
+- `contracts/v2/tool-catalog.json`
+- `docs/README.md`
 - `docs/specification.md`
-- `docs/operations.md`
-- `docs/security.md`
-- `docs/troubleshooting.md`
-- GitHub Issue #19
-- the installed `hyperv-clean-room` skill and public MCP contract
-
-## Completed work
-
-`completedWork[]`:
-
-- Re-read the repository authorities, Issue #19, installed skill, installed
-  manifest, credential boundary, public MCP contract, protected publication
-  state, and project-scoped merge-only authority.
-- Confirmed protected `origin/master` at
-  `da2efc0ae86f1dbc228296c4d6d4c39726eec1d7` before editing.
-- Confirmed PR #24 merged normally as that exact merge commit with parents
-  `9e7e60f04425dbf2b24b39fe69395e5f2bce9498` and
-  `188793acd5f22f5e858b881906f3849eb096a2dc`.
-- Confirmed post-merge required run `30269051555` passed on that exact merge
-  SHA and Issue #19 still left H5E unchecked.
-- Created the H5E-R1 launcher, collector, library, self-test, reviewer, and
-  absent create-only result target in a fresh ignored location without
-  reading, reusing, overwriting, moving, deleting, or publishing any consumed
-  or retained predecessor artifact.
-- Parsed all five pre-run files successfully under Windows PowerShell
-  `5.1.22621.6133`.
-- Passed 16 credential-free assertions covering exact/mismatched/duplicate
-  catalogs, initialization, bounded errors, result shape, and classification
-  helpers without starting the MCP server or invoking a live machine tool.
-- Completed static closed-dispatch review with zero actionable findings: one
-  launcher UAC boundary, one credential prompt site, one fixed
-  `Invoke-Command`, no `Add-Type`, no `New-PSSession`, no Hyper-V mutation,
-  create-only sanitized output, and only `inspect_host`, `list_vms`, and
-  `inspect_vm` in the public machine-tool dispatcher.
-- Passed an inventory-only dry run with 31 claimed payloads and zero missing,
-  size, hash, unexpected, or reparse findings.
-- Presented the exact H5E-R1 UAC, inventory, catalog, initial/final preflight,
-  credential, fixed native query, timeout, cancellation, ambiguity,
-  sanitized-output, and no-retry boundary.
-- Received explicit authorization for that exact one-shot candidate and
-  launched it exactly once.
-- Preserved the sanitized result: one UAC attempt, child exit code `10`,
-  result created, `status=blocked`, `category=diagnostic-internal-error`,
-  `changed=false`, and `retryPermitted=false`.
-- Confirmed MCP initialization and exact catalog acceptance at 20 expected,
-  20 observed, 20 unique, and zero differences.
-- Confirmed zero credential prompts, zero native probe attempts, no guest
-  session, no accepted initial/final live state, no native token facts, and no
-  classification.
-- Reproduced the case-insensitive `$host`/`$Host` assignment defect locally
-  with synthetic inputs only. No MCP server, public machine tool, native token
-  query, credential prompt, or guest operation participated in that
-  reproduction.
-- Performed no retry, credential initialization/publication, `inspect_guest`,
-  VM power/network/checkpoint/configuration mutation, guest account/policy
-  change, package, portable, UI, evidence, tag, or Release operation.
-- Started Agent Mail coordination as a new clean-room identity and sent a
-  cross-project contact request to the existing Birdsgone G6 owner
-  `DustyLake`. The request is coordination-only, is currently pending, and
-  grants no repository or machine-operation authority.
-
-## Changed files and repository state
-
-`changedFiles[]`:
-
-- `TASK_HANDOFF.md` - sanitized H5E-R1 blocked result, bounded postmortem,
-  preserved `notPerformed` claims, and fresh H5E-R2 authorization boundary.
-
-`repositoryState`:
-
-- Branch: `codex/h5e-r1-diagnostic-internal-error-closeout`.
-- Base: protected `origin/master` commit
-  `da2efc0ae86f1dbc228296c4d6d4c39726eec1d7`.
-- The worktree was detached, tracked-clean, and exact at that protected commit
-  before this closeout branch and edit.
-- No pre-existing tracked user change was present.
-- All consumed and retained ignored collectors/results remain local,
-  unpublished, and untouched. They must not be read, reused, overwritten,
-  moved, deleted, committed, or republished.
-- Other worktrees, saved checkouts, remote branches, and Birdsgone files remain
-  untouched.
-- Publication is limited to one protected pull request containing only this
-  sanitized handoff.
-- No direct protected-branch push, force-push, automatic merge, branch
-  deletion, protection weakening, tag, or Release is authorized.
-- Project-scoped qualified merge authority applies only after every existing
-  validation, review, CI, fresh-window, conversation, mergeability, and
-  protection condition is satisfied. It authorizes no machine operation or
-  later Gate.
+- `scripts/validate-gate6.ps1`
+- `tests/gate6_contract_tests.py`
+- `tests/gate7_implementation_tests.py`
+- `tests/fixtures/v3/*`
 
 ## Verification
 
-`verification[]`:
+The candidate must retain these exact outcomes after its final commit:
 
-- H5E-R1 launcher attempts: exactly one.
-- UAC attempts: exactly one.
-- Launcher result: child exit code `10`, result created, and
-  `retryPermitted=false`.
-- Collector result: schema version 1, gate H5E,
-  `status=blocked`, `category=diagnostic-internal-error`, `changed=false`, and
-  zero warnings.
-- Installed version: `0.2.0+codex.20260723113253`.
-- Installed inventory: 31 claimed files; zero missing, size mismatches, hash
-  mismatches, unexpected files, or reparse files.
-- MCP initialized: true.
-- MCP catalog: expected 20, observed 20, unique 20, difference 0, exact match.
-- Initial preflight accepted: false.
-- Final preflight accepted: false.
-- Current `Running` state accepted: false; current state remains unknown.
-- Protected invariants accepted: false; current comparison remains unknown.
-- Credential root before/after: absent.
-- Credential prompt count: zero.
-- Native probe attempt count: zero.
-- PowerShell Direct session opened: false.
-- Native token status: `not-performed`.
-- H5E classification: `not-performed`.
-- Pre-run Windows PowerShell 5.1 parsing: five files, zero failures.
-- Pre-run credential-free self-test: 16 assertions passed.
-- Pre-run static review: zero actionable findings.
-- Inventory-only dry run: 31/31 with all mismatch counts zero.
-- Synthetic postmortem: assignment to `$host` reaches the read-only automatic
-  `$Host` collision under Windows PowerShell 5.1 strict mode.
-- Tracked Git scope: only `TASK_HANDOFF.md`.
-- The historical H4/G9 installed-copy validator
-  `scripts/validate-gate4.ps1` is not applicable to this sanitized handoff
-  publication.
-- `scripts/validate-docs.ps1` and
-  `scripts/validate-public-release.ps1` are the applicable local aggregate
-  checks.
+- protected Birdsgone `main`/tree and both protected document hashes read back
+  exactly as recorded above
+- inherited Gate 2 validation with isolated pinned dependencies and
+  `SkipRealHostSmoke`
+- schema-v1 tools preserved: `16`
+- schema-v1 files preserved: `5`
+- schema-v2 files: `7`
+- total tools: `20`
+- P3.1 positive fixtures: `6`
+- P3.1 direct schema-invalid fixtures: `5`
+- P3.1 negative cases: `41`
+- `p3_1Closable: true`
+- Gate 7 mock runtime assertions: `216`
+- generated mock evidence documents validated: `5`
+- `git diff --check`
+- real host operations: `0`
+- real Hyper-V mutations: `0`
+- real guest operations: `0`
+- portable deployments: `0`
+- WebDriver launches: `0`
+- UI operations: `0`
 
-## Unresolved issues and blockers
+Existing ignored operational artifacts must not be read, reused, moved,
+overwritten, or deleted. Task-owned isolated dependency directories may be
+created only for validation and must be removed afterward. Mock test evidence
+is not real machine evidence.
 
-`unresolvedIssues[]`:
+The historical H4/G9 installed-copy validator `scripts/validate-gate4.ps1` is
+not applicable to P3.1 because the executable and installed runtime
+intentionally remain `0.2.0`; target-ahead-of-runtime copies are checked
+against `compatibility.json` instead. P3.2 must restore authoritative-to-
+installed byte equality before P3.3 publication.
 
-- Current live `Running` state and every protected invariant remain
-  unvalidated by H5E-R1.
-- Native integrity, `TokenElevationType`, and `TokenElevation` remain unknown
-  and `notPerformed`.
-- Code defect versus guest-policy cause remains unclassified.
-- The `$host`/`$Host` collision is a proven reachable collector defect
-  consistent with the result, but the sanitized result preserves no raw
-  exception or narrower operational substage.
-- The cause, timing, and authority of the earlier 12 GiB-to-8 GiB
-  maximum-memory difference remain unknown.
-- The cause and authority of historical `Running -> Off` transitions remain
-  unknown.
-- Credential-profile publication, `inspect_guest`, package lifecycle,
-  portable, driver, network, UI, evidence, and manual-attestation lanes remain
-  `notPerformed`.
-- H5E, P3.1, P3.2, P3.3, and Birdsgone G8-G11 acceptance remain incomplete.
-- Birdsgone G6 PR #20 remains owned by its existing Birdsgone task. This
-  clean-room task has sent only a contact request and has not accepted or
-  modified Birdsgone work.
+## Next gate
 
-`blockers[]`:
+`nextGate: G7/P3.2 runtime implementation and mock/parser/static validation
+only`
 
-- The exact H5E-R1 authorization is consumed. No retry is permitted.
-- H5E-R2 may not open UAC, call a public machine tool, prompt for credentials,
-  open PowerShell Direct, or run a native query until a completely fresh
-  collector has passed credential-free self-tests and static review, its exact
-  candidate hashes and bounded behavior have been shown, and the user gives
-  new explicit authorization.
-- This documentation candidate must not merge until its exact staged
-  validation and substantive review reach zero actionable findings, its
-  exact-head required checks pass, its complete fresh review window finishes,
-  every actionable conversation is resolved, mergeability is clean, and
-  branch protection is re-read unchanged.
-- Any candidate change resets the affected validation, substantive review,
-  hosted checks, and complete fresh review window.
+P3.2 must start in a separate task from exact protected plugin `master` after
+P3.1 is protected-merged and read back. It implements the frozen external
+staging, strict JSON, complete inventory, conditional component/driver, atomic
+deployment/data preservation, and evidence behavior under PowerShell 5.1 and
+the fixed worker. It must preserve exactly 20 tools and all legacy behavior,
+use only mock/parser/static tests, and keep every real-operation counter at
+zero.
 
-## Next gate and commands
+P3.2 does not authorize:
 
-`nextGate: H5E-R2 fresh collector repair, credential-free self-test, static
-review, and exact one-shot authorization proposal only; do not execute H5E-R2
-in the proposal turn and carry no prior execution authority forward`
+- P3.3 source Release/install/readback
+- H5E-R2 or any other machine diagnostic
+- Hyper-V, VM, checkpoint, credential, guest, package, portable, driver,
+  network, UI, evidence, or manual-attestation operation
+- Birdsgone G8+
+- a Birdsgone tag or GitHub Release
 
-`nextCommands[]`:
+After P3.2 protected closure, P3.3 must be a separate atomic task. H5E-R2 is
+still pending and must be separately scheduled before G8. Any real Hyper-V or
+guest mutation requires a separate confirmation naming the VM, credential
+profile, artifact, profile, and exact intended delta.
 
-1. Publish and merge this sanitized H5E-R1 handoff through the protected
-   pull-request workflow, then update Issue #19 exactly once and read it back
-   while leaving H5E unchecked.
-2. Start H5E-R2 in a fresh Codex task from exact protected `origin/master`.
-3. Re-read all authorities, Issue #19, installed skill/public contract, Task
-   Mail, Birdsgone G6 coordination state, and current publication state.
-4. Create a unique ignored H5E-R2 launcher, collector, library, self-test,
-   reviewer, and absent create-only result target. Do not inspect or reuse any
-   consumed H5E or H5E-R1 artifact.
-5. Use a non-reserved host snapshot variable and reject assignments to
-   read-only/constant automatic variables case-insensitively. Preserve array
-   normalization around exact-match `Compare-Object` results.
-6. Add credential-free strict-mode tests for complete synthetic preflight
-   success, call order, missing/multiple/off VM cases, each protected-invariant
-   mismatch, warnings, bounded tool errors, catalog cases, classification
-   cases, create-only output, and sensitive-field exclusion.
-7. Repeat Windows PowerShell 5.1 parser and closed-dispatch review. Require
-   zero actionable findings and preserve exactly one UAC, at most one
-   credential prompt, one fixed native query, at most six read-only machine
-   calls, create-only sanitized output, and no mutation surface.
-8. Present exact fresh candidate hashes and the complete UAC, inventory,
-   catalog, preflight, credential, native-query, 60-second timeout,
-   cancellation, ambiguity, final-preflight, output, and no-retry boundary.
-   Request new explicit authorization and do not execute in that proposal turn.
-9. Keep P3.1-P3.3, credentials, VM/guest setup, package, portable, UI,
-   evidence, Birdsgone G8-G11, G12 lanes, and private RC `notPerformed`.
+## Downstream publication requirement
+
+After all required Hyper-V clean-room and publication gates are genuinely
+complete, create a distributable Birdsgone GitHub Release from the final
+protected-main four-asset set. Carry this requirement in every subsequent
+TaskHandoff. Do not create a Birdsgone tag or Release during G7 or before its
+publication gate. The plugin P3.3 source-only `v0.3.0` Release is a separate
+plugin-repository gate and must not be confused with this downstream
+Birdsgone distribution Release.
 
 ## Safety constraints
 
-`safetyConstraints[]`:
-
-- Do not retry the consumed H5E-R1 launcher or native diagnostic.
-- Do not perform another Hyper-V, guest, credential, account, policy, package,
-  portable, UI, evidence, or machine operation in this task.
-- Do not create or apply a VM creation, power, network, checkpoint, or restore
-  plan.
-- Do not start, stop, pause, save, checkpoint, restore, reset, or otherwise
-  change a VM.
-- Do not initialize or publish a credential profile.
-- Do not publish sensitive identities, machine paths, raw errors, plan
-  capabilities/tokens, credential material, or ignored operational artifacts.
-- Do not clean, reuse, overwrite, move, or delete ignored evidence.
-- Do not modify Birdsgone or duplicate its existing G6 writer.
-- Do not push directly to the protected branch, enable automatic merge,
-  force-push, delete branches, weaken protection, tag, or publish a Release.
-- Repository merge authority does not authorize H5E-R2 execution, guest work,
-  credentials, account/policy change, P3, Birdsgone, or any later machine Gate.
+- One writable plugin gate owner at a time.
+- Do not begin P3.2 or P3.3 in this task.
+- Do not run H5E-R2 concurrently.
+- Do not access or mutate Birdsgone ignored artifact directories.
+- Do not run package, installation, Hyper-V, VM, checkpoint, credential,
+  guest, ADB, Win32, LAN, driver, UI, network, or evidence operations.
+- Do not modify or overwrite the immutable plugin `v0.2.0` tag/Release.
+- Do not tag, publish a Release, change visibility, force-push, rewrite
+  history, delete a branch, or weaken protection.
+- Do not claim hosted CI success when capacity is unavailable.
+- Do not convert `notPerformed`, mock, parser, or static results into real
+  machine evidence.
 
 `ownership.previousTask: read-only-after-relay`
 

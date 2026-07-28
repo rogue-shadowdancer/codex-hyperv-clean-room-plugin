@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 2,
+  "packageKind": "windows-x64-portable",
+  "distributionBoundary": "end-user-complete",
+  "fileName": "SyntheticConsumer_1.2.3_windows-x64-portable.zip",
+  "version": "1.2.3",
+  "architecture": "x86_64",
+  "targetTriple": "x86_64-pc-windows-msvc",
+  "entrypoint": "SyntheticConsumer.exe",
+  "distributionMode": "fixed-portable",
+  "compileFeature": "portable-distribution",
+  "dataRoot": "data/",
+  "unsigned": true,
+  "runtimeSourceCommit": "1111111111111111111111111111111111111111",
+  "runtimeSourceTree": "2222222222222222222222222222222222222222",
+  "packagingCommit": "3333333333333333333333333333333333333333",
+  "packagingTree": "4444444444444444444444444444444444444444",
+  "derivedFromZipFileName": "SyntheticConsumer_1.2.3_windows-x64-portable-source.zip",
+  "derivedFromZipSize": 16384,
+  "derivedFromZipSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+  "newZipSize": 12288,
+  "newZipSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+  "oldRuntimeInventoryDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+  "newRuntimeInventoryDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+  "oldFileCount": 2,
+  "newFileCount": 4,
+  "oldPayloadSize": 8192,
+  "newPayloadSize": 8960,
+  "removedPaths": ["development-only.txt"],
+  "removedFiles": [
+    {
+      "path": "development-only.txt",
+      "size": 16,
+      "sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+    }
+  ],
+  "runtimeBuildRunId": "synthetic-run",
+  "sourceInputs": {
+    "birdsgoneTrackedFiles": [
+      {
+        "path": "SyntheticConsumer.exe",
+        "size": 4096,
+        "sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+      }
+    ],
+    "excludedBirdsgoneTrackedFiles": ["development-only.txt"],
+    "preparedAgentFiles": [
+      {
+        "path": "agent/runner.exe",
+        "size": 2048,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "maaInventoriedFiles": [
+      {
+        "path": "maafw/MaaFramework.dll",
+        "size": 1024,
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ],
+    "maaInventoryAuthority": "maafw/native-files.sha256.json"
+  },
+  "host": {
+    "path": "SyntheticConsumer.exe",
+    "size": 4096,
+    "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+    "machine": "AMD64",
+    "authenticode": "NotSigned"
+  },
+  "maa": {
+    "runtimeManifestPath": "maafw/runtime-manifest.json",
+    "runtimeManifestSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "nativeInventoryPath": "maafw/native-files.sha256.json",
+    "nativeInventorySha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "runtimeVersion": "5.11.2",
+    "bindingVersion": "1.19.0",
+    "platform": "win-x86_64",
+    "agent": {
+      "inventoryPath": "agent/inventory.json",
+      "inventorySha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "executablePath": "agent/runner.exe",
+      "executableSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "maaBinding": "1.19.0",
+      "maaCore": "5.11.2",
+      "targetTriple": "x86_64-pc-windows-msvc"
+    }
+  },
+  "webView2": {
+    "trackedManifest": "runtime/webview2-fixed-runtime-v150.0.4078.65-x64.json",
+    "trackedManifestSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "version": "150.0.4078.65",
+    "architecture": "x64",
+    "rootDirectory": "Fixed.WebView2",
+    "archiveSize": 4096,
+    "archiveSha256": "1212121212121212121212121212121212121212121212121212121212121212",
+    "fileCount": 1,
+    "totalSize": 4096
+  },
+  "sbom": {
+    "path": "SBOM.cdx.json",
+    "size": 2048,
+    "sha256": "1313131313131313131313131313131313131313131313131313131313131313",
+    "derivedFromPath": "licenses/SBOM.cdx.json"
+  },
+  "documentationFiles": [
+    {
+      "sourcePath": "README.md",
+      "archivePath": "README.md",
+      "size": 512,
+      "sha256": "1515151515151515151515151515151515151515151515151515151515151515"
+    },
+    {
+      "sourcePath": "docs/user/README.md",
+      "archivePath": "docs/user/README.md",
+      "size": 256,
+      "sha256": "1616161616161616161616161616161616161616161616161616161616161616"
+    }
+  ],
+  "documentationSourceCommit": "1717171717171717171717171717171717171717",
+  "documentationSourceTree": "1818181818181818181818181818181818181818",
+  "documentationFileCount": 2,
+  "documentationPayloadSize": 768,
+  "documentationInventoryDigest": "1919191919191919191919191919191919191919191919191919191919191919",
+  "files": [
+    {
+      "path": "SyntheticConsumer.exe",
+      "size": 4096,
+      "sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    {
+      "path": "licenses/NOTICE.txt",
+      "size": 4096,
+      "sha256": "1414141414141414141414141414141414141414141414141414141414141414"
+    },
+    {
+      "path": "README.md",
+      "size": 512,
+      "sha256": "1515151515151515151515151515151515151515151515151515151515151515"
+    },
+    {
+      "path": "docs/user/README.md",
+      "size": 256,
+      "sha256": "1616161616161616161616161616161616161616161616161616161616161616"
+    }
+  ]
+}

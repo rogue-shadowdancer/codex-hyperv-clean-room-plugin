@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "packageKind": "windows-x64-portable",
+  "distributionBoundary": "runtime-and-legal-only",
+  "fileName": "ContractSample_1.2.3_windows-x64-portable.zip",
+  "version": "1.2.3",
+  "architecture": "x86_64",
+  "entrypoint": "ContractSample.exe",
+  "distributionMode": "fixed-portable",
+  "dataRoot": "data/",
+  "unsigned": true,
+  "newZipSize": 8192,
+  "newZipSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "downloadUrl": "https://invalid.example/package.zip",
+  "files": [
+    {
+      "path": "ContractSample.exe",
+      "size": 4096,
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  ]
+}

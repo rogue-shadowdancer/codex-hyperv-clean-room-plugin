@@ -2,110 +2,534 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/contracts/v2/schemas/portable-manifest.schema.json",
   "title": "Hyper-V clean-room schema-v2 portable payload manifest",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schemaVersion",
-    "productId",
-    "productVersion",
-    "architecture",
-    "sourceCommit",
-    "sourceDirty",
-    "buildRunId",
-    "unsigned",
-    "distributionMode",
-    "entryPointRelativePath",
-    "dataDirectoryRelativePath",
-    "portableArguments",
-    "archivePolicy",
-    "identities",
-    "files"
+  "oneOf": [
+    { "$ref": "#/$defs/embeddedPortableManifest" },
+    { "$ref": "#/$defs/externalPortableManifest" }
   ],
-  "properties": {
-    "schemaVersion": { "const": 2 },
-    "productId": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
-    "productVersion": {
-      "type": "string",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
-    },
-    "architecture": { "const": "x64" },
-    "sourceCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
-    "sourceDirty": { "const": false },
-    "buildRunId": { "type": "string", "format": "uuid" },
-    "unsigned": { "const": true },
-    "distributionMode": { "const": "portable" },
-    "entryPointRelativePath": { "$ref": "#/$defs/safeRelativePath" },
-    "dataDirectoryRelativePath": { "const": "data" },
-    "portableArguments": {
-      "type": "array",
-      "prefixItems": [{ "const": "--portable" }],
-      "items": false,
-      "minItems": 1,
-      "maxItems": 1
-    },
-    "archivePolicy": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "maxEntries",
-        "maxExpandedBytes",
-        "maxCompressionRatio",
-        "rejectLinks",
-        "rejectReparsePoints",
-        "rejectAlternateDataStreams",
-        "caseInsensitiveUniquePaths"
-      ],
-      "properties": {
-        "maxEntries": { "const": 4096 },
-        "maxExpandedBytes": { "const": 8589934592 },
-        "maxCompressionRatio": { "const": 200 },
-        "rejectLinks": { "const": true },
-        "rejectReparsePoints": { "const": true },
-        "rejectAlternateDataStreams": { "const": true },
-        "caseInsensitiveUniquePaths": { "const": true }
-      }
-    },
-    "identities": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["webView2", "maaFramework"],
-      "properties": {
-        "webView2": { "$ref": "#/$defs/componentIdentity" },
-        "maaFramework": { "$ref": "#/$defs/componentIdentity" }
-      }
-    },
-    "files": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 4096,
-      "items": { "$ref": "#/$defs/fileIdentity" }
-    }
-  },
   "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "gitObject": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "boundedSemver": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 128,
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
     "safeRelativePath": {
       "type": "string",
       "minLength": 1,
       "maxLength": 512,
       "pattern": "^(?![A-Za-z]:)(?![\\\\/])(?!.*:)(?!.*%)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$))(?!.*[. ](?:[\\\\/]|$)).+$"
     },
-    "componentIdentity": {
+    "safeZipLeaf": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 260,
+      "pattern": "^(?!.*[<>:\"|?*%])[^\\\\/]+\\.zip$"
+    },
+    "embeddedComponentIdentity": {
       "type": "object",
       "additionalProperties": false,
       "required": ["version", "inventorySha256"],
       "properties": {
         "version": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "inventorySha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        "inventorySha256": { "$ref": "#/$defs/sha256" }
       }
     },
-    "fileIdentity": {
+    "embeddedFileIdentity": {
       "type": "object",
       "additionalProperties": false,
       "required": ["path", "sizeBytes", "sha256"],
       "properties": {
         "path": { "$ref": "#/$defs/safeRelativePath" },
         "sizeBytes": { "type": "integer", "minimum": 0, "maximum": 2147483648 },
-        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        "sha256": { "$ref": "#/$defs/sha256" }
       }
+    },
+    "embeddedPortableManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "productId",
+        "productVersion",
+        "architecture",
+        "sourceCommit",
+        "sourceDirty",
+        "buildRunId",
+        "unsigned",
+        "distributionMode",
+        "entryPointRelativePath",
+        "dataDirectoryRelativePath",
+        "portableArguments",
+        "archivePolicy",
+        "identities",
+        "files"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 2 },
+        "productId": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "productVersion": { "$ref": "#/$defs/boundedSemver" },
+        "architecture": { "const": "x64" },
+        "sourceCommit": { "$ref": "#/$defs/gitObject" },
+        "sourceDirty": { "const": false },
+        "buildRunId": { "type": "string", "format": "uuid" },
+        "unsigned": { "const": true },
+        "distributionMode": { "const": "portable" },
+        "entryPointRelativePath": { "$ref": "#/$defs/safeRelativePath" },
+        "dataDirectoryRelativePath": { "const": "data" },
+        "portableArguments": {
+          "type": "array",
+          "prefixItems": [{ "const": "--portable" }],
+          "items": false,
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "archivePolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "maxEntries",
+            "maxExpandedBytes",
+            "maxCompressionRatio",
+            "rejectLinks",
+            "rejectReparsePoints",
+            "rejectAlternateDataStreams",
+            "caseInsensitiveUniquePaths"
+          ],
+          "properties": {
+            "maxEntries": { "const": 4096 },
+            "maxExpandedBytes": { "const": 8589934592 },
+            "maxCompressionRatio": { "const": 200 },
+            "rejectLinks": { "const": true },
+            "rejectReparsePoints": { "const": true },
+            "rejectAlternateDataStreams": { "const": true },
+            "caseInsensitiveUniquePaths": { "const": true }
+          }
+        },
+        "identities": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["webView2", "maaFramework"],
+          "properties": {
+            "webView2": { "$ref": "#/$defs/embeddedComponentIdentity" },
+            "maaFramework": {
+              "$ref": "#/$defs/embeddedComponentIdentity"
+            }
+          }
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/embeddedFileIdentity" }
+        }
+      }
+    },
+    "externalFileIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "size", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/safeRelativePath" },
+        "size": { "type": "integer", "minimum": 0, "maximum": 2147483648 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "externalDocumentationIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourcePath", "archivePath", "size", "sha256"],
+      "properties": {
+        "sourcePath": { "$ref": "#/$defs/safeRelativePath" },
+        "archivePath": { "$ref": "#/$defs/safeRelativePath" },
+        "size": { "type": "integer", "minimum": 0, "maximum": 2147483648 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "externalInventory": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": { "$ref": "#/$defs/externalFileIdentity" }
+    },
+    "externalHostIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "size", "sha256", "machine", "authenticode"],
+      "properties": {
+        "path": { "$ref": "#/$defs/safeRelativePath" },
+        "size": { "type": "integer", "minimum": 1, "maximum": 2147483648 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "machine": { "const": "AMD64" },
+        "authenticode": {
+          "enum": ["NotSigned", "Valid", "UnknownError", "HashMismatch"]
+        }
+      }
+    },
+    "externalAgentIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inventoryPath",
+        "inventorySha256",
+        "executablePath",
+        "executableSha256",
+        "maaBinding",
+        "maaCore",
+        "targetTriple"
+      ],
+      "properties": {
+        "inventoryPath": { "$ref": "#/$defs/safeRelativePath" },
+        "inventorySha256": { "$ref": "#/$defs/sha256" },
+        "executablePath": { "$ref": "#/$defs/safeRelativePath" },
+        "executableSha256": { "$ref": "#/$defs/sha256" },
+        "maaBinding": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "maaCore": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "targetTriple": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "externalMaaIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtimeManifestPath",
+        "runtimeManifestSha256",
+        "nativeInventoryPath",
+        "nativeInventorySha256",
+        "runtimeVersion",
+        "bindingVersion",
+        "platform",
+        "agent"
+      ],
+      "properties": {
+        "runtimeManifestPath": { "$ref": "#/$defs/safeRelativePath" },
+        "runtimeManifestSha256": { "$ref": "#/$defs/sha256" },
+        "nativeInventoryPath": { "$ref": "#/$defs/safeRelativePath" },
+        "nativeInventorySha256": { "$ref": "#/$defs/sha256" },
+        "runtimeVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "bindingVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "platform": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "agent": { "$ref": "#/$defs/externalAgentIdentity" }
+      }
+    },
+    "externalWebView2Identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trackedManifest",
+        "trackedManifestSha256",
+        "version",
+        "architecture",
+        "rootDirectory",
+        "archiveSize",
+        "archiveSha256",
+        "fileCount",
+        "totalSize"
+      ],
+      "properties": {
+        "trackedManifest": { "$ref": "#/$defs/safeRelativePath" },
+        "trackedManifestSha256": { "$ref": "#/$defs/sha256" },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "architecture": { "const": "x64" },
+        "rootDirectory": { "$ref": "#/$defs/safeRelativePath" },
+        "archiveSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483648
+        },
+        "archiveSha256": { "$ref": "#/$defs/sha256" },
+        "fileCount": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "totalSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8589934592
+        },
+        "inventorySha256": { "$ref": "#/$defs/sha256" },
+        "files": { "$ref": "#/$defs/externalInventory" }
+      }
+    },
+    "externalSbomIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "size", "sha256", "derivedFromPath"],
+      "properties": {
+        "path": { "$ref": "#/$defs/safeRelativePath" },
+        "size": { "type": "integer", "minimum": 1, "maximum": 1073741824 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "derivedFromPath": { "$ref": "#/$defs/safeRelativePath" }
+      }
+    },
+    "externalSourceInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "birdsgoneTrackedFiles",
+        "excludedBirdsgoneTrackedFiles",
+        "preparedAgentFiles",
+        "maaInventoriedFiles",
+        "maaInventoryAuthority"
+      ],
+      "properties": {
+        "birdsgoneTrackedFiles": { "$ref": "#/$defs/externalInventory" },
+        "excludedBirdsgoneTrackedFiles": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/safeRelativePath" }
+        },
+        "preparedAgentFiles": { "$ref": "#/$defs/externalInventory" },
+        "maaInventoriedFiles": { "$ref": "#/$defs/externalInventory" },
+        "maaInventoryAuthority": { "$ref": "#/$defs/safeRelativePath" }
+      }
+    },
+    "externalLegacyPortableManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "packageKind",
+        "distributionBoundary",
+        "fileName",
+        "version",
+        "architecture",
+        "entrypoint",
+        "distributionMode",
+        "dataRoot",
+        "unsigned",
+        "newZipSize",
+        "newZipSha256",
+        "files"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 2 },
+        "packageKind": { "const": "windows-x64-portable" },
+        "distributionBoundary": { "const": "runtime-and-legal-only" },
+        "fileName": { "$ref": "#/$defs/safeZipLeaf" },
+        "version": { "$ref": "#/$defs/boundedSemver" },
+        "architecture": { "const": "x86_64" },
+        "entrypoint": {
+          "allOf": [
+            { "$ref": "#/$defs/safeRelativePath" },
+            { "pattern": "\\.[eE][xX][eE]$" }
+          ]
+        },
+        "distributionMode": { "const": "fixed-portable" },
+        "dataRoot": { "const": "data/" },
+        "unsigned": { "type": "boolean" },
+        "newZipSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8589934592
+        },
+        "newZipSha256": { "$ref": "#/$defs/sha256" },
+        "targetTriple": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "compileFeature": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "runtimeSourceCommit": { "$ref": "#/$defs/gitObject" },
+        "runtimeSourceTree": { "$ref": "#/$defs/gitObject" },
+        "packagingCommit": { "$ref": "#/$defs/gitObject" },
+        "packagingTree": { "$ref": "#/$defs/gitObject" },
+        "derivedFromZipFileName": { "$ref": "#/$defs/safeZipLeaf" },
+        "derivedFromZipSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8589934592
+        },
+        "derivedFromZipSha256": { "$ref": "#/$defs/sha256" },
+        "oldRuntimeInventoryDigest": { "$ref": "#/$defs/sha256" },
+        "newRuntimeInventoryDigest": { "$ref": "#/$defs/sha256" },
+        "oldFileCount": { "type": "integer", "minimum": 0, "maximum": 4096 },
+        "newFileCount": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "oldPayloadSize": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8589934592
+        },
+        "newPayloadSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8589934592
+        },
+        "removedPaths": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/safeRelativePath" }
+        },
+        "removedFiles": { "$ref": "#/$defs/externalInventory" },
+        "runtimeBuildRunId": {
+          "oneOf": [
+            { "type": "string", "minLength": 1, "maxLength": 128 },
+            { "type": "integer", "minimum": 1 }
+          ]
+        },
+        "sourceInputs": { "$ref": "#/$defs/externalSourceInputs" },
+        "host": { "$ref": "#/$defs/externalHostIdentity" },
+        "maa": { "$ref": "#/$defs/externalMaaIdentity" },
+        "webView2": { "$ref": "#/$defs/externalWebView2Identity" },
+        "sbom": { "$ref": "#/$defs/externalSbomIdentity" },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/externalFileIdentity" }
+        }
+      }
+    },
+    "externalEndUserCompletePortableManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "packageKind",
+        "distributionBoundary",
+        "fileName",
+        "version",
+        "architecture",
+        "entrypoint",
+        "distributionMode",
+        "dataRoot",
+        "unsigned",
+        "newZipSize",
+        "newZipSha256",
+        "documentationFiles",
+        "documentationSourceCommit",
+        "documentationSourceTree",
+        "documentationFileCount",
+        "documentationPayloadSize",
+        "documentationInventoryDigest",
+        "oldRuntimeInventoryDigest",
+        "newRuntimeInventoryDigest",
+        "sbom",
+        "files"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 2 },
+        "packageKind": { "const": "windows-x64-portable" },
+        "distributionBoundary": { "const": "end-user-complete" },
+        "fileName": { "$ref": "#/$defs/safeZipLeaf" },
+        "version": { "$ref": "#/$defs/boundedSemver" },
+        "architecture": { "const": "x86_64" },
+        "entrypoint": {
+          "allOf": [
+            { "$ref": "#/$defs/safeRelativePath" },
+            { "pattern": "\\.[eE][xX][eE]$" }
+          ]
+        },
+        "distributionMode": { "const": "fixed-portable" },
+        "dataRoot": { "const": "data/" },
+        "unsigned": { "type": "boolean" },
+        "newZipSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8589934592
+        },
+        "newZipSha256": { "$ref": "#/$defs/sha256" },
+        "documentationFiles": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/externalDocumentationIdentity" }
+        },
+        "documentationSourceCommit": { "$ref": "#/$defs/gitObject" },
+        "documentationSourceTree": { "$ref": "#/$defs/gitObject" },
+        "documentationFileCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "documentationPayloadSize": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8589934592
+        },
+        "documentationInventoryDigest": { "$ref": "#/$defs/sha256" },
+        "targetTriple": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "compileFeature": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "runtimeSourceCommit": { "$ref": "#/$defs/gitObject" },
+        "runtimeSourceTree": { "$ref": "#/$defs/gitObject" },
+        "packagingCommit": { "$ref": "#/$defs/gitObject" },
+        "packagingTree": { "$ref": "#/$defs/gitObject" },
+        "derivedFromZipFileName": { "$ref": "#/$defs/safeZipLeaf" },
+        "derivedFromZipSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8589934592
+        },
+        "derivedFromZipSha256": { "$ref": "#/$defs/sha256" },
+        "oldRuntimeInventoryDigest": { "$ref": "#/$defs/sha256" },
+        "newRuntimeInventoryDigest": { "$ref": "#/$defs/sha256" },
+        "oldFileCount": { "type": "integer", "minimum": 0, "maximum": 4096 },
+        "newFileCount": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "oldPayloadSize": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8589934592
+        },
+        "newPayloadSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8589934592
+        },
+        "removedPaths": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/safeRelativePath" }
+        },
+        "removedFiles": { "$ref": "#/$defs/externalInventory" },
+        "runtimeBuildRunId": {
+          "oneOf": [
+            { "type": "string", "minLength": 1, "maxLength": 128 },
+            { "type": "integer", "minimum": 1 }
+          ]
+        },
+        "sourceInputs": { "$ref": "#/$defs/externalSourceInputs" },
+        "host": { "$ref": "#/$defs/externalHostIdentity" },
+        "maa": { "$ref": "#/$defs/externalMaaIdentity" },
+        "webView2": { "$ref": "#/$defs/externalWebView2Identity" },
+        "sbom": { "$ref": "#/$defs/externalSbomIdentity" },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/externalFileIdentity" }
+        }
+      }
+    },
+    "externalPortableManifest": {
+      "oneOf": [
+        { "$ref": "#/$defs/externalLegacyPortableManifest" },
+        { "$ref": "#/$defs/externalEndUserCompletePortableManifest" }
+      ]
     }
   }
 }

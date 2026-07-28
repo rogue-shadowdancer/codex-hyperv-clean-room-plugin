@@ -1,0 +1,368 @@
+{
+  "contractVersion": 4,
+  "gate": "G7/P3.1",
+  "targetPluginVersion": "0.3.0",
+  "currentRuntimeVersion": "0.2.0",
+  "schemaVersion": 2,
+  "source": {
+    "repository": "rogue-shadowdancer/birdsgone",
+    "protectedBranch": "main",
+    "commit": "5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c",
+    "tree": "dbe98a0b0621353ed09cebff79d7cde64145881d",
+    "path": "docs/gates/hyperv-clean-room-0.3-contract.md",
+    "blob": "e2202a8de07cc90d6b31389853437e9fa025843a",
+    "sizeBytes": 37610,
+    "sha256": "489555e9bb0365160fb61aa4964e826405afadcec6345220178d65fc45d9102b",
+    "pullRequest": 21,
+    "candidateCommit": "4ea9de2627f52a47506416b8f71da1932081a184",
+    "mergeCommit": "f3f54181769a6187eb9d584fbd2599561319d8f9"
+  },
+  "distributionContract": {
+    "path": "docs/release/end-user-distribution-contract.json",
+    "blob": "65f6559b5275a5f7bb26d66caaf67c6968749980",
+    "sizeBytes": 14330,
+    "sha256": "dcb70fbf91155d4db25813458043d30255c2189ce8d8861a49fb05b0105f1bcb"
+  },
+  "surface": {
+    "toolCount": 20,
+    "toolNamesAndInputsUnchanged": true,
+    "schemaV1ByteIdentical": true,
+    "schemaV2PathAndIdStable": true,
+    "unknownSchemaVersionFallback": false,
+    "arbitraryCommandSurface": false,
+    "unmanagedAdoption": false,
+    "vmDeletion": false
+  },
+  "profileBranches": {
+    "embeddedPortable": {
+      "compatibility": "preserved",
+      "manifestSource": "archiveRoot",
+      "fixedArguments": ["--portable"],
+      "webView2AndDriverRequired": true
+    },
+    "externalPortable": {
+      "compatibility": "additiveClosedBranch",
+      "manifestSource": "externalProfileRelative",
+      "requiredDistributionBoundary": "end-user-complete",
+      "maximumManifestSizeBytes": 16777216,
+      "fixedArguments": [],
+      "webView2AndDriver": "requiredOnlyWhenUiStepsExist"
+    }
+  },
+  "manifestBranches": {
+    "legacyExternal": {
+      "distributionBoundary": "runtime-and-legal-only",
+      "compatibility": "schemaReadableHistoricalEvidenceOnly",
+      "executableCandidate": false,
+      "requiredFailureCode": "LEGACY_DISTRIBUTION_NOT_END_USER_COMPLETE"
+    },
+    "endUserCompleteExternal": {
+      "distributionBoundary": "end-user-complete",
+      "compatibility": "closedExecutableBranch",
+      "documentationMappingRequired": true,
+      "documentationSourceIdentityRequired": true,
+      "documentationSummaryRequired": true,
+      "runtimeLegalByteIdentityRequired": true
+    }
+  },
+  "evidenceBranches": {
+    "embeddedPortable": {
+      "compatibility": "preserved",
+      "discriminator": "absenceOfEvidenceKind"
+    },
+    "externalPortable": {
+      "compatibility": "additiveClosedBranch",
+      "discriminator": {
+        "evidenceKind": "externalPortable"
+      },
+      "manifestHashesRequired": [
+        "portableManifestSha256",
+        "portableManifestSourceSha256",
+        "portableManifestGuestSha256"
+      ],
+      "nonUiWebDriverIdentity": "null"
+    }
+  },
+  "negativeCases": [
+    "manifest-missing",
+    "manifest-reparse-point",
+    "manifest-path-escape",
+    "manifest-utf8-bom",
+    "manifest-invalid-utf8",
+    "manifest-duplicate-property",
+    "manifest-oversize",
+    "manifest-hash-drift",
+    "manifest-size-drift",
+    "manifest-inserted-in-zip",
+    "manifest-in-portable-data",
+    "archive-forbidden-sbom-sidecar",
+    "zip-undeclared-entry",
+    "zip-missing-entry",
+    "zip-case-collision",
+    "zip-nfc-collision",
+    "zip-link",
+    "zip-submodule",
+    "zip-reparse-point",
+    "zip-alternate-data-stream",
+    "zip-non-nfc-path",
+    "documentation-omission",
+    "documentation-extra",
+    "documentation-source-drift",
+    "documentation-source-tree-drift",
+    "documentation-mapping-drift",
+    "documentation-root-mapping-missing",
+    "prerequisite-omission",
+    "legacy-boundary-release-ready",
+    "distribution-boundary-missing",
+    "distribution-boundary-unknown",
+    "distribution-boundary-case-drift",
+    "distribution-branches-ambiguous",
+    "optional-component-omitted",
+    "ui-without-webview2",
+    "ui-without-webdriver",
+    "webdriver-three-segment-mismatch",
+    "illegal-selector",
+    "illegal-url",
+    "illegal-javascript",
+    "illegal-argument"
+  ],
+  "endUserCompletenessAmendment": {
+    "protectedCoverage": "frozen",
+    "distributionBoundary": "end-user-complete",
+    "documentationSelection": "allTrackedRegularFilesUnderDocsPlusSixRootMappings",
+    "documentationFileCount": 62,
+    "documentationPayloadSize": 1371442,
+    "documentationInventoryDigest": "dbd8e7fcc1b8222ccc53a94c8ce9a320e766650e05da5a50e3cdbc81499769fc",
+    "rootMappings": [
+      { "sourcePath": "README.md", "archivePath": "README.md" },
+      { "sourcePath": "CONTRIBUTING.md", "archivePath": "CONTRIBUTING.md" },
+      { "sourcePath": "LICENSE", "archivePath": "LICENSE" },
+      { "sourcePath": "NOTICE", "archivePath": "NOTICE" },
+      {
+        "sourcePath": "THIRD_PARTY_NOTICES",
+        "archivePath": "THIRD_PARTY_NOTICES"
+      },
+      { "sourcePath": "UPSTREAM.md", "archivePath": "UPSTREAM.md" }
+    ],
+    "requiredUserDocumentation": [
+      {
+        "topic": "install-start-and-integrity-verification",
+        "paths": ["docs/user/install-and-first-run.md"]
+      },
+      {
+        "topic": "configure-and-first-use",
+        "paths": [
+          "docs/user/quick-start.md",
+          "docs/user/settings-webui-and-security.md"
+        ]
+      },
+      {
+        "topic": "ocr-prerequisites-and-backends",
+        "paths": ["docs/user/models-and-ocr-backends.md"]
+      },
+      {
+        "topic": "daily-use",
+        "paths": [
+          "docs/user/import-and-recognition.md",
+          "docs/user/ocr-review.md",
+          "docs/user/members-and-conflicts.md",
+          "docs/user/monthly-report-and-excel.md",
+          "docs/user/mxu-general-features.md"
+        ]
+      },
+      {
+        "topic": "troubleshoot-and-diagnostics",
+        "paths": ["docs/user/troubleshooting-and-data.md"]
+      },
+      {
+        "topic": "backup-recovery-move-and-upgrade",
+        "paths": ["docs/user/projects-snapshots-and-recovery.md"]
+      },
+      {
+        "topic": "user-manual-index",
+        "paths": ["docs/user/README.md"]
+      }
+    ],
+    "nonDeveloperPrerequisiteCount": 14,
+    "nonDeveloperPrerequisites": [
+      {
+        "id": "windows-11-x64",
+        "stages": ["install", "start", "use"],
+        "applicability": "required",
+        "documentationPaths": ["docs/user/install-and-first-run.md"],
+        "requirement": "Use a supported Microsoft Windows 11 x64 host; x86, ARM and non-Windows hosts are outside this release contract."
+      },
+      {
+        "id": "ordinary-user-writable-extraction-directory",
+        "stages": ["install", "start", "recover"],
+        "applicability": "required",
+        "documentationPaths": [
+          "docs/user/install-and-first-run.md",
+          "docs/user/projects-snapshots-and-recovery.md"
+        ],
+        "requirement": "Extract the ZIP to a complete ordinary-user-writable directory and run there without administrator rights; never run from inside the archive."
+      },
+      {
+        "id": "four-asset-integrity-verification",
+        "stages": ["install", "verify"],
+        "applicability": "required",
+        "documentationPaths": ["docs/user/install-and-first-run.md"],
+        "requirement": "Obtain the ZIP, portable-manifest.json, SBOM.cdx.json and SHA256SUMS from one Release and verify all declared sizes and SHA-256 values before extraction."
+      },
+      {
+        "id": "unsigned-smartscreen-decision",
+        "stages": ["install", "start"],
+        "applicability": "required",
+        "documentationPaths": [
+          "docs/user/install-and-first-run.md",
+          "docs/user/settings-webui-and-security.md"
+        ],
+        "requirement": "The ZIP and executable are unsigned; keep Windows protection enabled, verify provenance and hashes, then make the SmartScreen or unknown-publisher decision explicitly."
+      },
+      {
+        "id": "bundled-fixed-webview2",
+        "stages": ["start", "troubleshoot"],
+        "applicability": "satisfied-by-zip",
+        "documentationPaths": [
+          "docs/user/install-and-first-run.md",
+          "docs/user/troubleshooting-and-data.md"
+        ],
+        "requirement": "Use the complete verified Fixed WebView2 runtime in the ZIP; do not install a developer runtime, copy one executable, supply a CAB or rely on system Evergreen fallback."
+      },
+      {
+        "id": "portable-data-space-and-whole-directory-backup",
+        "stages": ["install", "use", "recover"],
+        "applicability": "required",
+        "documentationPaths": [
+          "docs/user/install-and-first-run.md",
+          "docs/user/projects-snapshots-and-recovery.md",
+          "docs/user/troubleshooting-and-data.md"
+        ],
+        "requirement": "Provide enough writable storage for retained screenshots, revisions, models and exports; close the app and back up the whole adjacent data directory before move, upgrade, replacement or deletion."
+      },
+      {
+        "id": "explicit-ocr-backend-selection",
+        "stages": ["configure", "use", "troubleshoot"],
+        "applicability": "required-for-ocr",
+        "documentationPaths": [
+          "docs/user/models-and-ocr-backends.md",
+          "docs/user/troubleshooting-and-data.md"
+        ],
+        "requirement": "Select Maa OCR or Windows OCR explicitly; unavailable or failed backends do not silently fall back."
+      },
+      {
+        "id": "maa-ocr-model-download",
+        "stages": ["configure", "use"],
+        "applicability": "conditional-when-maa-ocr-selected",
+        "documentationPaths": ["docs/user/models-and-ocr-backends.md"],
+        "requirement": "Provide network access and writable model storage for the application-managed fixed Maa OCR model download and verification; no source checkout or developer toolchain is required."
+      },
+      {
+        "id": "windows-chinese-ocr-language-capability",
+        "stages": ["configure", "use"],
+        "applicability": "conditional-when-windows-ocr-selected",
+        "documentationPaths": ["docs/user/models-and-ocr-backends.md"],
+        "requirement": "Install or enable the Windows zh-Hans or zh-CN OCR language capability through Windows when the Windows OCR backend is selected."
+      },
+      {
+        "id": "synthetic-first-run-verification",
+        "stages": ["verify", "use"],
+        "applicability": "required-before-real-data",
+        "documentationPaths": [
+          "docs/user/install-and-first-run.md",
+          "docs/user/quick-start.md"
+        ],
+        "requirement": "Complete the documented non-sensitive synthetic project, OCR review, monthly preview and workbook-export check before processing real member data."
+      },
+      {
+        "id": "xlsx-viewer-for-independent-output-inspection",
+        "stages": ["verify"],
+        "applicability": "conditional-for-independent-workbook-inspection",
+        "documentationPaths": ["docs/user/monthly-report-and-excel.md"],
+        "requirement": "Excel or a compatible viewer is only needed to independently inspect the generated workbook; Birdsgone export itself does not require Microsoft Excel."
+      },
+      {
+        "id": "core-workflow-needs-no-adb-win32-lan-or-developer-tools",
+        "stages": ["install", "configure", "use"],
+        "applicability": "guaranteed-absence",
+        "documentationPaths": [
+          "docs/user/mxu-general-features.md",
+          "docs/user/settings-webui-and-security.md"
+        ],
+        "requirement": "The manual-import core workflow requires no ADB device, Win32 target, LAN exposure, Git checkout, Node.js, Rust, compiler, SDK or developer shell."
+      },
+      {
+        "id": "privacy-reviewed-diagnostics",
+        "stages": ["troubleshoot"],
+        "applicability": "required-when-sharing-diagnostics",
+        "documentationPaths": [
+          "docs/user/settings-webui-and-security.md",
+          "docs/user/troubleshooting-and-data.md"
+        ],
+        "requirement": "Start with Basic diagnostics and review every shared file for member data, paths and tokens; never include LAN tokens or credentials."
+      },
+      {
+        "id": "application-mediated-recovery",
+        "stages": ["recover"],
+        "applicability": "required",
+        "documentationPaths": [
+          "docs/user/projects-snapshots-and-recovery.md",
+          "docs/user/troubleshooting-and-data.md"
+        ],
+        "requirement": "Use verified application backup, snapshot, recycle and recovery flows; do not edit SQLite, CSV, manifests, source blobs or staging files as a repair shortcut."
+      }
+    ],
+    "manualReleaseAssetCount": 4,
+    "externalCompanions": [
+      "portable-manifest.json",
+      "SBOM.cdx.json",
+      "SHA256SUMS"
+    ],
+    "legacyBoundaryPolicy": "historicalOnlyFailClosed",
+    "disposition": "consumedFromProtectedBirdsgoneMain"
+  },
+  "upstreamPackagingResult": {
+    "gate": "G6.2",
+    "pullRequest": 22,
+    "candidateCommit": "1b616aab0c996ae643a254df352ae9216d919c25",
+    "protectedCommit": "5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c",
+    "protectedTree": "dbe98a0b0621353ed09cebff79d7cde64145881d",
+    "assetCount": 4,
+    "assets": [
+      {
+        "name": "Birdsgone_0.1.0_windows-x64-portable.zip",
+        "sizeBytes": 344467332,
+        "sha256": "4f1028a6ce1dd15b13cc1583dbac1f7cb0ff0b4da6993eeb9f8c1ab0016b4f66"
+      },
+      {
+        "name": "portable-manifest.json",
+        "sizeBytes": 141840,
+        "sha256": "0f141d12bcfe92a9017a3e19e905214c0e4d9f9c19e0ae485909984fb654f886"
+      },
+      {
+        "name": "SBOM.cdx.json",
+        "sizeBytes": 445475,
+        "sha256": "aee22775cf2e5bd7902222e4cf3ed6c47b6c3673d88e378e176ea7cb82848e71"
+      },
+      {
+        "name": "SHA256SUMS",
+        "sizeBytes": 276,
+        "sha256": "91dd656b357488f55c33c0e6952f04dd3267a1c62eb747b320d527b9019d3561"
+      }
+    ],
+    "verifierLaunches": 2,
+    "systemUnchanged": true,
+    "installSideEffects": 0,
+    "residualOwnedProcesses": 0,
+    "hostedCi": "notPerformedCapacityUnknownBillingApiUnavailable",
+    "hyperVOrGuestEvidence": "notPerformed"
+  },
+  "p3_1Boundary": {
+    "runtimeImplementation": "notPerformed",
+    "package": "notPerformed",
+    "release": "notPerformed",
+    "installation": "notPerformed",
+    "hyperVMutation": "notPerformed",
+    "guestOperation": "notPerformed"
+  }
+}

@@ -1,0 +1,251 @@
+{
+  "contractVersion": 3,
+  "cases": [
+    {
+      "id": "manifest-missing",
+      "layer": "profile-relative-input",
+      "mutation": "portable manifest path does not resolve to a regular file",
+      "expectedError": "PORTABLE_MANIFEST_NOT_FOUND"
+    },
+    {
+      "id": "manifest-reparse-point",
+      "layer": "profile-relative-input",
+      "mutation": "manifest path or ancestor is a reparse point",
+      "expectedError": "PORTABLE_MANIFEST_REPARSE_POINT"
+    },
+    {
+      "id": "manifest-path-escape",
+      "layer": "profile-relative-input",
+      "mutation": "canonical manifest path escapes the canonical profile directory",
+      "expectedError": "PORTABLE_MANIFEST_PATH_ESCAPE"
+    },
+    {
+      "id": "manifest-utf8-bom",
+      "layer": "strict-json-reader",
+      "mutation": "prepend UTF-8 BOM bytes",
+      "expectedError": "PORTABLE_MANIFEST_UTF8_BOM"
+    },
+    {
+      "id": "manifest-invalid-utf8",
+      "layer": "strict-json-reader",
+      "mutation": "inject an invalid UTF-8 byte sequence",
+      "expectedError": "PORTABLE_MANIFEST_INVALID_UTF8"
+    },
+    {
+      "id": "manifest-duplicate-property",
+      "layer": "strict-json-reader",
+      "mutation": "repeat newZipSha256 at the root",
+      "expectedError": "PORTABLE_MANIFEST_DUPLICATE_PROPERTY"
+    },
+    {
+      "id": "manifest-oversize",
+      "layer": "profile-relative-input",
+      "mutation": "manifest size exceeds 16777216 bytes",
+      "expectedError": "PORTABLE_MANIFEST_TOO_LARGE"
+    },
+    {
+      "id": "manifest-hash-drift",
+      "layer": "identity",
+      "mutation": "source manifest SHA-256 differs from the profile",
+      "expectedError": "PORTABLE_MANIFEST_HASH_MISMATCH"
+    },
+    {
+      "id": "manifest-size-drift",
+      "layer": "identity",
+      "mutation": "source manifest size differs from the profile",
+      "expectedError": "PORTABLE_MANIFEST_SIZE_MISMATCH"
+    },
+    {
+      "id": "manifest-inserted-in-zip",
+      "layer": "archive",
+      "mutation": "add root portable-manifest.json",
+      "expectedError": "PORTABLE_ARCHIVE_FORBIDDEN_SIDECAR"
+    },
+    {
+      "id": "manifest-in-portable-data",
+      "layer": "archive",
+      "mutation": "add data/portable-manifest.json",
+      "expectedError": "PORTABLE_ARCHIVE_DATA_ENTRY"
+    },
+    {
+      "id": "archive-forbidden-sbom-sidecar",
+      "layer": "archive",
+      "mutation": "add root SBOM.cdx.json or licenses/SBOM.cdx.json",
+      "expectedError": "PORTABLE_ARCHIVE_FORBIDDEN_SIDECAR"
+    },
+    {
+      "id": "zip-undeclared-entry",
+      "layer": "archive-inventory",
+      "mutation": "add an otherwise safe regular file absent from files",
+      "expectedError": "PORTABLE_ARCHIVE_UNDECLARED_ENTRY"
+    },
+    {
+      "id": "zip-missing-entry",
+      "layer": "archive-inventory",
+      "mutation": "remove a regular file declared by files",
+      "expectedError": "PORTABLE_ARCHIVE_MISSING_ENTRY"
+    },
+    {
+      "id": "zip-case-collision",
+      "layer": "archive-path",
+      "mutation": "add Readme.txt and README.txt",
+      "expectedError": "PORTABLE_ARCHIVE_CASE_COLLISION"
+    },
+    {
+      "id": "zip-nfc-collision",
+      "layer": "archive-path",
+      "mutation": "add canonically equivalent composed and decomposed path names",
+      "expectedError": "PORTABLE_ARCHIVE_NFC_COLLISION"
+    },
+    {
+      "id": "zip-link",
+      "layer": "archive-path",
+      "mutation": "mark an entry as a symbolic link",
+      "expectedError": "PORTABLE_ARCHIVE_LINK"
+    },
+    {
+      "id": "zip-submodule",
+      "layer": "documentation-source",
+      "mutation": "select a documentation source whose Git mode is submodule",
+      "expectedError": "PORTABLE_DOCUMENTATION_SUBMODULE"
+    },
+    {
+      "id": "zip-reparse-point",
+      "layer": "archive-path",
+      "mutation": "select or stage a documentation path through a reparse point",
+      "expectedError": "PORTABLE_ARCHIVE_REPARSE_POINT"
+    },
+    {
+      "id": "zip-alternate-data-stream",
+      "layer": "archive-path",
+      "mutation": "add a name containing a colon",
+      "expectedError": "PORTABLE_ARCHIVE_ALTERNATE_DATA_STREAM"
+    },
+    {
+      "id": "zip-non-nfc-path",
+      "layer": "archive-path",
+      "mutation": "use a decomposed Unicode path",
+      "expectedError": "PORTABLE_ARCHIVE_NON_NFC_PATH"
+    },
+    {
+      "id": "documentation-omission",
+      "layer": "documentation-inventory",
+      "mutation": "omit one selected documentation source from documentationFiles",
+      "expectedError": "PORTABLE_DOCUMENTATION_MISSING"
+    },
+    {
+      "id": "documentation-extra",
+      "layer": "documentation-inventory",
+      "mutation": "declare an unselected documentation source",
+      "expectedError": "PORTABLE_DOCUMENTATION_UNDECLARED"
+    },
+    {
+      "id": "documentation-source-drift",
+      "layer": "documentation-identity",
+      "mutation": "change a selected source byte after inventory derivation",
+      "expectedError": "PORTABLE_DOCUMENTATION_SOURCE_DRIFT"
+    },
+    {
+      "id": "documentation-source-tree-drift",
+      "layer": "documentation-identity",
+      "mutation": "bind documentationSourceTree to a tree other than the exact clean source tree",
+      "expectedError": "PORTABLE_DOCUMENTATION_SOURCE_TREE_MISMATCH"
+    },
+    {
+      "id": "documentation-mapping-drift",
+      "layer": "documentation-inventory",
+      "mutation": "change sourcePath, archivePath, size, or hash across source, staging, ZIP, and files",
+      "expectedError": "PORTABLE_DOCUMENTATION_MAPPING_MISMATCH"
+    },
+    {
+      "id": "documentation-root-mapping-missing",
+      "layer": "documentation-inventory",
+      "mutation": "omit one frozen root mapping such as README.md",
+      "expectedError": "PORTABLE_DOCUMENTATION_ROOT_MAPPING_MISSING"
+    },
+    {
+      "id": "prerequisite-omission",
+      "layer": "distribution-contract",
+      "mutation": "omit one of the 14 non-developer prerequisites or its shipped manual binding",
+      "expectedError": "PORTABLE_PREREQUISITE_MISSING"
+    },
+    {
+      "id": "legacy-boundary-release-ready",
+      "layer": "compatibility-dispatch",
+      "mutation": "submit runtime-and-legal-only historical evidence as an executable or release-ready candidate",
+      "expectedError": "LEGACY_DISTRIBUTION_NOT_END_USER_COMPLETE"
+    },
+    {
+      "id": "distribution-boundary-missing",
+      "layer": "compatibility-dispatch",
+      "mutation": "remove distributionBoundary",
+      "expectedError": "PORTABLE_DISTRIBUTION_BOUNDARY_REQUIRED"
+    },
+    {
+      "id": "distribution-boundary-unknown",
+      "layer": "compatibility-dispatch",
+      "mutation": "set distributionBoundary to an unrecognized value",
+      "expectedError": "PORTABLE_DISTRIBUTION_BOUNDARY_UNSUPPORTED"
+    },
+    {
+      "id": "distribution-boundary-case-drift",
+      "layer": "compatibility-dispatch",
+      "mutation": "change the case of end-user-complete",
+      "expectedError": "PORTABLE_DISTRIBUTION_BOUNDARY_UNSUPPORTED"
+    },
+    {
+      "id": "distribution-branches-ambiguous",
+      "layer": "compatibility-dispatch",
+      "mutation": "construct a shape that attempts to satisfy both legacy and end-user-complete branches",
+      "expectedError": "PORTABLE_DISTRIBUTION_BRANCH_AMBIGUOUS"
+    },
+    {
+      "id": "optional-component-omitted",
+      "layer": "manifest",
+      "mutation": "omit MaaFramework, WebView2, and driver from a non-UI profile",
+      "expectedResult": "valid"
+    },
+    {
+      "id": "ui-without-webview2",
+      "layer": "cross-document",
+      "mutation": "use a UI step while the external manifest omits webView2",
+      "expectedError": "PORTABLE_UI_COMPONENT_REQUIRED"
+    },
+    {
+      "id": "ui-without-webdriver",
+      "layer": "profile",
+      "mutation": "use a UI step while the profile omits webDriver",
+      "expectedError": "PORTABLE_UI_DRIVER_REQUIRED"
+    },
+    {
+      "id": "webdriver-three-segment-mismatch",
+      "layer": "cross-document",
+      "mutation": "set browser 150.0.4078.65 and driver 150.0.4079.1",
+      "expectedError": "WEBDRIVER_VERSION_MISMATCH"
+    },
+    {
+      "id": "illegal-selector",
+      "layer": "ui-dsl",
+      "mutation": "add a CSS or XPath selector",
+      "expectedError": "PROFILE_UI_DSL_FORBIDDEN_FIELD"
+    },
+    {
+      "id": "illegal-url",
+      "layer": "ui-dsl",
+      "mutation": "add a navigation or download URL",
+      "expectedError": "PROFILE_UI_DSL_FORBIDDEN_FIELD"
+    },
+    {
+      "id": "illegal-javascript",
+      "layer": "ui-dsl",
+      "mutation": "add JavaScript or executeScript content",
+      "expectedError": "PROFILE_UI_DSL_FORBIDDEN_FIELD"
+    },
+    {
+      "id": "illegal-argument",
+      "layer": "launch",
+      "mutation": "add an executable argument",
+      "expectedError": "PROFILE_ARGUMENTS_FORBIDDEN"
+    }
+  ]
+}

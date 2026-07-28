@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "profileId": "external-legacy-boundary-invalid",
+  "workflowKind": "portableAutomation",
+  "artifact": {
+    "packageKind": "portableZip",
+    "fileNamePattern": "HistoricalSample_1.0.0_windows-x64-portable.zip",
+    "architecture": "x64",
+    "sha256": "2020202020202020202020202020202020202020202020202020202020202020",
+    "sizeBytes": 4096,
+    "requiredDistributionBoundary": "runtime-and-legal-only",
+    "portableManifestSource": "externalProfileRelative",
+    "portableManifestRelativePath": "portable-manifest.json",
+    "portableManifestSizeBytes": 512,
+    "portableManifestSha256": "2525252525252525252525252525252525252525252525252525252525252525"
+  },
+  "fixtures": [],
+  "applications": [],
+  "steps": [],
+  "cleanupSteps": [],
+  "manualAssertions": []
+}

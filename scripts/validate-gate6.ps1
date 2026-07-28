@@ -50,7 +50,7 @@ try {
         throw 'Gate 6 contract validation returned invalid metadata.'
     }
     if (-not [bool]$contractResult.ok -or
-        [string]$contractResult.targetPluginVersion -cne '0.2.0' -or
+        [string]$contractResult.targetPluginVersion -cne '0.3.0' -or
         [string]$contractResult.currentRuntimeVersion -cne '0.2.0' -or
         [int]$contractResult.v1ToolsPreserved -ne 16 -or
         [int]$contractResult.v2ToolsDeclared -ne 20 -or
@@ -61,6 +61,10 @@ try {
         [int]$contractResult.semanticInvalidFixtures -ne 3 -or
         [int]$contractResult.migrationFixtures -ne 2 -or
         [int]$contractResult.dynamicCompatibilityChecks -ne 15 -or
+        [int]$contractResult.p3_1ValidFixtures -ne 6 -or
+        [int]$contractResult.p3_1SchemaInvalidFixtures -ne 5 -or
+        [int]$contractResult.p3_1NegativeCases -ne 41 -or
+        -not [bool]$contractResult.p3_1Closable -or
         [int]$contractResult.realHyperVMutations -ne 0 -or
         [int]$contractResult.realGuestOperations -ne 0) {
         throw 'Gate 6 contract validation did not preserve its frozen counts or safety boundary.'
@@ -103,6 +107,10 @@ if ($cachedDiffExitCode -ne 0) {
         [int]$contractResult.semanticInvalidFixtures
     migrationFixtures = [int]$contractResult.migrationFixtures
     dynamicContractChecks = [int]$contractResult.dynamicCompatibilityChecks
+    p3_1ValidFixtures = [int]$contractResult.p3_1ValidFixtures
+    p3_1SchemaInvalidFixtures = [int]$contractResult.p3_1SchemaInvalidFixtures
+    p3_1NegativeCases = [int]$contractResult.p3_1NegativeCases
+    p3_1Closable = [bool]$contractResult.p3_1Closable
     inheritedBaseline = if ($SkipInheritedBaseline) { 'externallyRequired' } else { 'passed' }
     realHostOperations = 0
     realHyperVMutations = 0

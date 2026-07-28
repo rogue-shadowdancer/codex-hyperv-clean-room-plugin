@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_ROOT = REPO_ROOT / "contracts" / "v2"
 SCHEMA_ROOT = CONTRACT_ROOT / "schemas"
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "v2"
+P3_1_FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "v3"
 V1_SCHEMA_ROOT = REPO_ROOT / "hyperv-clean-room" / "schemas"
 TOOL_SCHEMAS_PATH = (
     REPO_ROOT / "hyperv-clean-room" / "mcp" / "lib" / "ToolSchemas.ps1"
@@ -205,6 +206,21 @@ def property_names(value: Any) -> set[str]:
     return names
 
 
+def contains_schema_version_2(value: Any) -> bool:
+    if isinstance(value, dict):
+        properties = value.get("properties")
+        if (
+            isinstance(properties, dict)
+            and isinstance(properties.get("schemaVersion"), dict)
+            and properties["schemaVersion"].get("const") == 2
+        ):
+            return True
+        return any(contains_schema_version_2(child) for child in value.values())
+    if isinstance(value, list):
+        return any(contains_schema_version_2(child) for child in value)
+    return False
+
+
 def live_v1_tools() -> list[dict[str, Any]]:
     script_path = str(TOOL_SCHEMAS_PATH).replace("'", "''")
     command = (
@@ -291,7 +307,13 @@ def validate_portable_manifest_semantics(manifest: dict[str, Any]) -> list[str]:
     duplicates = duplicate_values(normalized)
     if duplicates:
         errors.append(f"case-insensitive duplicate portable paths: {duplicates}")
-    entry_point = manifest.get("entryPointRelativePath")
+    boundary = manifest.get("distributionBoundary")
+    external = boundary in {"runtime-and-legal-only", "end-user-complete"}
+    entry_point = (
+        manifest.get("entrypoint")
+        if external
+        else manifest.get("entryPointRelativePath")
+    )
     if isinstance(entry_point, str) and normalized_archive_path(entry_point) not in normalized:
         errors.append("portable entry point is absent from the exact inventory")
     elif isinstance(entry_point, str):
@@ -303,12 +325,70 @@ def validate_portable_manifest_semantics(manifest: dict[str, Any]) -> list[str]:
             and normalized_archive_path(item["path"])
             == normalized_archive_path(entry_point)
         ]
-        if len(entry_items) != 1 or entry_items[0].get("sizeBytes", 0) < 1:
+        size_field = "size" if external else "sizeBytes"
+        if len(entry_items) != 1 or entry_items[0].get(size_field, 0) < 1:
             errors.append("portable entry point is not a unique non-empty file")
-    if "portable-manifest.json" in normalized:
-        errors.append("portable manifest cannot contain its own recursive file hash")
+    forbidden_sidecars = {
+        "portable-manifest.json",
+        "sha256sums",
+        "sbom.cdx.json",
+        "licenses/sbom.cdx.json",
+    }
+    if any(path in forbidden_sidecars for path in normalized):
+        errors.append("portable inventory contains a forbidden sidecar")
     if any(path == "data" or path.startswith("data/") for path in normalized):
         errors.append("portable payload inventory contains mutable data")
+    if boundary == "end-user-complete":
+        documentation = manifest.get("documentationFiles", [])
+        source_paths = [
+            item.get("sourcePath")
+            for item in documentation
+            if isinstance(item, dict) and isinstance(item.get("sourcePath"), str)
+        ]
+        archive_paths = [
+            item.get("archivePath")
+            for item in documentation
+            if isinstance(item, dict) and isinstance(item.get("archivePath"), str)
+        ]
+        if any(not is_safe_relative_path(path) for path in source_paths + archive_paths):
+            errors.append("documentation mapping contains an unsafe relative path")
+        if duplicate_values([normalized_archive_path(path) for path in source_paths]):
+            errors.append("documentation source mapping is not unique")
+        if duplicate_values([normalized_archive_path(path) for path in archive_paths]):
+            errors.append("documentation archive mapping is not unique")
+        if manifest.get("documentationFileCount") != len(documentation):
+            errors.append("documentation file count does not match the mapping")
+        payload_size = sum(
+            item.get("size", 0)
+            for item in documentation
+            if isinstance(item, dict) and isinstance(item.get("size"), int)
+        )
+        if manifest.get("documentationPayloadSize") != payload_size:
+            errors.append("documentation payload size does not match the mapping")
+        file_by_path = {
+            normalized_archive_path(item["path"]): item
+            for item in files
+            if isinstance(item, dict) and isinstance(item.get("path"), str)
+        }
+        for item in documentation:
+            if not isinstance(item, dict) or not isinstance(
+                item.get("archivePath"), str
+            ):
+                continue
+            archived = file_by_path.get(normalized_archive_path(item["archivePath"]))
+            if (
+                archived is None
+                or archived.get("size") != item.get("size")
+                or archived.get("sha256") != item.get("sha256")
+            ):
+                errors.append(
+                    "documentation mapping is not byte-identical to the archive inventory"
+                )
+                break
+        if manifest.get("oldRuntimeInventoryDigest") != manifest.get(
+            "newRuntimeInventoryDigest"
+        ):
+            errors.append("retained runtime/legal inventory digest drifted")
     return errors
 
 
@@ -475,6 +555,12 @@ def validate_profile_semantics(profile: dict[str, Any]) -> list[str]:
             or "/" in portable_name
         ):
             errors.append("portable artifact requires one exact safe ZIP file name")
+        if portable_artifact.get(
+            "portableManifestSource"
+        ) == "externalProfileRelative" and not is_safe_relative_path(
+            portable_artifact.get("portableManifestRelativePath")
+        ):
+            errors.append("external portable manifest path is not profile-relative safe")
         forbidden_types = {"installPackage", "uninstallPackage"}
         if any(step.get("type") in forbidden_types for step in steps):
             errors.append("portable automation contains installer lifecycle steps")
@@ -632,17 +718,18 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
 
     artifacts = evidence.get("artifacts", [])
     roles = [item.get("role") for item in artifacts]
-    required_roles = {
-        "portableZip",
-        "portableManifest",
-        "webDriverArchive",
-        "webDriverExecutable",
-        "deployedPayload",
-    }
-    if (
-        any(roles.count(role) != 1 for role in required_roles)
-        or roles.count("fixture") < 1
-    ):
+    external = evidence.get("evidenceKind") == "externalPortable"
+    automation = evidence.get("automation", {})
+    required_roles = {"portableZip", "portableManifest", "deployedPayload"}
+    if not external or automation.get("uiRequired") is True:
+        required_roles.update({"webDriverArchive", "webDriverExecutable"})
+    fixture_identities = evidence.get("fixtureIdentities", [])
+    expected_fixture_count = (
+        len(fixture_identities) if external else max(1, roles.count("fixture"))
+    )
+    if any(roles.count(role) != 1 for role in required_roles) or roles.count(
+        "fixture"
+    ) != expected_fixture_count:
         errors.append("portable evidence is missing required artifact roles")
         machine_facts_passed = False
     for artifact in artifacts:
@@ -654,7 +741,6 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
 
     vm = evidence.get("vm", {})
     guest = evidence.get("guest", {})
-    automation = evidence.get("automation", {})
     if (
         vm.get("ownershipVerified") is not True
         or guest.get("isAdministrator") is not False
@@ -695,7 +781,32 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
     ):
         errors.append("WebDriver manifest hash is not bound to the candidate")
         machine_facts_passed = False
-    if automation.get("fixedWebView2Version") != automation.get("webDriverVersion"):
+    browser_version = automation.get("fixedWebView2Version")
+    driver_version = automation.get("webDriverVersion")
+    if external:
+        if automation.get("uiRequired") is True:
+            browser_segments = str(browser_version).split(".")
+            driver_segments = str(driver_version).split(".")
+            if (
+                len(browser_segments) != 4
+                or len(driver_segments) != 4
+                or browser_segments[:3] != driver_segments[:3]
+            ):
+                errors.append(
+                    "fixed WebView2 and WebDriver first three segments do not match"
+                )
+                machine_facts_passed = False
+        elif any(
+            value is not None
+            for value in (
+                automation.get("webDriverManifestSha256"),
+                browser_version,
+                driver_version,
+            )
+        ):
+            errors.append("non-UI external evidence contains WebDriver identity")
+            machine_facts_passed = False
+    elif browser_version != driver_version:
         errors.append("fixed WebView2 and WebDriver versions do not match")
         machine_facts_passed = False
     portable_artifacts = [
@@ -706,6 +817,85 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
     ) != candidate.get("portableZipSha256"):
         errors.append("portable ZIP hash is not bound to the candidate")
         machine_facts_passed = False
+    if external:
+        if (
+            candidate.get("requiredDistributionBoundary") != "end-user-complete"
+            or candidate.get("portableManifestDistributionBoundary")
+            != "end-user-complete"
+        ):
+            errors.append("external evidence does not bind end-user-complete")
+            machine_facts_passed = False
+        if candidate.get("oldRuntimeInventoryDigest") != candidate.get(
+            "newRuntimeInventoryDigest"
+        ):
+            errors.append("external evidence records runtime/legal inventory drift")
+            machine_facts_passed = False
+        zip_hashes = {
+            candidate.get("portableZipSha256"),
+            candidate.get("portableZipSourceSha256"),
+            candidate.get("portableZipGuestSha256"),
+        }
+        manifest_hashes = {
+            candidate.get("portableManifestSha256"),
+            candidate.get("portableManifestSourceSha256"),
+            candidate.get("portableManifestGuestSha256"),
+        }
+        manifest_sizes = {
+            candidate.get("portableManifestSizeBytes"),
+            candidate.get("portableManifestSourceSizeBytes"),
+            candidate.get("portableManifestGuestSizeBytes"),
+        }
+        if len(zip_hashes) != 1:
+            errors.append("external portable ZIP identities do not agree")
+            machine_facts_passed = False
+        if len(manifest_hashes) != 1 or len(manifest_sizes) != 1:
+            errors.append("external portable manifest identities do not agree")
+            machine_facts_passed = False
+        manifest_artifacts = [
+            item for item in artifacts if item.get("role") == "portableManifest"
+        ]
+        if len(manifest_artifacts) == 1 and (
+            manifest_artifacts[0].get("sizeBytes")
+            != candidate.get("portableManifestSizeBytes")
+            or manifest_artifacts[0].get("sourceSha256")
+            != candidate.get("portableManifestSourceSha256")
+            or manifest_artifacts[0].get("guestSha256")
+            != candidate.get("portableManifestGuestSha256")
+        ):
+            errors.append("external manifest artifact is not bound to the candidate")
+            machine_facts_passed = False
+        fixture_artifacts = {
+            item.get("id"): item
+            for item in artifacts
+            if item.get("role") == "fixture"
+        }
+        for fixture in fixture_identities:
+            artifact = fixture_artifacts.get(fixture.get("id"))
+            if (
+                not isinstance(artifact, dict)
+                or len(
+                    {
+                        fixture.get("profileSha256"),
+                        fixture.get("sourceSha256"),
+                        fixture.get("guestSha256"),
+                    }
+                )
+                != 1
+                or len(
+                    {
+                        fixture.get("profileSizeBytes"),
+                        fixture.get("sourceSizeBytes"),
+                        fixture.get("guestSizeBytes"),
+                    }
+                )
+                != 1
+                or artifact.get("sourceSha256") != fixture.get("sourceSha256")
+                or artifact.get("guestSha256") != fixture.get("guestSha256")
+            ):
+                errors.append(
+                    f"external fixture identity is incomplete: {fixture.get('id')!r}"
+                )
+                machine_facts_passed = False
 
     expected_machine = "passed" if machine_facts_passed else "failed"
     if evidence.get("machineStatus") != expected_machine:
@@ -729,15 +919,8 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
             or attestation.get("assertionId") != result.get("id")
         ):
             errors.append("manual attestation is not bound to its operation/profile/assertion")
-        for field in (
-            "sourceCommit",
-            "portableZipSha256",
-            "profileSha256",
-            "fixtureSetSha256",
-            "webDriverManifestSha256",
-        ):
-            if attestation.get("candidate", {}).get(field) != candidate.get(field):
-                errors.append(f"manual attestation is not bound to candidate {field}")
+        if canonical_json(attestation.get("candidate", {})) != canonical_json(candidate):
+            errors.append("manual attestation is not bound to the complete candidate")
     return errors
 
 
@@ -794,10 +977,12 @@ def migrate_v1_profile(profile: dict[str, Any]) -> dict[str, Any]:
 def assert_contract_metadata(catalog: dict[str, Any]) -> None:
     if catalog.get("contractVersion") != 2:
         raise AssertionError("tool catalog contractVersion must be 2")
-    if catalog.get("targetPluginVersion") != "0.2.0":
-        raise AssertionError("tool catalog target plugin version must be 0.2.0")
+    if catalog.get("targetPluginVersion") != "0.3.0":
+        raise AssertionError("tool catalog target plugin version must be 0.3.0")
     if catalog.get("currentRuntimeVersion") != "0.2.0":
-        raise AssertionError("H2 must integrate executable runtime 0.2.0")
+        raise AssertionError("P3.1 must leave the executable runtime at 0.2.0")
+    if catalog.get("consumerContract") != "contracts/v2/consumer-contract.json":
+        raise AssertionError("tool catalog does not bind the P3.1 consumer contract")
     envelopes = catalog.get("resultEnvelopes", {})
     if envelopes != {
         "exactV1Tools": "hyperv-clean-room/schemas/operation-envelope.schema.json",
@@ -824,6 +1009,11 @@ def assert_contract_metadata(catalog: dict[str, Any]) -> None:
 
 def assert_v1_compatibility(catalog: dict[str, Any]) -> tuple[int, int]:
     compatibility = load_json(CONTRACT_ROOT / "compatibility.json")
+    if (
+        compatibility.get("targetPluginVersion") != "0.3.0"
+        or compatibility.get("currentRuntimeVersion") != "0.2.0"
+    ):
+        raise AssertionError("P3.1 target/runtime compatibility versions drifted")
     live_tools = live_v1_tools()
     snapshot_tools = load_json(FIXTURE_ROOT / "compatibility" / "tool-catalog-v1.json")
     if canonical_json(live_tools) != canonical_json(snapshot_tools):
@@ -859,6 +1049,25 @@ def assert_v1_compatibility(catalog: dict[str, Any]) -> tuple[int, int]:
     for name, expected_hash in schema_hashes.items():
         if sha256_file(V1_SCHEMA_ROOT / name) != expected_hash:
             raise AssertionError(f"schema-v1 contract drifted: {name}")
+    runtime_schema_hashes = compatibility.get("schemaV2RuntimeSha256", {})
+    if set(runtime_schema_hashes) != EXPECTED_V2_SCHEMAS:
+        raise AssertionError("runtime schema-v2 hash inventory is incomplete")
+    runtime_schema_root = REPO_ROOT / "hyperv-clean-room" / "schemas" / "v2"
+    for name, expected_hash in runtime_schema_hashes.items():
+        if sha256_file(runtime_schema_root / name) != expected_hash:
+            raise AssertionError(f"runtime schema-v2 copy drifted during P3.1: {name}")
+    copy_policy = compatibility.get("schemaV2CopyPolicy", {})
+    if copy_policy != {
+        "authoritativePath": "contracts/v2/schemas",
+        "installedCopyPath": "hyperv-clean-room/schemas/v2",
+        "targetAheadOfRuntime": (
+            "installed copies must match schemaV2RuntimeSha256"
+        ),
+        "targetEqualsRuntime": (
+            "installed copies must be byte-identical to authoritative schemas"
+        ),
+    }:
+        raise AssertionError("schema-v2 installed-copy policy is not explicit")
 
     document_policy = compatibility.get("documents", {})
     profile_policy = document_policy.get("profileV1", {})
@@ -1074,10 +1283,375 @@ def assert_v2_tool_contract(
         raise AssertionError("valid baseline recovery apply result was rejected")
 
 
+def assert_p3_1_contract(
+    schemas: dict[str, dict[str, Any]],
+    registry: Registry,
+) -> tuple[int, int, int, bool]:
+    consumer = load_json(CONTRACT_ROOT / "consumer-contract.json")
+    source = consumer.get("source", {})
+    if (
+        consumer.get("contractVersion") != 4
+        or consumer.get("gate") != "G7/P3.1"
+        or consumer.get("targetPluginVersion") != "0.3.0"
+        or consumer.get("currentRuntimeVersion") != "0.2.0"
+        or source
+        != {
+            "repository": "rogue-shadowdancer/birdsgone",
+            "protectedBranch": "main",
+            "commit": "5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c",
+            "tree": "dbe98a0b0621353ed09cebff79d7cde64145881d",
+            "path": "docs/gates/hyperv-clean-room-0.3-contract.md",
+            "blob": "e2202a8de07cc90d6b31389853437e9fa025843a",
+            "sizeBytes": 37610,
+            "sha256": (
+                "489555e9bb0365160fb61aa4964e8264"
+                "05afadcec6345220178d65fc45d9102b"
+            ),
+            "pullRequest": 21,
+            "candidateCommit": "4ea9de2627f52a47506416b8f71da1932081a184",
+            "mergeCommit": "f3f54181769a6187eb9d584fbd2599561319d8f9",
+        }
+    ):
+        raise AssertionError("P3.1 immutable consumer-contract provenance drifted")
+    distribution_contract = consumer.get("distributionContract", {})
+    if (
+        distribution_contract
+        != {
+            "path": "docs/release/end-user-distribution-contract.json",
+            "blob": "65f6559b5275a5f7bb26d66caaf67c6968749980",
+            "sizeBytes": 14330,
+            "sha256": (
+                "dcb70fbf91155d4db25813458043d302"
+                "55c2189ce8d8861a49fb05b0105f1bcb"
+            ),
+        }
+    ):
+        raise AssertionError("P3.1 end-user distribution authority drifted")
+    amendment = consumer.get("endUserCompletenessAmendment", {})
+    if (
+        amendment.get("protectedCoverage") != "frozen"
+        or amendment.get("distributionBoundary") != "end-user-complete"
+        or amendment.get("documentationFileCount") != 62
+        or amendment.get("documentationPayloadSize") != 1371442
+        or amendment.get("documentationInventoryDigest")
+        != "dbd8e7fcc1b8222ccc53a94c8ce9a320e766650e05da5a50e3cdbc81499769fc"
+        or amendment.get("nonDeveloperPrerequisiteCount") != 14
+        or amendment.get("manualReleaseAssetCount") != 4
+        or amendment.get("legacyBoundaryPolicy") != "historicalOnlyFailClosed"
+        or amendment.get("disposition") != "consumedFromProtectedBirdsgoneMain"
+    ):
+        raise AssertionError("P3.1 end-user completeness amendment is incomplete")
+    expected_root_mappings = [
+        {"sourcePath": path, "archivePath": path}
+        for path in (
+            "README.md",
+            "CONTRIBUTING.md",
+            "LICENSE",
+            "NOTICE",
+            "THIRD_PARTY_NOTICES",
+            "UPSTREAM.md",
+        )
+    ]
+    required_manual_paths = {
+        "docs/user/README.md",
+        "docs/user/quick-start.md",
+        "docs/user/install-and-first-run.md",
+        "docs/user/projects-snapshots-and-recovery.md",
+        "docs/user/import-and-recognition.md",
+        "docs/user/ocr-review.md",
+        "docs/user/members-and-conflicts.md",
+        "docs/user/monthly-report-and-excel.md",
+        "docs/user/models-and-ocr-backends.md",
+        "docs/user/mxu-general-features.md",
+        "docs/user/settings-webui-and-security.md",
+        "docs/user/troubleshooting-and-data.md",
+    }
+    declared_manual_paths = {
+        path
+        for group in amendment.get("requiredUserDocumentation", [])
+        for path in group.get("paths", [])
+    }
+    prerequisite_ids = {
+        item.get("id") for item in amendment.get("nonDeveloperPrerequisites", [])
+    }
+    expected_prerequisite_ids = {
+        "windows-11-x64",
+        "ordinary-user-writable-extraction-directory",
+        "four-asset-integrity-verification",
+        "unsigned-smartscreen-decision",
+        "bundled-fixed-webview2",
+        "portable-data-space-and-whole-directory-backup",
+        "explicit-ocr-backend-selection",
+        "maa-ocr-model-download",
+        "windows-chinese-ocr-language-capability",
+        "synthetic-first-run-verification",
+        "xlsx-viewer-for-independent-output-inspection",
+        "core-workflow-needs-no-adb-win32-lan-or-developer-tools",
+        "privacy-reviewed-diagnostics",
+        "application-mediated-recovery",
+    }
+    if (
+        amendment.get("rootMappings") != expected_root_mappings
+        or declared_manual_paths != required_manual_paths
+        or prerequisite_ids != expected_prerequisite_ids
+        or len(amendment.get("nonDeveloperPrerequisites", [])) != 14
+        or any(
+            not item.get("stages")
+            or not item.get("applicability")
+            or not item.get("documentationPaths")
+            or not item.get("requirement")
+            for item in amendment.get("nonDeveloperPrerequisites", [])
+        )
+    ):
+        raise AssertionError("P3.1 complete documentation/prerequisite inventory drifted")
+    packaging = consumer.get("upstreamPackagingResult", {})
+    expected_assets = [
+        {
+            "name": "Birdsgone_0.1.0_windows-x64-portable.zip",
+            "sizeBytes": 344467332,
+            "sha256": (
+                "4f1028a6ce1dd15b13cc1583dbac1f7c"
+                "b0ff0b4da6993eeb9f8c1ab0016b4f66"
+            ),
+        },
+        {
+            "name": "portable-manifest.json",
+            "sizeBytes": 141840,
+            "sha256": (
+                "0f141d12bcfe92a9017a3e19e905214c"
+                "0e4d9f9c19e0ae485909984fb654f886"
+            ),
+        },
+        {
+            "name": "SBOM.cdx.json",
+            "sizeBytes": 445475,
+            "sha256": (
+                "aee22775cf2e5bd7902222e4cf3ed6c4"
+                "7b6c3673d88e378e176ea7cb82848e71"
+            ),
+        },
+        {
+            "name": "SHA256SUMS",
+            "sizeBytes": 276,
+            "sha256": (
+                "91dd656b357488f55c33c0e6952f04dd"
+                "3267a1c62eb747b320d527b9019d3561"
+            ),
+        },
+    ]
+    if (
+        packaging.get("gate") != "G6.2"
+        or packaging.get("pullRequest") != 22
+        or packaging.get("candidateCommit")
+        != "1b616aab0c996ae643a254df352ae9216d919c25"
+        or packaging.get("protectedCommit")
+        != "5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c"
+        or packaging.get("protectedTree")
+        != "dbe98a0b0621353ed09cebff79d7cde64145881d"
+        or packaging.get("assetCount") != 4
+        or packaging.get("assets") != expected_assets
+        or packaging.get("verifierLaunches") != 2
+        or packaging.get("systemUnchanged") is not True
+        or packaging.get("installSideEffects") != 0
+        or packaging.get("residualOwnedProcesses") != 0
+        or packaging.get("hyperVOrGuestEvidence") != "notPerformed"
+    ):
+        raise AssertionError("P3.1 upstream G6.2 result drifted")
+    boundary = consumer.get("p3_1Boundary", {})
+    if set(boundary.values()) != {"notPerformed"} or set(boundary) != {
+        "runtimeImplementation",
+        "package",
+        "release",
+        "installation",
+        "hyperVMutation",
+        "guestOperation",
+    }:
+        raise AssertionError("P3.1 claims work outside its schema/fixture boundary")
+
+    positive = {
+        "portable-manifest.external-neutral.valid.json": (
+            "portable-manifest.schema.json"
+        ),
+        "portable-manifest.external-birdsgone-shape.valid.json": (
+            "portable-manifest.schema.json"
+        ),
+        "portable-manifest.external-legacy-historical.valid.json": (
+            "portable-manifest.schema.json"
+        ),
+        "test-profile.external-neutral.valid.json": "test-profile.schema.json",
+        "test-profile.external-ui.valid.json": "test-profile.schema.json",
+        "evidence.external-neutral.valid.json": "evidence.schema.json",
+    }
+    negative = {
+        "portable-manifest.external-unknown-field.invalid.json": (
+            "portable-manifest.schema.json"
+        ),
+        "portable-manifest.external-end-user-missing-docs.invalid.json": (
+            "portable-manifest.schema.json"
+        ),
+        "test-profile.external-both-branches.invalid.json": (
+            "test-profile.schema.json"
+        ),
+        "test-profile.external-ui-missing-driver.invalid.json": (
+            "test-profile.schema.json"
+        ),
+        "test-profile.external-legacy-boundary.invalid.json": (
+            "test-profile.schema.json"
+        ),
+    }
+    for name, schema_name in positive.items():
+        instance = load_json(P3_1_FIXTURE_ROOT / name)
+        errors = list(validator_for(schema_name, schemas, registry).iter_errors(instance))
+        if errors:
+            raise AssertionError(
+                f"P3.1 positive fixture rejected: {name}: {errors[0].message}"
+            )
+        semantic = semantic_errors(name.split(".", 1)[0], instance)
+        if semantic:
+            raise AssertionError(
+                f"P3.1 positive fixture failed semantics: {name}: {semantic[0]}"
+            )
+    for name, schema_name in negative.items():
+        instance = load_json(P3_1_FIXTURE_ROOT / name)
+        if not list(validator_for(schema_name, schemas, registry).iter_errors(instance)):
+            raise AssertionError(f"P3.1 negative fixture accepted: {name}")
+
+    neutral_manifest = load_json(
+        P3_1_FIXTURE_ROOT / "portable-manifest.external-neutral.valid.json"
+    )
+    neutral_profile = load_json(
+        P3_1_FIXTURE_ROOT / "test-profile.external-neutral.valid.json"
+    )
+    if (
+        any(name in neutral_manifest for name in ("maa", "webView2"))
+        or "webDriver" in neutral_profile
+        or any(
+            step.get("type") in UI_STEP_TYPES
+            for step in neutral_profile.get("steps", [])
+        )
+    ):
+        raise AssertionError("neutral external fixture is not component-portable")
+
+    synthetic_manifest = load_json(
+        P3_1_FIXTURE_ROOT
+        / "portable-manifest.external-birdsgone-shape.valid.json"
+    )
+    ui_profile = load_json(
+        P3_1_FIXTURE_ROOT / "test-profile.external-ui.valid.json"
+    )
+    application = ui_profile["applications"][0]
+    driver = ui_profile["webDriver"]
+    webview = synthetic_manifest["webView2"]
+    if (
+        ui_profile["artifact"]["fileNamePattern"]
+        != synthetic_manifest["fileName"]
+        or ui_profile["artifact"]["sizeBytes"] != synthetic_manifest["newZipSize"]
+        or ui_profile["artifact"]["sha256"] != synthetic_manifest["newZipSha256"]
+        or application["executableRelativePath"] != synthetic_manifest["entrypoint"]
+        or application["dataDirectoryRelativePath"] + "/"
+        != synthetic_manifest["dataRoot"]
+        or driver["browserVersion"] != webview["version"]
+        or driver["driverVersion"].split(".")[:3]
+        != webview["version"].split(".")[:3]
+    ):
+        raise AssertionError("P3.1 external UI cross-document fixture bindings drifted")
+
+    forbidden_real_identities = {
+        "96647325bf36d590a388c17e9629cae7b4efb87630e8495fcd379fe67f8cce2f",
+        "078fb99f72671b1d7a0dc5a61120276dbbb12924e86507250e50c4a3e3de341f",
+        "aee22775cf2e5bd7902222e4cf3ed6c47b6c3673d88e378e176ea7cb82848e71",
+        "130757909f151bf0b18a84f341aa8f4c07a1541be904e243250cf9f54d3672db",
+        "4f1028a6ce1dd15b13cc1583dbac1f7cb0ff0b4da6993eeb9f8c1ab0016b4f66",
+        "0f141d12bcfe92a9017a3e19e905214c0e4d9f9c19e0ae485909984fb654f886",
+        "91dd656b357488f55c33c0e6952f04dd3267a1c62eb747b320d527b9019d3561",
+    }
+    if forbidden_real_identities & set(re.findall(r"[a-f0-9]{64}", canonical_json(
+        synthetic_manifest
+    ))):
+        raise AssertionError("synthetic consumer fixture copied a real release identity")
+
+    evidence = load_json(
+        P3_1_FIXTURE_ROOT / "evidence.external-neutral.valid.json"
+    )
+    drift = load_json(
+        P3_1_FIXTURE_ROOT
+        / "evidence.external-manifest-hash-drift.semantic-invalid.json"
+    )
+    drifted_evidence = deepcopy(evidence)
+    path_parts = drift["mutation"]["path"].strip("/").split("/")
+    target = drifted_evidence
+    for part in path_parts[:-1]:
+        target = target[part]
+    target[path_parts[-1]] = drift["mutation"]["value"]
+    if not validate_evidence_semantics(drifted_evidence):
+        raise AssertionError("external evidence manifest hash drift was accepted")
+
+    matrix = load_json(P3_1_FIXTURE_ROOT / "negative-cases.json")
+    case_ids = [case.get("id") for case in matrix.get("cases", [])]
+    required_case_ids = {
+        "manifest-missing",
+        "manifest-reparse-point",
+        "manifest-path-escape",
+        "manifest-utf8-bom",
+        "manifest-invalid-utf8",
+        "manifest-duplicate-property",
+        "manifest-oversize",
+        "manifest-hash-drift",
+        "manifest-size-drift",
+        "manifest-inserted-in-zip",
+        "manifest-in-portable-data",
+        "zip-undeclared-entry",
+        "zip-missing-entry",
+        "zip-case-collision",
+        "zip-nfc-collision",
+        "zip-link",
+        "zip-submodule",
+        "zip-reparse-point",
+        "zip-alternate-data-stream",
+        "zip-non-nfc-path",
+        "archive-forbidden-sbom-sidecar",
+        "documentation-omission",
+        "documentation-extra",
+        "documentation-source-drift",
+        "documentation-source-tree-drift",
+        "documentation-mapping-drift",
+        "documentation-root-mapping-missing",
+        "prerequisite-omission",
+        "legacy-boundary-release-ready",
+        "distribution-boundary-missing",
+        "distribution-boundary-unknown",
+        "distribution-boundary-case-drift",
+        "distribution-branches-ambiguous",
+        "optional-component-omitted",
+        "ui-without-webview2",
+        "ui-without-webdriver",
+        "webdriver-three-segment-mismatch",
+        "illegal-selector",
+        "illegal-url",
+        "illegal-javascript",
+        "illegal-argument",
+    }
+    if (
+        matrix.get("contractVersion") != 3
+        or len(case_ids) != len(required_case_ids)
+        or set(case_ids) != required_case_ids
+        or len(case_ids) != len(set(case_ids))
+        or consumer.get("negativeCases") != case_ids
+    ):
+        raise AssertionError("P3.1 negative-case matrix is incomplete or duplicated")
+    if any(
+        not case.get("expectedError") and case.get("expectedResult") != "valid"
+        for case in matrix["cases"]
+    ):
+        raise AssertionError("P3.1 negative-case matrix has no deterministic outcome")
+    return len(positive), len(negative), len(case_ids), True
+
+
 def main() -> int:
     required_contract_files = {
         CONTRACT_ROOT / "tool-catalog.json",
         CONTRACT_ROOT / "compatibility.json",
+        CONTRACT_ROOT / "consumer-contract.json",
         CONTRACT_ROOT / "README.md",
     }
     missing_contract_files = sorted(
@@ -1101,7 +1675,7 @@ def main() -> int:
             raise AssertionError(f"unexpected JSON Schema dialect: {name}")
         if schema.get("$id") != EXPECTED_V2_SCHEMA_IDS[name]:
             raise AssertionError(f"unstable v2 schema ID: {name}")
-        if schema.get("properties", {}).get("schemaVersion", {}).get("const") != 2:
+        if not contains_schema_version_2(schema):
             raise AssertionError(f"v2 schema does not require schemaVersion 2: {name}")
 
     forbidden_profile_fields = property_names(schemas["test-profile.schema.json"]) & {
@@ -1133,6 +1707,12 @@ def main() -> int:
     assert_contract_metadata(catalog)
     assert_v2_tool_contract(catalog, schemas, registry)
     v1_tool_count, v1_schema_count = assert_v1_compatibility(catalog)
+    (
+        p3_1_valid_count,
+        p3_1_schema_invalid_count,
+        p3_1_negative_case_count,
+        p3_1_closable,
+    ) = assert_p3_1_contract(schemas, registry)
 
     fixtures = sorted(FIXTURE_ROOT.glob("*.json"))
     if not fixtures:
@@ -1402,7 +1982,7 @@ def main() -> int:
         json.dumps(
             {
                 "ok": True,
-                "targetPluginVersion": "0.2.0",
+                "targetPluginVersion": "0.3.0",
                 "currentRuntimeVersion": "0.2.0",
                 "v1ToolsPreserved": v1_tool_count,
                 "v2ToolsDeclared": len(EXPECTED_TOOL_NAMES),
@@ -1413,6 +1993,10 @@ def main() -> int:
                 "semanticInvalidFixtures": semantic_invalid_count,
                 "migrationFixtures": 2,
                 "dynamicCompatibilityChecks": 15,
+                "p3_1ValidFixtures": p3_1_valid_count,
+                "p3_1SchemaInvalidFixtures": p3_1_schema_invalid_count,
+                "p3_1NegativeCases": p3_1_negative_case_count,
+                "p3_1Closable": p3_1_closable,
                 "realHyperVMutations": 0,
                 "realGuestOperations": 0,
             },

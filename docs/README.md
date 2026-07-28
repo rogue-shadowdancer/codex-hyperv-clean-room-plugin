@@ -25,6 +25,15 @@ automatic-checkpoint ownership without changing the 20-tool or schema
 contracts. Future creation disables automatic checkpoints; pre-fix
 differencing chains are recognized only when they terminate at the unchanged
 recorded base with a complete canonical identity fingerprint.
+G7/P3.1 now freezes the additive `0.3.0` external-manifest target under the
+same authoritative [`contracts/v2`](../contracts/v2/README.md) directory. It
+keeps the executable and installed runtime at `0.2.0`, preserves the old
+embedded branch and exact 20-tool surface, and adds only closed schema,
+compatibility, fixture, and documentation artifacts. The external dispatch
+keeps `runtime-and-legal-only` historical evidence readable and requires
+`end-user-complete` documentation/prerequisite identity for every executable
+external profile. P3.2 implementation and P3.3 release/install/source-match
+remain separate and `notPerformed`.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.

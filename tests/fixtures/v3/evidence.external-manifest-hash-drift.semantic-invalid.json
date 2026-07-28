@@ -1,0 +1,8 @@
+{
+  "baseFixture": "evidence.external-neutral.valid.json",
+  "mutation": {
+    "path": "/candidate/portableManifestGuestSha256",
+    "value": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "expectedError": "EXTERNAL_MANIFEST_IDENTITY_MISMATCH"
+}

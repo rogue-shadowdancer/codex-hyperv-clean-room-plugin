@@ -1,7 +1,8 @@
 {
   "contractVersion": 2,
-  "targetPluginVersion": "0.2.0",
+  "targetPluginVersion": "0.3.0",
   "currentRuntimeVersion": "0.2.0",
+  "consumerContract": "contracts/v2/consumer-contract.json",
   "schemaVersion": 2,
   "toolCount": 20,
   "resultEnvelopes": {

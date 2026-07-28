@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 2,
+  "packageKind": "windows-x64-portable",
+  "distributionBoundary": "runtime-and-legal-only",
+  "fileName": "HistoricalSample_1.0.0_windows-x64-portable.zip",
+  "version": "1.0.0",
+  "architecture": "x86_64",
+  "entrypoint": "HistoricalSample.exe",
+  "distributionMode": "fixed-portable",
+  "dataRoot": "data/",
+  "unsigned": true,
+  "newZipSize": 4096,
+  "newZipSha256": "2020202020202020202020202020202020202020202020202020202020202020",
+  "files": [
+    {
+      "path": "HistoricalSample.exe",
+      "size": 4096,
+      "sha256": "2121212121212121212121212121212121212121212121212121212121212121"
+    }
+  ]
+}

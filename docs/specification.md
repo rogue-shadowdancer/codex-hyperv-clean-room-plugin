@@ -1076,3 +1076,149 @@ not authorize a power transition, credential operation, plan/apply call, H5E
 work, or a `0.3.0` change. The cause and authority of the earlier
 12 GiB-to-8 GiB difference and the recurring `Running`-to-`Off` transitions
 remain unresolved.
+
+## G7/P3.1 plugin 0.3 target-contract boundary
+
+P3.1 freezes the schema and fixture target for plugin base version `0.3.0`
+from immutable Birdsgone protected `main`
+`5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c`, tree
+`dbe98a0b0621353ed09cebff79d7cde64145881d`. The consumer document is blob
+`e2202a8de07cc90d6b31389853437e9fa025843a`, 37,610 bytes, SHA-256
+`489555e9bb0365160fb61aa4964e826405afadcec6345220178d65fc45d9102b`.
+The machine-readable end-user distribution contract is blob
+`65f6559b5275a5f7bb26d66caaf67c6968749980`, 14,330 bytes, SHA-256
+`dcb70fbf91155d4db25813458043d30255c2189ce8d8861a49fb05b0105f1bcb`.
+[`consumer-contract.json`](../contracts/v2/consumer-contract.json) is the local
+machine-readable provenance lock.
+
+The schema version remains integer `2`. All seven public v2 schema paths and
+IDs are stable, all five v1 schemas remain byte-identical, and the exact 20
+typed tools and their inputs remain unchanged. The original embedded portable
+profile, manifest, evidence, fixed `--portable` argument, and fixed
+WebView2/Maa/WebDriver semantics remain valid. No reader may try one branch and
+fall back to another.
+
+P3.1 adds a closed, mutually exclusive external portable artifact:
+
+```json
+{
+  "packageKind": "portableZip",
+  "fileNamePattern": "ContractSample_1.2.3_windows-x64-portable.zip",
+  "architecture": "x64",
+  "sha256": "<64 lowercase hex>",
+  "sizeBytes": 8192,
+  "requiredDistributionBoundary": "end-user-complete",
+  "portableManifestSource": "externalProfileRelative",
+  "portableManifestRelativePath": "portable-manifest.json",
+  "portableManifestSizeBytes": 1024,
+  "portableManifestSha256": "<64 lowercase hex>"
+}
+```
+
+The external manifest is resolved only below the canonical profile directory.
+It is a regular non-reparse file no larger than 16,777,216 bytes, read as
+strict UTF-8 without BOM, NUL, or duplicate JSON properties. Rooted, drive,
+UNC, device, URI, traversal, ADS, percent-ambiguous, environment-expanded,
+trailing-dot/space, reserved-device, non-NFC, case-colliding, link, junction,
+or reparse paths fail closed. Profile-declared size/SHA and source/guest
+size/SHA are independently rebound for the current operation.
+
+The manifest is a sidecar. It is not inserted into the ZIP, copied into the
+portable `data/` directory, or treated as a fixture. External ZIPs forbid root
+`portable-manifest.json`, root `SHA256SUMS`, root `SBOM.cdx.json`, and
+`licenses/SBOM.cdx.json`. Every regular ZIP entry must agree bidirectionally
+with the manifest inventory; undeclared, missing, hash/size-drifted,
+case-colliding, link, ADS, non-NFC, or `data/` entries fail closed.
+
+External manifests dispatch exactly by `distributionBoundary`; readers never
+try one branch and fall back to another. `runtime-and-legal-only` remains a
+closed schema-readable historical branch for the immutable test.1 facts, but
+it cannot satisfy a new profile, release-ready check, or clean-room run.
+`end-user-complete` is the only executable external branch. It requires
+`schemaVersion: 2`, `packageKind: windows-x64-portable`, a safe ZIP leaf,
+bounded SemVer, `architecture: x86_64`, a uniquely inventoried `.exe` entry
+point, `distributionMode: fixed-portable`, `dataRoot: data/`, `unsigned`, ZIP
+size/SHA, and one to 4,096 exact `{path,size,sha256}` file identities.
+
+The end-user-complete branch additionally requires every selected documentation
+source to appear once in `documentationFiles` as
+`{sourcePath,archivePath,size,sha256}`, byte-identically in the ZIP `files`
+inventory. It binds the exact clean documentation source commit/tree, file
+count, total payload bytes, canonical documentation inventory digest, and equal
+old/new retained runtime/legal inventory digests. The protected source
+authority selects every tracked regular file under `docs/`, plus the six
+frozen root mappings, rejects links/submodules/reparse points and hidden index
+flags, and requires all local user-entry/manual links to resolve to shipped
+bytes or one of the declared external companions. The four manual Release
+assets remain ZIP, external manifest, external SBOM, and external
+`SHA256SUMS`; the three companions stay outside the ZIP. Fourteen
+non-developer prerequisites cover install, start, configure, use,
+troubleshoot, verify, and recover without a source checkout or developer
+toolchain. Only the closed typed G4.2 provenance extensions enumerated by the
+authoritative schema are accepted; none can introduce a command, path root,
+download source, selector, URL, script, or executable argument.
+
+Generic external portable packages may omit MaaFramework and WebView2. When no
+ordinary or cleanup UI step exists, the profile must omit `webDriver` and the
+evidence branch records driver identity as null. A UI step requires a closed
+manifest `webView2` identity and the existing fixed `webDriver` object.
+`browserVersion` must equal the manifest WebView2 version; the driver and
+browser first three numeric segments must match, while the fourth may differ.
+The closed `data-testid` DSL, Microsoft-only x64 EdgeDriver acquisition,
+publisher/hash/inventory verification, loopback-only server-selected endpoint,
+and prohibitions on selectors, navigation, JavaScript, raw protocol payloads,
+caller ports, URLs, and arguments remain binding.
+
+External evidence is structurally selected by
+`evidenceKind: externalPortable`; old evidence omits this field. The external
+candidate binds product/runtime/packaging commits and trees; ZIP leaf,
+profile/source/guest size and SHA; profile SHA; manifest source/path and
+profile/source/guest size/SHA; complete inventory digest/count/size; fixture
+set and each fixture identity; and conditional driver identity. The three
+manifest hashes are required and equal. Runtime evidence binds base/build
+version, source commit, installed inventory, and adapter mode. Guest evidence
+separates the elevated orchestration identity from the exact-medium
+non-admin/non-elevated test identity. Deployment/data, UI, Plan/Apply,
+network-recovery, automatic/manual, cleanup, and status derivation remain
+separate and immutable.
+
+P3.1 acceptance requires six positive target fixtures, five direct
+schema-negative fixtures, and the exact 41-case negative matrix under
+`tests/fixtures/v3`. The neutral sample omits WebView2, MaaFramework, driver,
+and UI steps. The consumer-shaped sample uses synthetic identities only; it
+contains no private asset, machine path, OCR data, credential, release token,
+or execution evidence. A separate historical fixture proves the legacy branch
+remains readable, while a schema-negative profile proves that branch cannot be
+used as an executable candidate.
+
+P3.1 deliberately leaves the plugin manifest, PowerShell runtime, and
+installable schema copies at `0.2.0`. While target and runtime differ,
+`compatibility.json` requires installed schema-v2 copies to match the recorded
+runtime SHA-256 inventory. Exact authoritative-to-installed byte equality
+becomes mandatory only when P3.2 changes runtime and target to the same
+version.
+
+P3.1 performs no runtime implementation, packaging, release, installation,
+credential, Hyper-V, VM, checkpoint, guest, portable, driver, UI, network,
+manual-attestation, or evidence operation. P3.2 implementation and P3.3
+release/install/source-match are separate atomic tasks.
+
+### Protected packaging amendment and G6.2 source result
+
+The earlier blocking packaging gap is closed by the protected
+end-user-complete amendment and G6.2 implementation result. The frozen
+documentation inventory is 62 files, 1,371,442 Git-blob bytes, digest
+`dbd8e7fcc1b8222ccc53a94c8ce9a320e766650e05da5a50e3cdbc81499769fc`,
+with 14 non-developer prerequisites and exactly four distribution assets.
+Protected G6.2 verification launched the portable application twice, reported
+the system unchanged, zero install side effects, and zero residual owned
+processes. Hosted CI remained `notPerformed` because capacity was
+`unknown/billing-api-unavailable`.
+
+That result is package-local source evidence only. It does not prove a
+Hyper-V host, managed VM, checkpoint, credential profile, standard-user guest
+session, guest transfer, install/uninstall, WebDriver session, network
+transition, manual attestation, or clean-room evidence. P3.1 consumes only the
+protected contract and immutable source identities; it does not read or reuse
+the upstream ignored artifact directory or copy real release identities into
+synthetic fixtures.

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "packageKind": "windows-x64-portable",
+  "distributionBoundary": "end-user-complete",
+  "fileName": "ContractSample_1.2.3_windows-x64-portable.zip",
+  "version": "1.2.3",
+  "architecture": "x86_64",
+  "entrypoint": "ContractSample.exe",
+  "distributionMode": "fixed-portable",
+  "dataRoot": "data/",
+  "unsigned": true,
+  "newZipSize": 8192,
+  "newZipSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "documentationFiles": [
+    {
+      "sourcePath": "README.md",
+      "archivePath": "README.md",
+      "size": 256,
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  ],
+  "documentationSourceCommit": "4444444444444444444444444444444444444444",
+  "documentationSourceTree": "5555555555555555555555555555555555555555",
+  "documentationFileCount": 1,
+  "documentationPayloadSize": 256,
+  "documentationInventoryDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+  "oldRuntimeInventoryDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+  "newRuntimeInventoryDigest": "7777777777777777777777777777777777777777777777777777777777777777",
+  "sbom": {
+    "path": "SBOM.cdx.json",
+    "size": 512,
+    "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+    "derivedFromPath": "licenses/SBOM.cdx.json"
+  },
+  "files": [
+    {
+      "path": "ContractSample.exe",
+      "size": 4096,
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    {
+      "path": "README.md",
+      "size": 256,
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  ]
+}

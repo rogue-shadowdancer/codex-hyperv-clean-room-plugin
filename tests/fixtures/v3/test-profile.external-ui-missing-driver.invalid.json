@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 2,
+  "id": "external-ui-missing-driver",
+  "workflowKind": "portableAutomation",
+  "platform": "windows-x64",
+  "baselineType": "stock-clean",
+  "artifact": {
+    "packageKind": "portableZip",
+    "fileNamePattern": "SyntheticUi_1.2.3_windows-x64-portable.zip",
+    "architecture": "x64",
+    "sha256": "3131313131313131313131313131313131313131313131313131313131313131",
+    "sizeBytes": 16384,
+    "requiredDistributionBoundary": "end-user-complete",
+    "portableManifestSource": "externalProfileRelative",
+    "portableManifestRelativePath": "portable-manifest.json",
+    "portableManifestSizeBytes": 2048,
+    "portableManifestSha256": "3232323232323232323232323232323232323232323232323232323232323232"
+  },
+  "fixtures": [],
+  "applications": [
+    {
+      "id": "synthetic-ui",
+      "packageKind": "portableZip",
+      "executableRelativePath": "SyntheticUi.exe",
+      "dataDirectoryRelativePath": "data",
+      "processName": "SyntheticUi.exe"
+    }
+  ],
+  "steps": [
+    {
+      "id": "deploy-portable",
+      "type": "deployPortable",
+      "application": "synthetic-ui",
+      "timeoutSeconds": 300
+    },
+    {
+      "id": "start-ui-session",
+      "type": "startUiSession",
+      "application": "synthetic-ui",
+      "timeoutSeconds": 60
+    }
+  ],
+  "cleanupSteps": [],
+  "manualAssertions": []
+}

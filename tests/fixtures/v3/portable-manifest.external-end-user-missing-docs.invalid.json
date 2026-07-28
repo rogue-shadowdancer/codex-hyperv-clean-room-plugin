@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "packageKind": "windows-x64-portable",
+  "distributionBoundary": "end-user-complete",
+  "fileName": "InvalidSample_1.0.0_windows-x64-portable.zip",
+  "version": "1.0.0",
+  "architecture": "x86_64",
+  "entrypoint": "InvalidSample.exe",
+  "distributionMode": "fixed-portable",
+  "dataRoot": "data/",
+  "unsigned": true,
+  "newZipSize": 4096,
+  "newZipSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "oldRuntimeInventoryDigest": "2323232323232323232323232323232323232323232323232323232323232323",
+  "newRuntimeInventoryDigest": "2323232323232323232323232323232323232323232323232323232323232323",
+  "files": [
+    {
+      "path": "InvalidSample.exe",
+      "size": 4096,
+      "sha256": "2424242424242424242424242424242424242424242424242424242424242424"
+    }
+  ]
+}
