@@ -149,6 +149,14 @@
               ]
             }
           },
+          "fixtureIdentities": {
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/externalFixtureIdentity" },
+                { "properties": { "status": { "const": "passed" } } }
+              ]
+            }
+          },
           "powerOperations": {
             "items": {
               "allOf": [
