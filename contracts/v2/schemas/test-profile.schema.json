@@ -142,30 +142,49 @@
       },
       "then": {
         "if": {
-          "properties": {
-            "steps": {
-              "contains": {
-                "properties": {
-                  "type": {
-                    "enum": [
-                      "acquireWebDriver",
-                      "startUiSession",
-                      "stopUiSession",
-                      "uiClick",
-                      "uiSetText",
-                      "uiPressKey",
-                      "uiSelectOption",
-                      "uiUploadFixture",
-                      "assertUiElement",
-                      "captureUiScreenshot"
-                    ]
+          "anyOf": [
+            {
+              "properties": {
+                "steps": {
+                  "contains": {
+                    "properties": {
+                      "type": {
+                        "enum": [
+                          "acquireWebDriver",
+                          "startUiSession",
+                          "stopUiSession",
+                          "uiClick",
+                          "uiSetText",
+                          "uiPressKey",
+                          "uiSelectOption",
+                          "uiUploadFixture",
+                          "assertUiElement",
+                          "captureUiScreenshot"
+                        ]
+                      }
+                    },
+                    "required": ["type"]
                   }
-                },
-                "required": ["type"]
-              }
+                }
+              },
+              "required": ["steps"]
+            },
+            {
+              "properties": {
+                "cleanupSteps": {
+                  "contains": {
+                    "properties": {
+                      "type": {
+                        "enum": ["stopUiSession", "captureUiScreenshot"]
+                      }
+                    },
+                    "required": ["type"]
+                  }
+                }
+              },
+              "required": ["cleanupSteps"]
             }
-          },
-          "required": ["steps"]
+          ]
         },
         "then": { "required": ["webDriver"] },
         "else": { "not": { "required": ["webDriver"] } }

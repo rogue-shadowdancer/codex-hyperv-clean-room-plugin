@@ -818,6 +818,18 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
         errors.append("portable ZIP hash is not bound to the candidate")
         machine_facts_passed = False
     if external:
+        if len(portable_artifacts) == 1 and (
+            portable_artifacts[0].get("fileName")
+            != candidate.get("portableZipFileName")
+            or portable_artifacts[0].get("sizeBytes")
+            != candidate.get("portableZipSizeBytes")
+            or portable_artifacts[0].get("sourceSha256")
+            != candidate.get("portableZipSourceSha256")
+            or portable_artifacts[0].get("guestSha256")
+            != candidate.get("portableZipGuestSha256")
+        ):
+            errors.append("external portable ZIP artifact is not bound to the candidate")
+            machine_facts_passed = False
         if (
             candidate.get("requiredDistributionBoundary") != "end-user-complete"
             or candidate.get("portableManifestDistributionBoundary")
@@ -1812,6 +1824,31 @@ def main() -> int:
     if not validate_profile_semantics(cleanup_probe):
         raise AssertionError("unbound cleanup action was accepted")
 
+    cleanup_only_ui_probe = load_json(
+        P3_1_FIXTURE_ROOT / "test-profile.external-neutral.valid.json"
+    )
+    ui_profile_probe = load_json(
+        P3_1_FIXTURE_ROOT / "test-profile.external-ui.valid.json"
+    )
+    cleanup_only_ui_probe["webDriver"] = deepcopy(ui_profile_probe["webDriver"])
+    cleanup_only_ui_probe["cleanupSteps"] = [
+        {
+            "id": "cleanup-ui-capture",
+            "type": "captureUiScreenshot",
+            "timeoutSeconds": 30,
+            "evidenceName": "cleanup-ui",
+        }
+    ]
+    cleanup_only_ui_errors = list(
+        validator_for("test-profile.schema.json", schemas, registry).iter_errors(
+            cleanup_only_ui_probe
+        )
+    )
+    if cleanup_only_ui_errors or validate_profile_semantics(cleanup_only_ui_probe):
+        raise AssertionError(
+            "external cleanup-only UI profile with fixed WebDriver was rejected"
+        )
+
     network_change = load_json(FIXTURE_ROOT / "vm-network-plan.change.valid.json")
     network_recovery = load_json(FIXTURE_ROOT / "vm-network-plan.recovery.valid.json")
     pair_fields = (
@@ -1942,6 +1979,33 @@ def main() -> int:
     infrastructure_probe["artifacts"][0]["status"] = "failed"
     if not validate_evidence_semantics(infrastructure_probe):
         raise AssertionError("failed candidate artifact preserved machine-passed evidence")
+
+    embedded_fixture_identity_probe = deepcopy(evidence_probe)
+    embedded_fixture_identity_probe["fixtureIdentities"] = []
+    if not list(evidence_validator.iter_errors(embedded_fixture_identity_probe)):
+        raise AssertionError("embedded evidence accepted external fixture identities")
+
+    external_evidence_probe = load_json(
+        P3_1_FIXTURE_ROOT / "evidence.external-neutral.valid.json"
+    )
+    external_evidence_validator = validator_for(
+        "evidence.schema.json", schemas, registry
+    )
+    zip_name_drift_probe = deepcopy(external_evidence_probe)
+    zip_name_drift_probe["candidate"][
+        "portableZipFileName"
+    ] = "Different_1.2.3_windows-x64-portable.zip"
+    if list(external_evidence_validator.iter_errors(zip_name_drift_probe)):
+        raise AssertionError("ZIP-name drift probe unexpectedly failed schema validation")
+    if not validate_evidence_semantics(zip_name_drift_probe):
+        raise AssertionError("external evidence accepted portable ZIP name drift")
+
+    zip_size_drift_probe = deepcopy(external_evidence_probe)
+    zip_size_drift_probe["candidate"]["portableZipSizeBytes"] += 1
+    if list(external_evidence_validator.iter_errors(zip_size_drift_probe)):
+        raise AssertionError("ZIP-size drift probe unexpectedly failed schema validation")
+    if not validate_evidence_semantics(zip_size_drift_probe):
+        raise AssertionError("external evidence accepted portable ZIP size drift")
 
     data_drift_probe = deepcopy(evidence_probe)
     data_drift_probe["automation"]["previousDataInventorySha256"] = "c" * 64
