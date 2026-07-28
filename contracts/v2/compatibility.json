@@ -1,13 +1,36 @@
 {
   "contractVersion": 2,
-  "targetPluginVersion": "0.2.0",
+  "targetPluginVersion": "0.3.0",
   "currentRuntimeVersion": "0.2.0",
+  "consumerContract": {
+    "path": "contracts/v2/consumer-contract.json",
+    "sourceCommit": "5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c",
+    "sourceTree": "dbe98a0b0621353ed09cebff79d7cde64145881d",
+    "sourceBlob": "e2202a8de07cc90d6b31389853437e9fa025843a",
+    "sourceSizeBytes": 37610,
+    "sourceSha256": "489555e9bb0365160fb61aa4964e826405afadcec6345220178d65fc45d9102b"
+  },
   "schemaV1Sha256": {
     "checkpoint-plan.schema.json": "905373bf634cb74a02fd352bf7c65be8355fbbcb35e92ce61672db5a3a115167",
     "evidence.schema.json": "3154f1f91781eba0115436245d9c548f0c02542b454640fe170d9e140c5bdfe5",
     "operation-envelope.schema.json": "0d392e816f91414fea6a957f8bd2551bc40e303d1b6529180dd76012e6fd7b2c",
     "test-profile.schema.json": "fd7a4e06236b849369a16b69094b39ef07a2268adffef181cb44da9b9ffa638c",
     "vm-plan.schema.json": "9aaf056f8beace6ba4107627f8028fdc3e74d484179d9bf238b83f4b8138b4fe"
+  },
+  "schemaV2RuntimeSha256": {
+    "evidence.schema.json": "5a564bd01df9e8a2cd0116cf8e604ed8c7da1418f82e358c22730fbca0644209",
+    "operation-envelope.schema.json": "7160708f6fb09ba8837e00350ba364aa52af7da0be6c619e903a1efbf485a5f6",
+    "portable-manifest.schema.json": "c8a0cafa18c8ad1d2621ea6da339e908ed646c20465200f10115c51cf514fcd3",
+    "test-profile.schema.json": "b176854dcbc71af5a614b53070cc89648cd0bb039a650d59c9a211680a7cab63",
+    "vm-network-plan.schema.json": "9ef327eb77a8d21662fca782de04673b9d7b6016436fbecc07d97b114a7c2ddc",
+    "vm-power-plan.schema.json": "52361ea5dcd0d4cfb136a580383abb898fde6c6f7349774efe151d40f04d3616",
+    "webdriver-manifest.schema.json": "e407230ddf8e1dc650fdc3a75b875ab0f59ba8156d3b4cef7ebadbdddb083c0d"
+  },
+  "schemaV2CopyPolicy": {
+    "authoritativePath": "contracts/v2/schemas",
+    "installedCopyPath": "hyperv-clean-room/schemas/v2",
+    "targetAheadOfRuntime": "installed copies must match schemaV2RuntimeSha256",
+    "targetEqualsRuntime": "installed copies must be byte-identical to authoritative schemas"
   },
   "documents": {
     "profileV1": {
@@ -20,6 +43,14 @@
       "reader": "validateV1",
       "migration": "preserveV1",
       "reason": "schema-v2 candidate, driver, fixture, UI, and recovery provenance cannot be synthesized"
+    },
+    "profileV2": {
+      "embeddedPortable": "preserveSemantics",
+      "externalPortable": "closedMutuallyExclusiveAdditiveBranch"
+    },
+    "evidenceV2": {
+      "embeddedPortable": "preserveShapeAndSemantics",
+      "externalPortable": "closedEvidenceKindDiscriminator"
     },
     "unknownSchemaVersion": {
       "behavior": "reject",

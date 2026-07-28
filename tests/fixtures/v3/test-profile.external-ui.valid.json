@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 2,
+  "id": "external-ui-smoke",
+  "description": "Synthetic external-manifest UI sample using only the closed data-testid DSL.",
+  "workflowKind": "portableAutomation",
+  "platform": "windows-x64",
+  "baselineType": "stock-clean",
+  "artifact": {
+    "packageKind": "portableZip",
+    "fileNamePattern": "SyntheticConsumer_1.2.3_windows-x64-portable.zip",
+    "architecture": "x64",
+    "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+    "sizeBytes": 12288,
+    "requiredDistributionBoundary": "end-user-complete",
+    "portableManifestSource": "externalProfileRelative",
+    "portableManifestRelativePath": "portable-manifest.json",
+    "portableManifestSizeBytes": 2048,
+    "portableManifestSha256": "3232323232323232323232323232323232323232323232323232323232323232"
+  },
+  "fixtures": [
+    {
+      "id": "synthetic-input",
+      "sourceRelativePath": "fixtures/synthetic-input.json",
+      "sizeBytes": 128,
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "mediaType": "application/json"
+    }
+  ],
+  "webDriver": {
+    "schemaVersion": 2,
+    "id": "edge-driver-150-0-4078-66",
+    "provider": "microsoftEdgeDriver",
+    "browserKind": "fixedVersionWebView2",
+    "browserVersion": "150.0.4078.65",
+    "driverVersion": "150.0.4078.66",
+    "architecture": "x64",
+    "acquisition": {
+      "source": "microsoftFixedEndpoint",
+      "archiveFileName": "edgedriver_win64.zip",
+      "archiveSizeBytes": 4096,
+      "archiveSha256": "3434343434343434343434343434343434343434343434343434343434343434",
+      "redirectPolicy": "microsoftHttpsAllowlist"
+    },
+    "executable": {
+      "relativePath": "msedgedriver.exe",
+      "sizeBytes": 8192,
+      "sha256": "3535353535353535353535353535353535353535353535353535353535353535",
+      "peArchitecture": "x64",
+      "authenticodePublisher": "Microsoft Corporation"
+    },
+    "sessionPolicy": {
+      "listenAddress": "127.0.0.1",
+      "portPolicy": "serverAllocatedEphemeral",
+      "browserArguments": [],
+      "allowNavigation": false,
+      "allowExecuteScript": false,
+      "allowArbitrarySelector": false
+    },
+    "files": [
+      {
+        "path": "msedgedriver.exe",
+        "sizeBytes": 8192,
+        "sha256": "3535353535353535353535353535353535353535353535353535353535353535"
+      }
+    ]
+  },
+  "applications": [
+    {
+      "id": "synthetic-consumer",
+      "packageKind": "portableZip",
+      "executableRelativePath": "SyntheticConsumer.exe",
+      "dataDirectoryRelativePath": "data",
+      "processName": "SyntheticConsumer.exe"
+    }
+  ],
+  "steps": [
+    {
+      "id": "stage-artifact",
+      "type": "stageArtifact",
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "deploy-portable",
+      "type": "deployPortable",
+      "application": "synthetic-consumer",
+      "timeoutSeconds": 300
+    },
+    {
+      "id": "launch-application",
+      "type": "launchApplication",
+      "application": "synthetic-consumer",
+      "timeoutSeconds": 60
+    },
+    {
+      "id": "acquire-webdriver",
+      "type": "acquireWebDriver",
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "start-ui-session",
+      "type": "startUiSession",
+      "application": "synthetic-consumer",
+      "timeoutSeconds": 60
+    },
+    {
+      "id": "upload-synthetic-input",
+      "type": "uiUploadFixture",
+      "testId": "synthetic-input",
+      "fixtureId": "synthetic-input",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "run-synthetic-flow",
+      "type": "uiClick",
+      "testId": "run-synthetic-flow",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "assert-result-visible",
+      "type": "assertUiElement",
+      "testId": "synthetic-result",
+      "state": "visible",
+      "timeoutSeconds": 60,
+      "required": true
+    },
+    {
+      "id": "capture-result",
+      "type": "captureUiScreenshot",
+      "evidenceName": "synthetic-result",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "stop-ui-session",
+      "type": "stopUiSession",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "stop-application",
+      "type": "stopApplication",
+      "application": "synthetic-consumer",
+      "timeoutSeconds": 30
+    }
+  ],
+  "cleanupSteps": [
+    {
+      "id": "cleanup-stop-ui-session",
+      "type": "stopUiSession",
+      "timeoutSeconds": 30
+    },
+    {
+      "id": "cleanup-stop-application",
+      "type": "stopApplication",
+      "application": "synthetic-consumer",
+      "timeoutSeconds": 30
+    }
+  ],
+  "manualAssertions": []
+}

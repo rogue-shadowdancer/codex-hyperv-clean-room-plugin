@@ -57,8 +57,13 @@ def main() -> int:
             "the integrated plugin version must preserve base 0.2.0 with at "
             "most one Codex cachebuster"
         )
-    if catalog["currentRuntimeVersion"] != "0.2.0" or compatibility["currentRuntimeVersion"] != "0.2.0":
-        raise AssertionError("contract integration metadata is not current")
+    if (
+        catalog["targetPluginVersion"] != "0.3.0"
+        or compatibility["targetPluginVersion"] != "0.3.0"
+        or catalog["currentRuntimeVersion"] != "0.2.0"
+        or compatibility["currentRuntimeVersion"] != "0.2.0"
+    ):
+        raise AssertionError("P3.1 target/runtime integration metadata drifted")
     if len(catalog["tools"]) != 20:
         raise AssertionError("the integrated target must expose exactly 20 tools")
 
@@ -69,8 +74,13 @@ def main() -> int:
     for name in V2_NAMES:
         source = CONTRACT / "schemas" / name
         installed = PLUGIN / "schemas" / "v2" / name
-        if source.read_bytes() != installed.read_bytes():
-            raise AssertionError(f"installable schema-v2 copy drifted: {name}")
+        if catalog["targetPluginVersion"] == catalog["currentRuntimeVersion"]:
+            if source.read_bytes() != installed.read_bytes():
+                raise AssertionError(f"installable schema-v2 copy drifted: {name}")
+        elif sha(installed) != compatibility["schemaV2RuntimeSha256"][name]:
+            raise AssertionError(
+                f"current runtime schema-v2 copy drifted during target freeze: {name}"
+            )
 
     common = read(PLUGIN / "mcp" / "lib" / "Common.ps1")
     runtime = read(PLUGIN / "mcp" / "lib" / "Runtime.ps1")

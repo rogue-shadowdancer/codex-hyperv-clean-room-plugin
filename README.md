@@ -6,7 +6,7 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: released 0.2.0 source; H5A ownership repair in validation
+### Status: 0.3 target contract frozen; runtime and release remain 0.2.0
 
 Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,
 profile, evidence, plan, and credential contracts. The first public release
@@ -74,6 +74,22 @@ chain hashes consistently and terminates at the unchanged recorded base
 closed. The H5A personal candidate uses
 `0.2.0+codex.20260723113253`. The repair does not adopt or rewrite ownership,
 delete or merge a checkpoint, or authorize Windows OOBE/package/UI work.
+
+G7/P3.1 freezes the next additive `0.3.0` schema/fixture target from the
+immutable Birdsgone G6 consumer contract. It preserves all 20 tool names and
+inputs, all five schema-v1 files, and the old embedded schema-v2 branch while
+adding a mutually exclusive, profile-relative external-manifest branch,
+generic portable packages with conditional components, and structurally
+separate external evidence. The external manifest keeps the historical
+`runtime-and-legal-only` shape readable but permits execution only for the
+protected `end-user-complete` branch, which binds the complete documentation
+mapping, non-developer prerequisites, and four-asset topology. The neutral
+fixture has no WebView2, MaaFramework, driver, or UI step; all consumer-shaped
+fixtures are synthetic. The plugin
+manifest, PowerShell runtime, installed schema copies, immutable `v0.2.0`
+release, and personal installation remain `0.2.0`. P3.1 performs no Hyper-V,
+guest, credential, package, release, installation, driver, UI, network, or
+evidence operation.
 
 [![public-release-validation](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
@@ -160,7 +176,7 @@ checkpoint success.
 `hyperv-clean-room` 是一个仅面向 Windows 的 Codex plugin 设计，用于受保护的
 Hyper-V VM 操作、声明式 current-user package lifecycle 测试和结构化 evidence。
 
-### 状态：0.2.0 source 已发布；H5A ownership 修复正在验收
+### 状态：0.3 目标契约已冻结；runtime 与 release 仍为 0.2.0
 
 Gate 2 已依据冻结的 v1 cleanup、profile、evidence、plan 和 credential 合同实现
 PowerShell 5.1 MCP runtime。首个 public release 使用 plugin base version

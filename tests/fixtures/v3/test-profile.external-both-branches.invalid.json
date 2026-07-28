@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 2,
+  "id": "external-both-branches",
+  "workflowKind": "portableAutomation",
+  "platform": "windows-x64",
+  "baselineType": "stock-clean",
+  "artifact": {
+    "packageKind": "portableZip",
+    "fileNamePattern": "ContractSample_1.2.3_windows-x64-portable.zip",
+    "architecture": "x64",
+    "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "sizeBytes": 8192,
+    "requiredDistributionBoundary": "end-user-complete",
+    "portableManifestEntryPath": "portable-manifest.json",
+    "portableManifestSource": "externalProfileRelative",
+    "portableManifestRelativePath": "portable-manifest.json",
+    "portableManifestSizeBytes": 1024,
+    "portableManifestSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "fixtures": [],
+  "applications": [
+    {
+      "id": "contract-sample",
+      "packageKind": "portableZip",
+      "executableRelativePath": "ContractSample.exe",
+      "dataDirectoryRelativePath": "data",
+      "processName": "ContractSample.exe"
+    }
+  ],
+  "steps": [
+    {
+      "id": "deploy-portable",
+      "type": "deployPortable",
+      "application": "contract-sample",
+      "timeoutSeconds": 300
+    }
+  ],
+  "cleanupSteps": [],
+  "manualAssertions": []
+}
