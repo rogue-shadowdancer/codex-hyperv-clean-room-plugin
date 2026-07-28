@@ -153,6 +153,11 @@ The candidate must retain these exact outcomes after its final commit:
 - Gate 7 mock runtime assertions: `216`
 - generated mock evidence documents validated: `5`
 - `git diff --check`
+- Codex review of the first published candidate found three actionable
+  fail-closed gaps: external ZIP artifact leaf/size binding, cleanup-only UI
+  driver dispatch, and embedded-evidence rejection of external fixture
+  identities. All three are repaired with direct regression probes; the final
+  published candidate requires a fresh zero-actionable-findings review.
 - real host operations: `0`
 - real Hyper-V mutations: `0`
 - real guest operations: `0`
