@@ -1624,6 +1624,23 @@ def assert_p3_1_contract(
         ).iter_errors(signed_external_probe)
     ):
         raise AssertionError("executable external manifest accepted unsigned=false")
+    for provenance_field in (
+        "runtimeSourceCommit",
+        "runtimeSourceTree",
+        "packagingCommit",
+        "packagingTree",
+    ):
+        missing_provenance_probe = deepcopy(neutral_manifest)
+        del missing_provenance_probe[provenance_field]
+        if not list(
+            validator_for(
+                "portable-manifest.schema.json", schemas, registry
+            ).iter_errors(missing_provenance_probe)
+        ):
+            raise AssertionError(
+                "executable external manifest omitted required provenance: "
+                f"{provenance_field}"
+            )
 
     synthetic_manifest = load_json(
         P3_1_FIXTURE_ROOT

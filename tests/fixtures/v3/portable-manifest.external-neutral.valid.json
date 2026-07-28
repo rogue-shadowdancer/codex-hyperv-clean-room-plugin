@@ -24,6 +24,10 @@
   "documentationFileCount": 1,
   "documentationPayloadSize": 256,
   "documentationInventoryDigest": "6666666666666666666666666666666666666666666666666666666666666666",
+  "runtimeSourceCommit": "9999999999999999999999999999999999999999",
+  "runtimeSourceTree": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "packagingCommit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "packagingTree": "cccccccccccccccccccccccccccccccccccccccc",
   "oldRuntimeInventoryDigest": "7777777777777777777777777777777777777777777777777777777777777777",
   "newRuntimeInventoryDigest": "7777777777777777777777777777777777777777777777777777777777777777",
   "sbom": {

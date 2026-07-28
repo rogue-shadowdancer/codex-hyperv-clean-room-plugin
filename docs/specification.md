@@ -1139,6 +1139,9 @@ it cannot satisfy a new profile, release-ready check, or clean-room run.
 bounded SemVer, `architecture: x86_64`, a uniquely inventoried `.exe` entry
 point, `distributionMode: fixed-portable`, `dataRoot: data/`, `unsigned`, ZIP
 size/SHA, and one to 4,096 exact `{path,size,sha256}` file identities.
+It also supplies the runtime source commit/tree and packaging commit/tree that
+external evidence must copy exactly; P3.2 must not infer or fabricate them from
+ZIP bytes or caller input.
 
 The end-user-complete branch additionally requires every selected documentation
 source to appear once in `documentationFiles` as
