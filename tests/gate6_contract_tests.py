@@ -934,6 +934,19 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
         ):
             errors.append("external manifest artifact is not bound to the candidate")
             machine_facts_passed = False
+        deployed_artifacts = [
+            item for item in artifacts if item.get("role") == "deployedPayload"
+        ]
+        if len(deployed_artifacts) == 1 and (
+            deployed_artifacts[0].get("sourceSha256")
+            != candidate.get("portableInventorySha256")
+            or deployed_artifacts[0].get("guestSha256")
+            != candidate.get("portableInventorySha256")
+        ):
+            errors.append(
+                "external deployed payload is not bound to the candidate inventory"
+            )
+            machine_facts_passed = False
         fixture_artifacts = {
             item.get("id"): item
             for item in artifacts
@@ -960,6 +973,7 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
                     }
                 )
                 != 1
+                or artifact.get("sizeBytes") != fixture.get("sourceSizeBytes")
                 or artifact.get("sourceSha256") != fixture.get("sourceSha256")
                 or artifact.get("guestSha256") != fixture.get("guestSha256")
             ):
@@ -2139,6 +2153,33 @@ def main() -> int:
         raise AssertionError(
             "external evidence accepted omission of a candidate-declared fixture"
         )
+
+    deployed_payload_drift_probe = deepcopy(external_evidence_probe)
+    deployed_payload_artifact = next(
+        artifact
+        for artifact in deployed_payload_drift_probe["artifacts"]
+        if artifact["role"] == "deployedPayload"
+    )
+    deployed_payload_artifact["sourceSha256"] = "e" * 64
+    deployed_payload_artifact["guestSha256"] = "e" * 64
+    if list(external_evidence_validator.iter_errors(deployed_payload_drift_probe)):
+        raise AssertionError(
+            "deployed-payload drift probe unexpectedly failed schema validation"
+        )
+    if not validate_evidence_semantics(deployed_payload_drift_probe):
+        raise AssertionError(
+            "external evidence accepted deployed payload inventory drift"
+        )
+
+    fixture_size_probe = deepcopy(fixture_status_probe)
+    fixture_size_probe["fixtureIdentities"][0]["status"] = "passed"
+    fixture_size_probe["artifacts"][-1]["sizeBytes"] += 1
+    if list(external_evidence_validator.iter_errors(fixture_size_probe)):
+        raise AssertionError(
+            "fixture-size drift probe unexpectedly failed schema validation"
+        )
+    if not validate_evidence_semantics(fixture_size_probe):
+        raise AssertionError("external evidence accepted fixture artifact size drift")
 
     data_drift_probe = deepcopy(evidence_probe)
     data_drift_probe["automation"]["previousDataInventorySha256"] = "c" * 64
