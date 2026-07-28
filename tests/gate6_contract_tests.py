@@ -1641,6 +1641,18 @@ def assert_p3_1_contract(
                 "executable external manifest omitted required provenance: "
                 f"{provenance_field}"
             )
+    for unsafe_zip_leaf in ("CON.zip", "com1.ZIP", "bad\u0001.zip"):
+        unsafe_zip_probe = deepcopy(neutral_manifest)
+        unsafe_zip_probe["fileName"] = unsafe_zip_leaf
+        if not list(
+            validator_for(
+                "portable-manifest.schema.json", schemas, registry
+            ).iter_errors(unsafe_zip_probe)
+        ):
+            raise AssertionError(
+                f"executable external manifest accepted unsafe ZIP leaf: "
+                f"{unsafe_zip_leaf!r}"
+            )
 
     synthetic_manifest = load_json(
         P3_1_FIXTURE_ROOT
