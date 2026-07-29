@@ -175,7 +175,7 @@ function Read-HcrJsonDocument {
         $offset = if ($bytes.Length -ge 3 -and
             $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and
             $bytes[2] -eq 0xBF) { 3 } else { 0 }
-        $json = (New-Object Text.UTF8Encoding($false, $false)).GetString(
+        $json = (New-Object Text.UTF8Encoding($false, $true)).GetString(
             $bytes,
             $offset,
             $bytes.Length - $offset

@@ -114,6 +114,7 @@ def main() -> int:
     guest_v1 = read(PLUGIN / "mcp" / "lib" / "Tools.Guest.ps1")
     guest_v2 = read(PLUGIN / "mcp" / "lib" / "Tools.Guest.V2.ps1")
     worker = read(PLUGIN / "mcp" / "lib" / "GuestWorker.ps1")
+    validation_v1 = read(PLUGIN / "mcp" / "lib" / "Validation.ps1")
     validation = read(PLUGIN / "mcp" / "lib" / "Validation.V2.ps1")
     adapters = read(PLUGIN / "mcp" / "lib" / "Adapters.ps1")
     migration = read(PLUGIN / "mcp" / "Migrate-TestProfile.ps1")
@@ -283,6 +284,14 @@ def main() -> int:
             "runtime hashes the profile path separately from the parsed profile bytes"
         )
     require_tokens(
+        validation_v1,
+        "strict shared JSON UTF-8 decoding",
+        (
+            "Text.UTF8Encoding($false, $true)",
+            "The file is not valid UTF-8 JSON.",
+        ),
+    )
+    require_tokens(
         external_sources,
         "external candidate rebinding",
         (
@@ -391,6 +400,17 @@ def main() -> int:
             "[string]::Join('.', $driverParts[0..2])",
             "(-not $uiRequired -and $null -ne $webDriver)",
             "Get-WorkerProperty $Input 'uiRequired' $false",
+        ),
+    )
+    require_tokens(
+        worker,
+        "failed portable deployment cleanup",
+        (
+            "$deploymentPublished=$false",
+            "if(-not $deploymentPublished -and $null-ne$slotsRoot)",
+            "Test-WorkerPathWithin $cleanupPath $slotsRoot",
+            "Remove-Item -LiteralPath $cleanupPath -Recurse -Force",
+            "PORTABLE_STAGING_CLEANUP_FAILED",
         ),
     )
 

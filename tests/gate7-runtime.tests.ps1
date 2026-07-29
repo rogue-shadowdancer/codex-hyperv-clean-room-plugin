@@ -184,6 +184,7 @@ $unknownNestedProfilePath = Join-Path $testRoot 'external-portable-profile-unkno
 $externalManifestAliasPath = Join-Path $testRoot 'external-portable-manifest-hardlink.json'
 $externalManifestAliasProfilePath = Join-Path $testRoot 'external-portable-profile-hardlink.json'
 $externalTrailingFixtureProfilePath = Join-Path $testRoot 'external-portable-profile-trailing-fixture.json'
+$invalidUtf8ProfilePath = Join-Path $testRoot 'profile-invalid-utf8.json'
 $externalCaseArtifactDirectory = Join-Path $testRoot 'external-case-artifact'
 $externalFailureExportRoot = Join-Path $testRoot 'external-failure-export'
 $volumeRoot = [IO.Path]::GetPathRoot($testRoot)
@@ -1034,6 +1035,25 @@ Assert-Gate7 $externalNativeValidation.valid `
 Assert-Gate7Equal ([string]$externalNativeValidation.sha256) `
     (Get-HcrSha256File $externalProfilePath) `
     'Profile validation did not retain the exact bytes that were parsed.'
+
+$invalidUtf8Prefix = [Text.Encoding]::UTF8.GetBytes(
+    '{"schemaVersion":2,"description":"'
+)
+$invalidUtf8Suffix = [Text.Encoding]::UTF8.GetBytes('"}')
+[IO.File]::WriteAllBytes(
+    $invalidUtf8ProfilePath,
+    [byte[]]@($invalidUtf8Prefix + [byte[]](0xC3,0x28) + $invalidUtf8Suffix)
+)
+$invalidUtf8Rejected = $false
+try {
+    [void](Read-HcrJsonDocument $invalidUtf8ProfilePath 'PROFILE_INVALID' 4MB)
+}
+catch {
+    $invalidUtf8Rejected = $_.Exception.Message -eq
+        'The file is not valid UTF-8 JSON.'
+}
+Assert-Gate7 $invalidUtf8Rejected `
+    'The shared JSON reader accepted or misclassified malformed UTF-8 bytes.'
 
 $trailingFixtureProfile = Copy-HcrObject ([pscustomobject]$externalProfile)
 $trailingFixtureProfile.fixtures = @([pscustomobject][ordered]@{

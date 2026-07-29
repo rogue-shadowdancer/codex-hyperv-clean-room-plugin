@@ -200,7 +200,8 @@ size, and SHA-256; fixture bytes are staged and dual-hashed by the server.
 
 External evidence uses the SHA-256 retained from the exact profile-file bytes
 that were parsed and validated; it never reopens the caller-owned path to
-derive that identity.
+derive that identity. The shared JSON reader rejects malformed UTF-8 rather
+than replacing invalid byte sequences.
 Its fixture-set digest is lowercase SHA-256 over UTF-8 without a BOM of the
 compact JSON array, in profile order, containing each fixture's fields in this
 exact order: `id`, slash-normalized `sourceRelativePath`, `sizeBytes`,
@@ -1293,7 +1294,7 @@ Microsoft x64 EdgeDriver/data-testid rules.
 P3.2 acceptance uses only synthetic ZIPs, fixtures, mock adapters, native
 parsers, schema validators, and static production seams. It validates all
 twenty tools, the preserved sixteen schema-v1 tools, seven exact installed
-schema-v2 copies, 285 mock runtime assertions, eight generated evidence
+schema-v2 copies, 286 mock runtime assertions, eight generated evidence
 documents, and the inherited Gate 2/Gate 6 contract suites. Every real host,
 Hyper-V, guest, portable, WebDriver, and UI operation counter remains zero.
 

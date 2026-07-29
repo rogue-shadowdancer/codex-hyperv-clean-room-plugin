@@ -1212,6 +1212,11 @@ function Invoke-WorkerDeployPortable {
     $archivePath=Resolve-WorkerStagedArtifact $Input $OperationId
     $stream=[IO.File]::Open($archivePath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
     $archive=$null
+    $staging=$null
+    $slotsRoot=$null
+    $slotPath=$null
+    $deploymentPublished=$false
+    $deploymentFailure=$null
     try {
         $archive=New-Object IO.Compression.ZipArchive($stream,[IO.Compression.ZipArchiveMode]::Read,$false)
         if ($archive.Entries.Count -gt 4096) { Throw-WorkerError 'PORTABLE_ARCHIVE_TOO_MANY_ENTRIES' 'The portable archive exceeds 4096 entries.' }
@@ -1314,6 +1319,7 @@ function Invoke-WorkerDeployPortable {
         }
         $activePath=Join-Path $productRoot 'active.json';$tempPath=Join-Path $productRoot ('active-'+[Guid]::NewGuid().ToString('N')+'.tmp');[IO.File]::WriteAllText($tempPath,(($record|ConvertTo-Json -Depth 20 -Compress)+"`n"),$script:Utf8NoBom)
         if(Test-Path -LiteralPath $activePath){$backup=Join-Path $productRoot ('active-backup-'+[Guid]::NewGuid().ToString('N')+'.json');[IO.File]::Replace($tempPath,$activePath,$backup,$true)}else{Move-Item -LiteralPath $tempPath -Destination $activePath}
+        $deploymentPublished=$true
         return New-WorkerStepResult 'passed' 'The verified portable payload was atomically published with data preservation.' ([pscustomobject]@{
             deploymentId=$record.deploymentId
             deploymentFingerprint=Get-WorkerSha256Text ($record|ConvertTo-Json -Depth 20 -Compress)
@@ -1335,7 +1341,31 @@ function Invoke-WorkerDeployPortable {
             token=Get-WorkerTokenProjection $Token
         })
     }
-    finally{if($null-ne$archive){$archive.Dispose()};$stream.Dispose()}
+    catch {
+        $deploymentFailure = $_
+    }
+    finally {
+        if($null-ne$archive){$archive.Dispose()}
+        $stream.Dispose()
+        if(-not $deploymentPublished -and $null-ne$slotsRoot){
+            foreach($cleanupPath in @($staging,$slotPath)){
+                if($null-eq$cleanupPath -or
+                    -not(Test-Path -LiteralPath $cleanupPath)){
+                    continue
+                }
+                if(-not(Test-WorkerPathWithin $cleanupPath $slotsRoot)){
+                    Throw-WorkerError 'PORTABLE_STAGING_CLEANUP_FAILED' 'The failed portable deployment path escaped the owned slots root.'
+                }
+                try{
+                    Remove-Item -LiteralPath $cleanupPath -Recurse -Force -ErrorAction Stop
+                }
+                catch{
+                    Throw-WorkerError 'PORTABLE_STAGING_CLEANUP_FAILED' 'The failed portable deployment staging directory could not be removed.'
+                }
+            }
+        }
+    }
+    if($null-ne$deploymentFailure){throw $deploymentFailure}
 }
 
 function Get-WorkerLoopbackEphemeralPort {
