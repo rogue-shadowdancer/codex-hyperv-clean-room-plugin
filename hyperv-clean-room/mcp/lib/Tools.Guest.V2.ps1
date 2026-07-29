@@ -1,9 +1,7 @@
 function Get-HcrV2SourceCommit {
     $manifestPath = Join-Path $script:HcrPluginRoot '.codex-plugin\install-manifest.json'
     if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
-        $manifest = Read-HcrJsonFile $manifestPath 'RUNTIME_PROVENANCE_INVALID'
-        $commit = [string](Get-HcrPropertyValue $manifest 'sourceCommit')
-        if ($commit -match '^[a-f0-9]{40}$') { return $commit }
+        return [string](Get-HcrV2RuntimeIdentity).sourceCommit
     }
     if ((Get-HcrAdapterMode) -eq 'mock' -and $env:HCR_TEST_MODE -eq '1' -and
         $env:HCR_TEST_SOURCE_COMMIT -match '^[a-f0-9]{40}$') {
@@ -12,26 +10,169 @@ function Get-HcrV2SourceCommit {
     Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The exact installed source commit is unavailable.'
 }
 
+function Get-HcrV2VerifiedInstalledInventory {
+    $root = (Assert-HcrLocalDirectory $script:HcrPluginRoot 'RUNTIME_PROVENANCE_INVALID').FullName
+    $manifestPath = Join-Path $root '.codex-plugin\install-manifest.json'
+    $ownershipPath = Join-Path $root '.codex-plugin\install-ownership.json'
+    [void](Assert-HcrRegularLocalFile $manifestPath 'RUNTIME_PROVENANCE_INVALID')
+    [void](Assert-HcrRegularLocalFile $ownershipPath 'RUNTIME_PROVENANCE_INVALID')
+    $manifest = Read-HcrJsonFile $manifestPath 'RUNTIME_PROVENANCE_INVALID'
+    $ownership = Read-HcrJsonFile $ownershipPath 'RUNTIME_PROVENANCE_INVALID'
+    $manifestFields = @(
+        'schemaVersion', 'pluginName', 'installationId', 'sourceRoot',
+        'targetRoot', 'sourceVersion', 'sourceCommit', 'cachebuster',
+        'installedAtUtc', 'files'
+    )
+    $filesValue = Get-HcrPropertyValue $manifest 'files'
+    if (-not (Test-HcrObjectLike $manifest) -or
+        @((Get-HcrPropertyNames $manifest) | Where-Object {
+                $manifestFields -notcontains $_
+            }).Count -ne 0 -or
+        @((Get-HcrPropertyNames $manifest)).Count -ne $manifestFields.Count -or
+        -not (Test-HcrInteger (Get-HcrPropertyValue $manifest 'schemaVersion')) -or
+        [int](Get-HcrPropertyValue $manifest 'schemaVersion') -ne 1 -or
+        [string](Get-HcrPropertyValue $manifest 'pluginName') -cne 'hyperv-clean-room' -or
+        -not (Test-HcrUuid (Get-HcrPropertyValue $manifest 'installationId')) -or
+        [string](Get-HcrPropertyValue $manifest 'sourceVersion') -notmatch
+            '^0\.3\.0\+codex\.[0-9]{14}$' -or
+        [string](Get-HcrPropertyValue $manifest 'sourceCommit') -notmatch
+            '^[a-f0-9]{40}$' -or
+        -not (Test-HcrDateTimeString (Get-HcrPropertyValue $manifest 'installedAtUtc')) -or
+        (Get-HcrPropertyValue $manifest 'targetRoot') -isnot [string] -or
+        -not (Test-HcrLocalAbsolutePath (Get-HcrPropertyValue $manifest 'targetRoot')) -or
+        (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $manifest 'targetRoot'))) -ine
+            (Get-HcrNormalizedPath $root) -or
+        $filesValue -isnot [Array]) {
+        Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime manifest is invalid.'
+    }
+    $ownershipFields = @(
+        'installationId', 'owner', 'pluginName', 'schemaVersion', 'targetRoot'
+    )
+    if (-not (Test-HcrObjectLike $ownership) -or
+        @((Get-HcrPropertyNames $ownership) | Where-Object {
+                $ownershipFields -notcontains $_
+            }).Count -ne 0 -or
+        @((Get-HcrPropertyNames $ownership)).Count -ne $ownershipFields.Count -or
+        [string](Get-HcrPropertyValue $ownership 'installationId') -cne
+            [string](Get-HcrPropertyValue $manifest 'installationId') -or
+        [string](Get-HcrPropertyValue $ownership 'pluginName') -cne 'hyperv-clean-room' -or
+        -not (Test-HcrInteger (Get-HcrPropertyValue $ownership 'schemaVersion')) -or
+        [int](Get-HcrPropertyValue $ownership 'schemaVersion') -ne 1 -or
+        (Get-HcrPropertyValue $ownership 'targetRoot') -isnot [string] -or
+        -not (Test-HcrLocalAbsolutePath (Get-HcrPropertyValue $ownership 'targetRoot')) -or
+        (Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $ownership 'targetRoot'))) -ine
+            (Get-HcrNormalizedPath $root)) {
+        Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime ownership binding is invalid.'
+    }
+
+    $declaredPaths = New-Object 'Collections.Generic.HashSet[string]' (
+        [StringComparer]::OrdinalIgnoreCase
+    )
+    $rows = New-Object System.Collections.Generic.List[string]
+    [int64]$totalBytes = 0
+    foreach ($row in @($filesValue)) {
+        $pathValue = Get-HcrPropertyValue $row 'path'
+        $sizeValue = Get-HcrPropertyValue $row 'size'
+        $shaValue = Get-HcrPropertyValue $row 'sha256'
+        if (-not (Test-HcrObjectLike $row) -or
+            @((Get-HcrPropertyNames $row)).Count -ne 3 -or
+            @((Get-HcrPropertyNames $row) | Where-Object {
+                    @('path', 'size', 'sha256') -notcontains $_
+            }).Count -ne 0 -or
+            $pathValue -isnot [string] -or
+            -not (Test-HcrV2WindowsSafeRelativePath $pathValue) -or
+            -not (Test-HcrInteger $sizeValue) -or [int64]$sizeValue -lt 0 -or
+            [int64]$sizeValue -gt 1MB -or
+            $shaValue -isnot [string] -or [string]$shaValue -notmatch '^[a-f0-9]{64}$') {
+            Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime inventory contains an invalid row.'
+        }
+        $relative = ([string]$pathValue).Replace('\', '/')
+        if (-not $declaredPaths.Add($relative) -or
+            @(
+                '.codex-plugin/install-manifest.json',
+                '.codex-plugin/install-ownership.json'
+            ) -contains $relative) {
+            Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime inventory contains a duplicate or reserved path.'
+        }
+        $installedPath = Join-Path $root $relative.Replace('/', '\')
+        if (-not (Test-HcrPathWithin $installedPath $root)) {
+            Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime inventory escaped the plugin root.'
+        }
+        $item = Assert-HcrRegularLocalFile $installedPath 'RUNTIME_PROVENANCE_INVALID'
+        if ([int64]$item.Length -ne [int64]$sizeValue -or
+            (Get-HcrSha256File $item.FullName) -cne [string]$shaValue) {
+            Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'An installed runtime file differs from its manifest identity.'
+        }
+        $totalBytes += [int64]$item.Length
+        if ($totalBytes -gt 4MB) {
+            Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime payload exceeds its fixed bound.'
+        }
+        $rows.Add("$relative`t$([int64]$item.Length)`t$([string]$shaValue)")
+    }
+    if ($rows.Count -lt 1 -or $rows.Count -gt 256) {
+        Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime inventory count is invalid.'
+    }
+
+    $actualPaths = New-Object 'Collections.Generic.HashSet[string]' (
+        [StringComparer]::OrdinalIgnoreCase
+    )
+    $pending = New-Object 'Collections.Generic.Queue[string]'
+    $pending.Enqueue($root)
+    $rootPrefix = $root.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    while ($pending.Count -gt 0) {
+        $directory = $pending.Dequeue()
+        foreach ($item in @(Get-ChildItem -LiteralPath $directory -Force -ErrorAction Stop)) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime contains a reparse point.'
+            }
+            if ($item.PSIsContainer) {
+                $pending.Enqueue($item.FullName)
+                continue
+            }
+            if (-not $item.FullName.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime file escaped the plugin root.'
+            }
+            $relative = $item.FullName.Substring($rootPrefix.Length).Replace('\', '/')
+            if (-not $actualPaths.Add($relative) -or $actualPaths.Count -gt 258) {
+                Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime file set is invalid.'
+            }
+        }
+    }
+    $expectedPaths = New-Object 'Collections.Generic.HashSet[string]' (
+        [StringComparer]::OrdinalIgnoreCase
+    )
+    foreach ($relative in $declaredPaths) { [void]$expectedPaths.Add($relative) }
+    [void]$expectedPaths.Add('.codex-plugin/install-manifest.json')
+    [void]$expectedPaths.Add('.codex-plugin/install-ownership.json')
+    if (-not $actualPaths.SetEquals($expectedPaths)) {
+        Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime file set differs from its closed manifest.'
+    }
+    $pluginManifest = Read-HcrJsonFile (
+        Join-Path $root '.codex-plugin\plugin.json'
+    ) 'RUNTIME_PROVENANCE_INVALID'
+    if ([string](Get-HcrPropertyValue $pluginManifest 'version') -cne
+        [string](Get-HcrPropertyValue $manifest 'sourceVersion')) {
+        Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed plugin version differs from its provenance manifest.'
+    }
+    [string[]]$sortedRows = @($rows.ToArray())
+    [Array]::Sort($sortedRows, [StringComparer]::Ordinal)
+    return [pscustomobject][ordered]@{
+        manifest = $manifest
+        inventorySha256 = Get-HcrSha256Text ($sortedRows -join "`n")
+    }
+}
+
 function Get-HcrV2RuntimeIdentity {
     $manifestPath = Join-Path $script:HcrPluginRoot '.codex-plugin\install-manifest.json'
     $buildVersion = $null
     $sourceCommit = $null
     $inventorySha256 = $null
     if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
-        $manifest = Read-HcrJsonFile $manifestPath 'RUNTIME_PROVENANCE_INVALID'
+        $verified = Get-HcrV2VerifiedInstalledInventory
+        $manifest = $verified.manifest
         $buildVersion = [string](Get-HcrPropertyValue $manifest 'sourceVersion')
         $sourceCommit = [string](Get-HcrPropertyValue $manifest 'sourceCommit')
-        [string[]]$rows = @(@((Get-HcrPropertyValue $manifest 'files' @())) |
-            ForEach-Object {
-                ([string](Get-HcrPropertyValue $_ 'path')).Replace('\', '/') +
-                    "`t$([int64](Get-HcrPropertyValue $_ 'size'))" +
-                    "`t$([string](Get-HcrPropertyValue $_ 'sha256'))"
-            })
-        [Array]::Sort($rows, [StringComparer]::Ordinal)
-        if ($rows.Count -lt 1) {
-            Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime inventory is empty.'
-        }
-        $inventorySha256 = Get-HcrSha256Text ($rows -join "`n")
+        $inventorySha256 = [string]$verified.inventorySha256
     }
     elseif ((Get-HcrAdapterMode) -eq 'mock' -and $env:HCR_TEST_MODE -eq '1') {
         $buildVersion = if ($env:HCR_TEST_PLUGIN_BUILD_VERSION -match

@@ -1277,9 +1277,11 @@ size bound and must match the profile SHA-256 before strict UTF-8 parsing.
 BOM, NUL, malformed UTF-8, trailing JSON data, duplicate properties, unknown
 root or nested provenance fields, unsafe/non-NFC Windows paths, reserved
 devices, traversal, ADS, trailing-dot/space segments, and ordinal-ignore-case
-collisions fail closed. The runtime derives the exact ordinal portable and
-documentation inventory identities from the validated manifest; it does not
-accept them from a caller.
+collisions fail closed. Array-valued inventories must remain JSON arrays even
+when they contain one item, and every path field must remain a string before
+normalization; PowerShell object wrapping and scalar coercion are forbidden.
+The runtime derives the exact ordinal portable and documentation inventory
+identities from the validated manifest; it does not accept them from a caller.
 
 The ZIP, manifest sidecar, and each fixture are staged separately and rebound
 by source/staged/guest byte count and SHA-256. The fixed guest worker verifies
@@ -1295,7 +1297,11 @@ External evidence is structurally selected by
 `evidenceKind: externalPortable`. Candidate identity copies the validated
 runtime/packaging/documentation/ZIP/manifest/fixture identities. Runtime
 identity binds base/build version, source commit, installed inventory, and
-adapter mode. Guest identity separately records the exact-medium
+adapter mode. Before emitting that identity, the runtime closes the installed
+file set against `install-manifest.json`, revalidates ownership/target/version,
+and re-reads every declared ordinary file's current size and SHA-256. Missing,
+extra, redirected, or byte-drifted installed files fail with
+`RUNTIME_PROVENANCE_INVALID`. Guest identity separately records the exact-medium
 non-administrator test token and the revalidated elevated orchestration token.
 Deployment evidence binds slot, entrypoint, inventory, and preserved data.
 Generic non-UI profiles omit WebDriver and emit null driver identity; UI
@@ -1305,7 +1311,7 @@ Microsoft x64 EdgeDriver/data-testid rules.
 P3.2 acceptance uses only synthetic ZIPs, fixtures, mock adapters, native
 parsers, schema validators, and static production seams. It validates all
 twenty tools, the preserved sixteen schema-v1 tools, seven exact installed
-schema-v2 copies, 306 mock runtime assertions, nine generated evidence
+schema-v2 copies, 338 mock runtime assertions, nine generated evidence
 documents, and the inherited Gate 2/Gate 6 contract suites. Every real host,
 Hyper-V, guest, portable, WebDriver, and UI operation counter remains zero.
 

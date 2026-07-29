@@ -75,6 +75,14 @@ slot. The runtime intentionally refuses to launch the replacement candidate
 under the older operation's evidence identity. Do not bypass the binding or
 edit `active.json`; start a new test operation from current state.
 
+### Evidence reports `RUNTIME_PROVENANCE_INVALID`
+
+The installed manifest, ownership record, plugin version, declared file
+identity, or closed installed file set no longer matches the current ordinary
+bytes. Do not edit the installed manifest or suppress the check. Treat the
+installation as untrusted and use the later P3.3 source-validation/install
+workflow to replace it from a verified source candidate.
+
 ### The target is not owned
 
 `install_plugin.ps1` refuses an existing

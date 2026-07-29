@@ -1118,6 +1118,10 @@ function Read-WorkerPortableManifest {
                 'webView2'
             )
         )
+        $externalFiles = Get-WorkerProperty $manifest 'files'
+        $externalDocumentation = Get-WorkerProperty $manifest 'documentationFiles'
+        $externalFileName = Get-WorkerProperty $manifest 'fileName'
+        $externalEntrypoint = Get-WorkerProperty $manifest 'entrypoint'
         if (@($required | Where-Object { -not (Test-WorkerProperty $manifest $_) }).Count -ne 0 -or
             @($manifest.PSObject.Properties | Where-Object {
                     $allowed -notcontains $_.Name
@@ -1131,6 +1135,17 @@ function Read-WorkerPortableManifest {
             [string](Get-WorkerProperty $manifest 'dataRoot') -cne 'data/' -or
             -not(Test-WorkerBoolean (Get-WorkerProperty $manifest 'unsigned')) -or
             -not [bool](Get-WorkerProperty $manifest 'unsigned' $false) -or
+            $externalFileName -isnot [string] -or
+            -not (Test-WorkerPortableRelativePath $externalFileName) -or
+            -not ([string]$externalFileName -cmatch '\.zip$') -or
+            $externalEntrypoint -isnot [string] -or
+            -not (Test-WorkerPortableRelativePath $externalEntrypoint) -or
+            -not ([string]$externalEntrypoint -cmatch '\.exe$') -or
+            $externalFiles -isnot [Array] -or
+            @($externalFiles).Count -lt 1 -or @($externalFiles).Count -gt 4096 -or
+            $externalDocumentation -isnot [Array] -or
+            @($externalDocumentation).Count -lt 1 -or
+            @($externalDocumentation).Count -gt 4096 -or
             [string](Get-WorkerProperty $manifest 'packagingCommit') -cne
                 [string](Get-WorkerProperty $Input 'sourceCommit') -or
             [string](Get-WorkerProperty $manifest 'newZipSha256') -cne
@@ -1141,6 +1156,34 @@ function Read-WorkerPortableManifest {
             if ((Get-WorkerProperty $manifest $name | ConvertTo-Json -Depth 100 -Compress) -cne
                 (Get-WorkerProperty $bound $name | ConvertTo-Json -Depth 100 -Compress)) {
                 Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The staged sidecar differs from the host-validated immutable binding.'
+            }
+        }
+        foreach ($file in @((Get-WorkerProperty $manifest 'files'))) {
+            $pathValue = Get-WorkerProperty $file 'path'
+            $sizeValue = Get-WorkerProperty $file 'size'
+            $shaValue = Get-WorkerProperty $file 'sha256'
+            if (@($file.PSObject.Properties).Count -ne 3 -or
+                $pathValue -isnot [string] -or
+                -not (Test-WorkerPortableRelativePath $pathValue) -or
+                -not (Test-WorkerInteger $sizeValue) -or [int64]$sizeValue -lt 0 -or
+                [int64]$sizeValue -gt 2GB -or
+                $shaValue -isnot [string] -or [string]$shaValue -notmatch '^[a-f0-9]{64}$') {
+                Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The external portable file inventory is invalid.'
+            }
+        }
+        foreach ($mapping in @((Get-WorkerProperty $manifest 'documentationFiles'))) {
+            $sourcePathValue = Get-WorkerProperty $mapping 'sourcePath'
+            $archivePathValue = Get-WorkerProperty $mapping 'archivePath'
+            $sizeValue = Get-WorkerProperty $mapping 'size'
+            $shaValue = Get-WorkerProperty $mapping 'sha256'
+            if (@($mapping.PSObject.Properties).Count -ne 4 -or
+                $sourcePathValue -isnot [string] -or
+                $archivePathValue -isnot [string] -or
+                -not (Test-WorkerPortableRelativePath $sourcePathValue) -or
+                -not (Test-WorkerPortableRelativePath $archivePathValue) -or
+                -not (Test-WorkerInteger $sizeValue) -or [int64]$sizeValue -lt 0 -or
+                $shaValue -isnot [string] -or [string]$shaValue -notmatch '^[a-f0-9]{64}$') {
+                Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The external documentation inventory is invalid.'
             }
         }
         $uiRequired = [bool](Get-WorkerProperty $Input 'uiRequired' $false)
@@ -1268,14 +1311,18 @@ function Invoke-WorkerDeployPortable {
         $manifest=$manifestBound.document
         $externalPortable = [bool]$manifestBound.externalPortable
         $manifestSizeField = if ($externalPortable) { 'size' } else { 'sizeBytes' }
-        $manifestFiles=@($manifest.files)
+        $manifestFilesValue = Get-WorkerProperty $manifest 'files'
+        if($manifestFilesValue-isnot[Array]){Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The portable file inventory must be an array.'}
+        $manifestFiles=@($manifestFilesValue)
         if($manifestFiles.Count-lt1-or$manifestFiles.Count-gt4096){Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The portable file inventory count is invalid.'}
         $declared=@{}; foreach($file in $manifestFiles){
-            $path=([string]$file.path).Replace('\','/')
+            $pathValue=Get-WorkerProperty $file 'path'
+            $path=$(if($pathValue-is[string]){([string]$pathValue).Replace('\','/')}else{''})
             if (@($file.PSObject.Properties).Count -ne 3 -or
                 -not (Test-WorkerProperty $file 'path') -or
                 -not (Test-WorkerProperty $file $manifestSizeField) -or
                 -not (Test-WorkerProperty $file 'sha256') -or
+                $pathValue-isnot[string] -or
                 -not (Test-WorkerPortableRelativePath $path) -or
                 $path -ieq 'portable-manifest.json' -or $declared.ContainsKey($path)) { Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The portable file inventory contains an unsafe or colliding path.' }
             if ($path -ieq 'data' -or

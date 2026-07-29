@@ -20,8 +20,11 @@ external sidecar parsing, mock ZIP/fixture staging, mock deployment/evidence,
 concurrent active-pointer drift rejection, and static production seams only.
 The launch seam must remain bound to the deployment identity returned to the
 same operation; a mismatched active record fails with
-`PORTABLE_DEPLOYMENT_DRIFT`. P3.2 does not authorize an operator to run a
-profile or perform a host, guest, package, driver, or network operation.
+`PORTABLE_DEPLOYMENT_DRIFT`. Runtime provenance also re-hashes the closed
+installed payload instead of trusting manifest claims, and the external reader
+rejects object-valued inventories or non-string paths. P3.2 does not authorize
+an operator to run a profile or perform a host, guest, package, driver, or
+network operation.
 
 H5A repairs the automatic-checkpoint ownership deadlock without changing the
 20-tool surface. Future VM creation disables automatic checkpoints before

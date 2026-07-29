@@ -71,6 +71,8 @@ candidate, or a clean-room pass.
   - resolves one regular non-reparse manifest below the canonical profile
     directory;
   - independently binds profile/source/staged/guest path, size, and SHA-256;
+  - requires true JSON arrays and string-typed paths before any PowerShell
+    collection wrapping or normalization;
   - parses strict UTF-8 and rejects BOM, NUL, malformed bytes, trailing data,
     duplicate properties, and unknown root or nested provenance fields;
   - applies NFC, ordinal, ordinal-ignore-case, reserved-device, traversal,
@@ -94,7 +96,9 @@ candidate, or a clean-room pass.
     EdgeDriver/data-testid rules for the UI branch;
   - emits structurally separate external evidence with exact candidate,
     runtime, deployment, data, fixture, driver, standard-user, and elevated
-    orchestration bindings.
+    orchestration bindings;
+  - closes installed provenance against ownership/manifest/version and
+    re-hashes every current ordinary payload byte before runtime identity.
 - Plan/Apply, atomic plan consumption, paired single-use recovery, cleanup
   separation, and evidence status derivation remain unchanged.
 
@@ -151,7 +155,7 @@ The final exact candidate must retain:
 - preserved schema-v1 tools: `16`
 - preserved schema-v1 files: `5`
 - exact source-tree installed schema-v2 copies: `7`
-- Gate 7 mock runtime assertions: `306`
+- Gate 7 mock runtime assertions: `338`
 - generated mock evidence documents validated: `9`
 - P3.1 positive fixtures: `6`
 - P3.1 direct schema-invalid fixtures: `5`

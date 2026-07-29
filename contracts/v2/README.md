@@ -76,3 +76,7 @@ fixed `--portable`, component, and evidence semantics. After deployment, every
 portable launch also rebinds the operation-owned application, deployment,
 active-record fingerprint, and slot identities; concurrent active-pointer
 replacement fails closed rather than changing the candidate under test.
+Runtime identity separately closes and re-hashes the installed payload before
+using manifest provenance. External portable/documentation inventories remain
+true JSON arrays, and their paths remain typed strings through both host and
+worker validation.

@@ -1188,8 +1188,10 @@ function Test-HcrExternalPortableManifestV2 {
         }
     }
     $artifact = Get-HcrPropertyValue $Profile 'artifact'
-    $fileName = [string](Get-HcrPropertyValue $Manifest 'fileName')
-    $entrypoint = [string](Get-HcrPropertyValue $Manifest 'entrypoint')
+    $fileNameValue = Get-HcrPropertyValue $Manifest 'fileName'
+    $entrypointValue = Get-HcrPropertyValue $Manifest 'entrypoint'
+    $fileName = if ($fileNameValue -is [string]) { [string]$fileNameValue } else { '' }
+    $entrypoint = if ($entrypointValue -is [string]) { [string]$entrypointValue } else { '' }
     $zipSize = Get-HcrPropertyValue $Manifest 'newZipSize'
     if (-not (Test-HcrInteger (
                 Get-HcrPropertyValue $Manifest 'schemaVersion'
@@ -1207,6 +1209,8 @@ function Test-HcrExternalPortableManifestV2 {
                 Get-HcrPropertyValue $Manifest 'unsigned'
             )) -or
         (Get-HcrPropertyValue $Manifest 'unsigned') -ne $true -or
+        $fileNameValue -isnot [string] -or
+        $entrypointValue -isnot [string] -or
         -not (Test-HcrV2WindowsSafeRelativePath $fileName) -or
         $fileName.Contains('\') -or $fileName.Contains('/') -or
         -not ($fileName -cmatch '\.zip$') -or
@@ -1252,8 +1256,11 @@ function Test-HcrExternalPortableManifestV2 {
         Add-HcrValidationError $errors 'The retained runtime/legal inventory digest drifted.'
     }
 
-    $files = @((Get-HcrPropertyValue $Manifest 'files' @()))
-    if ($files.Count -lt 1 -or $files.Count -gt 4096) {
+    $filesValue = Get-HcrPropertyValue $Manifest 'files'
+    [object[]]$files = if ($filesValue -is [Array]) {
+        @($filesValue)
+    } else { @() }
+    if ($filesValue -isnot [Array] -or $files.Count -lt 1 -or $files.Count -gt 4096) {
         Add-HcrValidationError $errors '$manifest.files has an invalid count.'
     }
     $paths = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
@@ -1268,9 +1275,13 @@ function Test-HcrExternalPortableManifestV2 {
                 @('path', 'size', 'sha256') `
                 '$manifest.files[]' `
                 $errors)
-        $path = ([string](Get-HcrPropertyValue $file 'path')).Replace('\', '/')
+        $pathValue = Get-HcrPropertyValue $file 'path'
+        $path = if ($pathValue -is [string]) {
+            ([string]$pathValue).Replace('\', '/')
+        } else { '' }
         $size = Get-HcrPropertyValue $file 'size'
-        if (-not (Test-HcrV2WindowsSafeRelativePath $path) -or
+        if ($pathValue -isnot [string] -or
+            -not (Test-HcrV2WindowsSafeRelativePath $path) -or
             -not $paths.Add($path) -or -not (Test-HcrInteger $size) -or
             [decimal]$size -lt 0 -or [decimal]$size -gt 2GB -or
             -not (Test-HcrV2Sha256 (Get-HcrPropertyValue $file 'sha256'))) {
@@ -1296,8 +1307,12 @@ function Test-HcrExternalPortableManifestV2 {
         Add-HcrValidationError $errors '$manifest.entrypoint is not uniquely inventoried.'
     }
 
-    $documentation = @((Get-HcrPropertyValue $Manifest 'documentationFiles' @()))
-    if ($documentation.Count -lt 1 -or $documentation.Count -gt 4096) {
+    $documentationValue = Get-HcrPropertyValue $Manifest 'documentationFiles'
+    [object[]]$documentation = if ($documentationValue -is [Array]) {
+        @($documentationValue)
+    } else { @() }
+    if ($documentationValue -isnot [Array] -or
+        $documentation.Count -lt 1 -or $documentation.Count -gt 4096) {
         Add-HcrValidationError $errors '$manifest.documentationFiles has an invalid count.'
     }
     $documentationSources = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
@@ -1310,10 +1325,18 @@ function Test-HcrExternalPortableManifestV2 {
                 @('sourcePath', 'archivePath', 'size', 'sha256') `
                 '$manifest.documentationFiles[]' `
                 $errors)
-        $sourcePath = ([string](Get-HcrPropertyValue $mapping 'sourcePath')).Replace('\', '/')
-        $archivePath = ([string](Get-HcrPropertyValue $mapping 'archivePath')).Replace('\', '/')
+        $sourcePathValue = Get-HcrPropertyValue $mapping 'sourcePath'
+        $archivePathValue = Get-HcrPropertyValue $mapping 'archivePath'
+        $sourcePath = if ($sourcePathValue -is [string]) {
+            ([string]$sourcePathValue).Replace('\', '/')
+        } else { '' }
+        $archivePath = if ($archivePathValue -is [string]) {
+            ([string]$archivePathValue).Replace('\', '/')
+        } else { '' }
         $size = Get-HcrPropertyValue $mapping 'size'
-        if (-not (Test-HcrV2WindowsSafeRelativePath $sourcePath) -or
+        if ($sourcePathValue -isnot [string] -or
+            $archivePathValue -isnot [string] -or
+            -not (Test-HcrV2WindowsSafeRelativePath $sourcePath) -or
             -not (Test-HcrV2WindowsSafeRelativePath $archivePath) -or
             -not $documentationSources.Add($sourcePath) -or
             -not $documentationArchives.Add($archivePath) -or

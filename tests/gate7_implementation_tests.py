@@ -455,6 +455,44 @@ def main() -> int:
             "portableActiveDeploymentOverride",
         ),
     )
+    require_tokens(
+        guest_v2,
+        "installed runtime byte rebinding",
+        (
+            "function Get-HcrV2VerifiedInstalledInventory",
+            "Assert-HcrRegularLocalFile $installedPath",
+            "Get-HcrSha256File $item.FullName",
+            "$actualPaths.SetEquals($expectedPaths)",
+            "The installed plugin version differs from its provenance manifest.",
+        ),
+    )
+    require_tokens(
+        validation,
+        "external manifest array and path scalar closure",
+        (
+            "$filesValue -isnot [Array]",
+            "$documentationValue -isnot [Array]",
+            "$fileNameValue -isnot [string]",
+            "$entrypointValue -isnot [string]",
+            "$pathValue -isnot [string]",
+            "$sourcePathValue -isnot [string]",
+            "$archivePathValue -isnot [string]",
+        ),
+    )
+    require_tokens(
+        worker,
+        "worker external manifest array and path scalar closure",
+        (
+            "$externalFiles -isnot [Array]",
+            "$externalDocumentation -isnot [Array]",
+            "$externalFileName -isnot [string]",
+            "$externalEntrypoint -isnot [string]",
+            "$pathValue -isnot [string]",
+            "$sourcePathValue -isnot [string]",
+            "$archivePathValue -isnot [string]",
+            "$manifestFilesValue-isnot[Array]",
+        ),
+    )
 
     fixture_root = ROOT / "tests" / "fixtures" / "v3"
     external_manifest = load_strict(

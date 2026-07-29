@@ -443,6 +443,115 @@ foreach ($runtimeFile in @(
 }
 Initialize-HcrRuntime $pluginRoot
 
+$runtimeInstallRoot = Join-Path $testRoot 'runtime-install'
+$runtimeInstallPluginDirectory = Join-Path $runtimeInstallRoot '.codex-plugin'
+$runtimeInstallMcpDirectory = Join-Path $runtimeInstallRoot 'mcp'
+[void](New-Item -ItemType Directory -Path $runtimeInstallPluginDirectory)
+[void](New-Item -ItemType Directory -Path $runtimeInstallMcpDirectory)
+$runtimeInstallPluginPath = Join-Path $runtimeInstallPluginDirectory 'plugin.json'
+$runtimeInstallPayloadPath = Join-Path $runtimeInstallMcpDirectory 'runtime.ps1'
+Write-Gate7Json $runtimeInstallPluginPath ([ordered]@{
+    name = 'hyperv-clean-room'
+    version = '0.3.0+codex.20260729090000'
+})
+[IO.File]::WriteAllText(
+    $runtimeInstallPayloadPath,
+    "runtime-payload`n",
+    (New-Object Text.UTF8Encoding($false))
+)
+$runtimeInstallRows = @(
+    $runtimeInstallPluginPath,
+    $runtimeInstallPayloadPath
+) | ForEach-Object {
+    $item = Get-Item -LiteralPath $_
+    [pscustomobject][ordered]@{
+        path = $item.FullName.Substring(
+            $runtimeInstallRoot.TrimEnd('\', '/').Length + 1
+        ).Replace('\', '/')
+        size = [int64]$item.Length
+        sha256 = (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).
+            Hash.ToLowerInvariant()
+    }
+}
+$runtimeInstallationId = [Guid]::NewGuid().ToString()
+Write-Gate7Json (
+    Join-Path $runtimeInstallPluginDirectory 'install-ownership.json'
+) ([ordered]@{
+    installationId = $runtimeInstallationId
+    owner = 'Codex'
+    pluginName = 'hyperv-clean-room'
+    schemaVersion = 1
+    targetRoot = $runtimeInstallRoot
+})
+Write-Gate7Json (
+    Join-Path $runtimeInstallPluginDirectory 'install-manifest.json'
+) ([ordered]@{
+    schemaVersion = 1
+    pluginName = 'hyperv-clean-room'
+    installationId = $runtimeInstallationId
+    sourceRoot = $runtimeInstallRoot
+    targetRoot = $runtimeInstallRoot
+    sourceVersion = '0.3.0+codex.20260729090000'
+    sourceCommit = ('e' * 40)
+    cachebuster = '20260729090000'
+    installedAtUtc = [DateTime]::UtcNow.ToString('o')
+    files = @($runtimeInstallRows)
+})
+$originalPluginRoot = $script:HcrPluginRoot
+try {
+    $script:HcrPluginRoot = $runtimeInstallRoot
+    $verifiedRuntimeIdentity = Get-HcrV2RuntimeIdentity
+    $expectedRuntimeRows = @($runtimeInstallRows | ForEach-Object {
+        "$($_.path)`t$($_.size)`t$($_.sha256)"
+    } | Sort-Object)
+    Assert-Gate7Equal ([string]$verifiedRuntimeIdentity.installedInventorySha256) `
+        (Get-HcrSha256Text ($expectedRuntimeRows -join "`n")) `
+        'Runtime identity did not rebind the exact installed bytes.'
+
+    [IO.File]::WriteAllText(
+        $runtimeInstallPayloadPath,
+        "tampered-runtime-payload`n",
+        (New-Object Text.UTF8Encoding($false))
+    )
+    $tamperedRuntimeCode = $null
+    try { [void](Get-HcrV2RuntimeIdentity) }
+    catch { $tamperedRuntimeCode = [string](Get-HcrExceptionData $_.Exception).code }
+    Assert-Gate7Equal $tamperedRuntimeCode 'RUNTIME_PROVENANCE_INVALID' `
+        'Runtime identity trusted a manifest after installed payload mutation.'
+
+    [IO.File]::WriteAllText(
+        $runtimeInstallPayloadPath,
+        "runtime-payload`n",
+        (New-Object Text.UTF8Encoding($false))
+    )
+    $runtimeUnexpectedPath = Join-Path $runtimeInstallRoot 'unexpected.txt'
+    [IO.File]::WriteAllText(
+        $runtimeUnexpectedPath,
+        "unexpected`n",
+        (New-Object Text.UTF8Encoding($false))
+    )
+    $runtimeClosureCode = $null
+    try { [void](Get-HcrV2RuntimeIdentity) }
+    catch { $runtimeClosureCode = [string](Get-HcrExceptionData $_.Exception).code }
+    Assert-Gate7Equal $runtimeClosureCode 'RUNTIME_PROVENANCE_INVALID' `
+        'Runtime identity accepted a file outside the installed manifest closure.'
+
+    Move-Item -LiteralPath $runtimeUnexpectedPath -Destination (
+        Join-Path $testRoot 'runtime-unexpected-stashed.txt'
+    )
+    Move-Item -LiteralPath $runtimeInstallPayloadPath -Destination (
+        Join-Path $testRoot 'runtime-payload-removed.ps1'
+    )
+    $runtimeMissingCode = $null
+    try { [void](Get-HcrV2RuntimeIdentity) }
+    catch { $runtimeMissingCode = [string](Get-HcrExceptionData $_.Exception).code }
+    Assert-Gate7Equal $runtimeMissingCode 'RUNTIME_PROVENANCE_INVALID' `
+        'Runtime identity trusted a manifest after an installed payload file disappeared.'
+}
+finally {
+    $script:HcrPluginRoot = $originalPluginRoot
+}
+
 $pluginManifest = Get-Content -LiteralPath (Join-Path $pluginRoot '.codex-plugin\plugin.json') `
     -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
 Assert-Gate7 ([string]$pluginManifest.version -match '^0\.3\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') `
@@ -1163,6 +1272,64 @@ foreach ($scalarCase in @(
         ([pscustomobject]@{ profilePath = $scalarProfilePath })
     Assert-Gate7Error $scalarValidation 'PROFILE_INVALID' `
         "Native validation accepted string-typed $($scalarCase.name)."
+}
+
+foreach ($shapeCase in @(
+        'files-object',
+        'documentationFiles-object',
+        'fileName-number',
+        'entrypoint-number',
+        'file-path-number',
+        'documentation-sourcePath-number',
+        'documentation-archivePath-number'
+    )) {
+    $shapeManifest = Copy-HcrObject ([pscustomobject]$externalManifest)
+    switch ($shapeCase) {
+        'files-object' {
+            $shapeManifest.files = $shapeManifest.files[0]
+        }
+        'documentationFiles-object' {
+            $shapeManifest.documentationFiles = $shapeManifest.documentationFiles[0]
+        }
+        'fileName-number' {
+            $shapeManifest.fileName = 123
+        }
+        'entrypoint-number' {
+            $shapeManifest.entrypoint = 123
+        }
+        'file-path-number' {
+            $shapeManifest.files[0].path = 123
+        }
+        'documentation-sourcePath-number' {
+            $shapeManifest.documentationFiles[0].sourcePath = 123
+        }
+        'documentation-archivePath-number' {
+            $shapeManifest.documentationFiles[0].archivePath = 123
+        }
+    }
+    $shapeManifestPath = Join-Path `
+        $testRoot `
+        "external-portable-manifest-$shapeCase.json"
+    Write-Gate7Json $shapeManifestPath $shapeManifest
+    $shapeManifestItem = Get-Item -LiteralPath $shapeManifestPath
+    $shapeManifestSha = (Get-FileHash `
+        -LiteralPath $shapeManifestPath `
+        -Algorithm SHA256).Hash.ToLowerInvariant()
+    $shapeProfile = Copy-HcrObject ([pscustomobject]$externalProfile)
+    $shapeProfile.artifact.portableManifestRelativePath =
+        $shapeManifestItem.Name
+    $shapeProfile.artifact.portableManifestSizeBytes =
+        [int64]$shapeManifestItem.Length
+    $shapeProfile.artifact.portableManifestSha256 = $shapeManifestSha
+    $shapeProfilePath = Join-Path `
+        $testRoot `
+        "external-portable-profile-$shapeCase.json"
+    Write-Gate7Json $shapeProfilePath $shapeProfile
+    $shapeValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+        profilePath = $shapeProfilePath
+    })
+    Assert-Gate7Error $shapeValidation 'PROFILE_INVALID' `
+        "Native validation accepted schema-invalid external manifest shape $shapeCase."
 }
 
 $unknownNestedManifest = Copy-HcrObject ([pscustomobject]$externalManifest)
