@@ -153,7 +153,7 @@ The candidate must retain these exact outcomes after its final commit:
 - Gate 7 mock runtime assertions: `216`
 - generated mock evidence documents validated: `5`
 - `git diff --check`
-- Fourteen Codex review passes found twenty-four actionable fail-closed or regression
+- Fifteen Codex review passes found twenty-six actionable fail-closed or regression
   coverage gaps: external ZIP
   artifact leaf/size binding, cleanup-only UI driver dispatch and WebView2
   cross-binding, embedded-evidence rejection of external fixture identities,
@@ -170,8 +170,10 @@ The candidate must retain these exact outcomes after its final commit:
   binding, plus full profile/manifest/evidence provenance and inventory
   cross-binding, independently derived candidate source/profile/fixture-set/
   WebDriver provenance, and exact profile-to-evidence fixture path/size/hash
-  binding. All twenty-four are repaired with direct regression probes; the
-  final published candidate requires a fresh zero-actionable-findings review.
+  binding, including independently pinned non-empty fixture-set and non-null
+  WebDriver digest oracles. All twenty-six are repaired with direct regression
+  probes; the final published candidate requires a fresh
+  zero-actionable-findings review.
 - real host operations: `0`
 - real Hyper-V mutations: `0`
 - real guest operations: `0`

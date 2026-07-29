@@ -1983,6 +1983,15 @@ def assert_p3_1_contract(
     neutral_evidence = load_json(
         P3_1_FIXTURE_ROOT / "evidence.external-neutral.valid.json"
     )
+    ui_manifest = load_json(
+        P3_1_FIXTURE_ROOT / "portable-manifest.external-birdsgone-shape.valid.json"
+    )
+    ui_profile = load_json(
+        P3_1_FIXTURE_ROOT / "test-profile.external-ui.valid.json"
+    )
+    ui_profile_sha256 = sha256_file(
+        P3_1_FIXTURE_ROOT / "test-profile.external-ui.valid.json"
+    )
     for schema_name in (
         "portable-manifest.schema.json",
         "test-profile.schema.json",
@@ -2264,9 +2273,17 @@ def assert_p3_1_contract(
     fixture_evidence["profile"]["sha256"] = fixture_profile_sha256
     fixture_evidence["profile"]["fixtureIds"] = ["synthetic-input"]
     fixture_evidence["candidate"]["profileSha256"] = fixture_profile_sha256
+    expected_fixture_set_sha256 = (
+        "5c9c2c92ad351fa1e7cfe6677c2240ca098f0c7ce126fd8d6bce1aa23f055a2b"
+    )
+    if (
+        external_profile_fixture_set_sha256(fixture_profile)
+        != expected_fixture_set_sha256
+    ):
+        raise AssertionError("non-empty fixture-set canonical digest drifted")
     fixture_evidence["candidate"][
         "fixtureSetSha256"
-    ] = external_profile_fixture_set_sha256(fixture_profile)
+    ] = expected_fixture_set_sha256
     fixture_evidence["fixtureIdentities"] = [
         {
             "id": "synthetic-input",
@@ -2316,6 +2333,55 @@ def assert_p3_1_contract(
             raise AssertionError(
                 f"external fixture identity {field} drift was accepted"
             )
+    expected_webdriver_sha256 = (
+        "a1103b5cb770cf0f0f09000d4dd2a71027354104888876308201b7dc2da5a2f8"
+    )
+    if (
+        external_profile_webdriver_sha256(ui_profile)
+        != expected_webdriver_sha256
+    ):
+        raise AssertionError("non-null WebDriver canonical digest drifted")
+    ui_candidate = external_evidence_candidate_bindings(
+        ui_profile, ui_manifest, ui_profile_sha256
+    )
+    if ui_candidate["webDriverManifestSha256"] != expected_webdriver_sha256:
+        raise AssertionError("external UI candidate did not bind the WebDriver digest")
+    ui_evidence = {
+        "profile": {
+            "id": ui_profile["id"],
+            "schemaVersion": 2,
+            "sha256": ui_profile_sha256,
+            "fixtureIds": ["synthetic-input"],
+        },
+        "candidate": ui_candidate,
+        "fixtureIdentities": [
+            {
+                "id": "synthetic-input",
+                "sourceRelativePath": "fixtures/synthetic-input.json",
+                "profileSizeBytes": 128,
+                "sourceSizeBytes": 128,
+                "guestSizeBytes": 128,
+                "profileSha256": "3" * 64,
+                "sourceSha256": "3" * 64,
+                "guestSha256": "3" * 64,
+                "status": "passed",
+            }
+        ],
+        "automation": {
+            "entrypoint": "SyntheticConsumer.exe",
+            "uiRequired": True,
+        },
+    }
+    if validate_external_operation_bindings(
+        ui_profile, ui_manifest, ui_evidence, ui_profile_sha256
+    ):
+        raise AssertionError("valid external UI evidence bindings were rejected")
+    webdriver_drift = deepcopy(ui_evidence)
+    webdriver_drift["candidate"]["webDriverManifestSha256"] = "4" * 64
+    if not validate_external_operation_bindings(
+        ui_profile, ui_manifest, webdriver_drift, ui_profile_sha256
+    ):
+        raise AssertionError("external UI WebDriver digest drift was accepted")
     cross_document_probes: dict[str, dict[str, Any]] = {}
     name_drift_profile = deepcopy(neutral_profile)
     name_drift_profile["artifact"]["fileNamePattern"] = "Different.zip"
