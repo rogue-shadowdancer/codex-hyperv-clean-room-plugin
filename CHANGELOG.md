@@ -4,6 +4,39 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
+## 0.3.1 - Selected-plugin catalog compatibility - 2026-07-30
+
+### Fixed
+
+- Accept MCP-standard `_meta` and `cursor` fields on `tools/list` while
+  preserving the closed request shape, exact 20-tool catalog, and all tool
+  input schemas and runtime behavior.
+- Add a catalog-only Codex app-server validator that creates an isolated fresh
+  thread with an explicit `selectedCapabilityRoots` binding, reads
+  `mcpServerStatus/list`, and requires server `hyperv-clean-room` / `0.3.1`,
+  exactly 20 unique tools, and zero tool calls.
+- Distinguish an actual plugin selection from raw prompt text. A task that only
+  mentions the plugin name is not valid installed-plugin acceptance evidence.
+- Preserve validation of immutable v0.3.0 external evidence while generating
+  v0.3.1 provenance; mismatched base/build version pairs remain invalid.
+- Add one fail-closed post-publication readback for protected `master`,
+  annotated tag, Release target/flags/assets, installed source identity,
+  personal marketplace/Codex state, and all three historical release baselines.
+
+### Safety and release boundary
+
+- The only v0.3.1 personal build is
+  `0.3.1+codex.20260729184240`; the cachebuster helper was invoked exactly
+  once before the protected release candidate was committed.
+- Release acceptance requires protected `master`, the annotated `v0.3.1` tag,
+  the source-only GitHub Release, and the install manifest `sourceCommit` to
+  identify the same final commit. No post-tag closeout commit may redefine
+  that release.
+- The v0.3.1 validation calls no MCP tool and performs no real host, Hyper-V,
+  VM, checkpoint, credential, guest, package, portable, driver, network, UI,
+  evidence, or manual-attestation operation.
+- Immutable v0.1.1, v0.2.0, and v0.3.0 tags and Releases remain unchanged.
+
 ## 0.3.0 - Source release - 2026-07-29
 
 ### Added

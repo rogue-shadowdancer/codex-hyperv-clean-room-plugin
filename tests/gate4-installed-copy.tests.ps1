@@ -148,7 +148,7 @@ $initialize = $responses[1]
 Assert-InstalledCopy ([string]$initialize.result.protocolVersion -ceq '2025-11-25') `
     'Installed MCP server negotiated the wrong protocol version.'
 Assert-InstalledCopy ([string]$initialize.result.serverInfo.name -ceq 'hyperv-clean-room' -and
-    [string]$initialize.result.serverInfo.version -ceq '0.3.0') `
+    [string]$initialize.result.serverInfo.version -ceq '0.3.1') `
     'Installed MCP server identity or base runtime version differs from the release contract.'
 $tools = @($responses[2].result.tools)
 Assert-InstalledCopy ($tools.Count -eq 20) `

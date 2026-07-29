@@ -1521,8 +1521,8 @@ def assert_contract_metadata(catalog: dict[str, Any]) -> None:
         raise AssertionError("tool catalog contractVersion must be 2")
     if catalog.get("targetPluginVersion") != "0.3.0":
         raise AssertionError("tool catalog target plugin version must be 0.3.0")
-    if catalog.get("currentRuntimeVersion") != "0.3.0":
-        raise AssertionError("P3.2 must advance the executable runtime to 0.3.0")
+    if catalog.get("currentRuntimeVersion") != "0.3.1":
+        raise AssertionError("the executable patch runtime must be 0.3.1")
     if catalog.get("consumerContract") != "contracts/v2/consumer-contract.json":
         raise AssertionError("tool catalog does not bind the P3.1 consumer contract")
     envelopes = catalog.get("resultEnvelopes", {})
@@ -1540,11 +1540,11 @@ def assert_contract_metadata(catalog: dict[str, Any]) -> None:
         raise AssertionError("tool catalog schema dispatch is not exact and fail closed")
     manifest = load_json(PLUGIN_MANIFEST_PATH)
     if not re.fullmatch(
-        r"0\.3\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?",
+        r"0\.3\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?",
         str(manifest["version"]),
     ):
         raise AssertionError(
-            "the integrated manifest must expose base 0.3.0 with at most "
+            "the integrated manifest must expose base 0.3.1 with at most "
             "one Codex cachebuster"
         )
 
@@ -1553,9 +1553,9 @@ def assert_v1_compatibility(catalog: dict[str, Any]) -> tuple[int, int]:
     compatibility = load_json(CONTRACT_ROOT / "compatibility.json")
     if (
         compatibility.get("targetPluginVersion") != "0.3.0"
-        or compatibility.get("currentRuntimeVersion") != "0.3.0"
+        or compatibility.get("currentRuntimeVersion") != "0.3.1"
     ):
-        raise AssertionError("P3.2 target/runtime compatibility versions drifted")
+        raise AssertionError("target/runtime compatibility versions drifted")
     live_tools = live_v1_tools()
     snapshot_tools = load_json(FIXTURE_ROOT / "compatibility" / "tool-catalog-v1.json")
     if canonical_json(live_tools) != canonical_json(snapshot_tools):
@@ -3021,6 +3021,21 @@ def main() -> int:
     external_evidence_validator = validator_for(
         "evidence.schema.json", schemas, registry
     )
+    historical_external_probe = deepcopy(external_evidence_probe)
+    historical_external_probe["runtime"]["pluginBaseVersion"] = "0.3.0"
+    historical_external_probe["runtime"][
+        "pluginBuildVersion"
+    ] = "0.3.0+codex.20260729122233"
+    if list(external_evidence_validator.iter_errors(historical_external_probe)):
+        raise AssertionError("schema rejected immutable v0.3.0 external evidence")
+    mismatched_external_probe = deepcopy(historical_external_probe)
+    mismatched_external_probe["runtime"][
+        "pluginBuildVersion"
+    ] = "0.3.1+codex.20260729184240"
+    if not list(external_evidence_validator.iter_errors(mismatched_external_probe)):
+        raise AssertionError(
+            "schema accepted mismatched external plugin base/build versions"
+        )
     zip_name_drift_probe = deepcopy(external_evidence_probe)
     zip_name_drift_probe["candidate"][
         "portableZipFileName"
@@ -3162,7 +3177,7 @@ def main() -> int:
             {
                 "ok": True,
                 "targetPluginVersion": "0.3.0",
-                "currentRuntimeVersion": "0.3.0",
+                "currentRuntimeVersion": "0.3.1",
                 "v1ToolsPreserved": v1_tool_count,
                 "v2ToolsDeclared": len(EXPECTED_TOOL_NAMES),
                 "v1SchemasPreserved": v1_schema_count,

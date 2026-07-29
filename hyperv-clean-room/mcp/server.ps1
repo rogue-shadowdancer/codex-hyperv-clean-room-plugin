@@ -241,7 +241,14 @@ while ($true) {
                 continue
             }
             'tools/list' {
-                if (-not (Test-HcrClosedParameterObject -Value $parameters -Allowed @())) {
+                if (-not (Test-HcrClosedParameterObject `
+                        -Value $parameters `
+                        -Allowed @('cursor', '_meta')) -or
+                    ((Test-HcrProperty $parameters 'cursor') -and
+                        $null -ne (Get-HcrPropertyValue $parameters 'cursor') -and
+                        (Get-HcrPropertyValue $parameters 'cursor') -isnot [string]) -or
+                    ((Test-HcrProperty $parameters '_meta') -and
+                        -not (Test-HcrObjectLike (Get-HcrPropertyValue $parameters '_meta')))) {
                     Write-HcrJsonRpcMessage (New-HcrJsonRpcError $id -32602 'Invalid tools-list parameters')
                     continue
                 }

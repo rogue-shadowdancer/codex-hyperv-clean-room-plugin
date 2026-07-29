@@ -157,17 +157,17 @@ def main() -> int:
             )
     version = str(manifest.get("version", ""))
     if not re.fullmatch(
-        r"0\.3\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?", version
+        r"0\.3\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?", version
     ):
         raise AssertionError(
-            "integrated source version must expose base 0.3.0 with at most "
+            "integrated source version must expose base 0.3.1 with at most "
             f"one Codex cachebuster: {version}"
         )
 
     server = read_text("hyperv-clean-room/mcp/server.ps1")
     common = read_text("hyperv-clean-room/mcp/lib/Common.ps1")
-    if "$script:HcrPluginVersion" not in server or "$script:HcrPluginVersion = '0.3.0'" not in common:
-        raise AssertionError("MCP serverInfo is not bound to plugin version 0.3.0")
+    if "$script:HcrPluginVersion" not in server or "$script:HcrPluginVersion = '0.3.1'" not in common:
+        raise AssertionError("MCP serverInfo is not bound to plugin version 0.3.1")
     schemas = sorted((PLUGIN_ROOT / "schemas").glob("*.json"))
     if len(schemas) != 5:
         raise AssertionError("schema-v1 count must remain exactly five")
@@ -201,6 +201,91 @@ def main() -> int:
             raise AssertionError(f"workflow is missing: {fragment}")
     validate_workflow_action_pins(workflow)
     validate_workflow_action_pin_regressions(workflow)
+
+    catalog_validator = read_text(
+        "scripts/validate_codex_app_server_catalog.py"
+    )
+    for fragment in (
+        '"selectedCapabilityRoots"',
+        '"id": "hyperv-clean-room@personal"',
+        '"method": "mcpServerStatus/list"',
+        '"CODEX_HOME"',
+        '"unselectedServerCount"',
+        '"promptTextSelectionAccepted": False',
+        '"toolCallCount": 0',
+        '"startupStatus": "ready"',
+    ):
+        if fragment not in catalog_validator:
+            raise AssertionError(
+                f"selected-plugin catalog validator is missing: {fragment}"
+            )
+    for forbidden in (
+        '"method": "mcpServer/tool/call"',
+        '"method": "turn/start"',
+    ):
+        if forbidden in catalog_validator:
+            raise AssertionError(
+                f"catalog-only validator must not send: {forbidden}"
+            )
+    if catalog_validator.count('"inspect_host"') != 1:
+        raise AssertionError(
+            "catalog validator must name inspect_host only in the expected "
+            "20-tool set and must never call it"
+        )
+
+    release_readback = read_text("scripts/validate-v031-release-readback.ps1")
+    for fragment in (
+        "repos/$Repository/branches/master",
+        "repos/$Repository/git/ref/tags/$Tag",
+        "repos/$Repository/releases/tags/v0.3.1",
+        "Annotated v0.3.1 does not peel to protected master",
+        "Release target does not equal protected master",
+        "Installed sourceCommit does not equal protected master",
+        "[Parameter(Mandatory = $true)]",
+        "'0.3.1+codex.20260729184240'",
+        "rev-parse HEAD",
+        "--porcelain=v1 --untracked-files=all -- hyperv-clean-room",
+        "sourceStatus.Count -eq 0",
+        "ls-files -v",
+        "assumeUnchanged.Count -eq 0",
+        "ls-files -t",
+        "skipWorktree.Count -eq 0",
+        "$env:GIT_NO_REPLACE_OBJECTS = '1'",
+        "previousNoReplaceObjects",
+        "Remove-Item Env:\\GIT_NO_REPLACE_OBJECTS",
+        "cat-file blob",
+        "StandardOutput.BaseStream.CopyTo",
+        "[IO.File]::ReadAllBytes",
+        'committedText.Replace("`n", "`r`n")',
+        "workingHash -ceq $expectedHash",
+        "workingHash -ceq [string]$payload.sha256",
+        "Unsupported v0.3.1 payload type",
+        "Get-HcrInstallCheck",
+        "$installCheck.matches",
+        "$installCheck.payloadError",
+        "'v0.1.1'",
+        "'v0.2.0'",
+        "'v0.3.0'",
+        "payload count is not 31",
+        "inventory count is not 33",
+        "hyperv-clean-room@personal",
+    ):
+        if fragment not in release_readback:
+            raise AssertionError(
+                f"v0.3.1 release readback is missing: {fragment}"
+            )
+    for forbidden in (
+        "release create",
+        "git tag",
+        "plugin add",
+        "plugin install",
+        "inspect_host",
+        "mcpServer/tool/call",
+    ):
+        if forbidden in release_readback:
+            raise AssertionError(
+                f"release readback must remain non-mutating: {forbidden}"
+            )
 
     hygiene_source = read_text("tests/publication_hygiene_tests.py")
     for fragment in (

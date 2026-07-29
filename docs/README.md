@@ -44,6 +44,13 @@ calling an MCP tool or adapter operation during catalog readback. The local
 publication aggregate did invoke its inherited Gate 2 bounded read-only
 `inspect_host` and missing-ISO `plan_vm_create` rejection outside the declared
 P3.3 no-host boundary; no mutation or machine acceptance resulted.
+G7/P3.3-R1 advances the compatible patch runtime to `0.3.1` while retaining
+the frozen `0.3.0` capability target. Current acceptance uses an explicit
+`selectedCapabilityRoots` binding and thread-scoped `mcpServerStatus/list`,
+requires `hyperv-clean-room` / `0.3.1` with exactly 20 unique tools, and sends
+no MCP tool call. The only build is `0.3.1+codex.20260729184240`; protected
+`master`, annotated `v0.3.1`, its source-only Release, and installed
+`sourceCommit` must be one commit. Immutable earlier tags remain unchanged.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.

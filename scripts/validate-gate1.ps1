@@ -43,8 +43,8 @@ $mcp = Read-Json $mcpPath
 Assert-True ($manifest.name -eq 'hyperv-clean-room') `
     'Plugin name must be hyperv-clean-room.'
 Assert-True ([string]$manifest.version -cmatch `
-    '^0\.3\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') `
-    'The plugin version must expose base 0.3.0 with at most one Codex cachebuster.'
+    '^0\.3\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') `
+    'The plugin version must expose base 0.3.1 with at most one Codex cachebuster.'
 Assert-True ($manifest.author.name -eq 'rogue-shadowdancer') `
     'Unexpected plugin author.'
 Assert-True ($manifest.license -eq 'GPL-3.0-only') `

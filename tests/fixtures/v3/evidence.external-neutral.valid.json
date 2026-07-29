@@ -45,8 +45,8 @@
     "webDriverManifestSha256": null
   },
   "runtime": {
-    "pluginBaseVersion": "0.3.0",
-    "pluginBuildVersion": "0.3.0+codex.20260728080000",
+    "pluginBaseVersion": "0.3.1",
+    "pluginBuildVersion": "0.3.1+codex.20260728080000",
     "sourceCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "installedInventorySha256": "abababababababababababababababababababababababababababababababab",
     "adapterMode": "mock"

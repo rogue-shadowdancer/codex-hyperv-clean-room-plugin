@@ -11,6 +11,12 @@ mock/parser/schema/static only. G7/P3.3 publishes immutable, source-only
 `v0.3.0` from protected commit
 `47151fdbe99346ec87af09460c79d0864978eabd` and accepts the one personal build
 `0.3.0+codex.20260729122233`, closing 31 payloads and exactly 20 catalog tools.
+G7/P3.3-R1 preserves that capability target while advancing the compatible
+runtime to `0.3.1`, accepting MCP-standard `_meta`/`cursor` tool-list
+parameters, and requiring a genuinely selected Codex plugin thread. Its only
+personal build is `0.3.1+codex.20260729184240`; protected `master`, annotated
+`v0.3.1`, the source-only Release, and installed `sourceCommit` must be one
+commit.
 Its catalog readback invokes no MCP tool or adapter operation. The local
 publication aggregate did invoke inherited Gate 2 bounded read-only
 `inspect_host` and missing-ISO `plan_vm_create` rejection outside the declared
@@ -1372,6 +1378,27 @@ It invoked inherited Gate 2 bounded read-only `inspect_host` and missing-ISO
 `plan_vm_create` rejection outside the declared P3.3 no-host boundary. This
 deviation performed no Hyper-V/VM/checkpoint mutation and must not be promoted
 to machine acceptance.
+
+## G7/P3.3-R1 plugin 0.3.1 selected-plugin recovery boundary
+
+P3.3-R1 does not rewrite the immutable v0.3.0 publication. It advances only the
+compatible runtime and installed evidence base to `0.3.1`, preserving the
+frozen `0.3.0` capability target, exact 20 public tool names and input schemas,
+schema-v1 behavior, plan/apply guards, and all production adapter boundaries.
+
+The MCP server accepts optional object `_meta` and optional string-or-null
+`cursor` parameters on `tools/list`; unknown fields and mistyped values still
+fail with `-32602`. The acceptance client creates an isolated ephemeral Codex
+app-server thread, binds `hyperv-clean-room@personal` through the local
+environment in `selectedCapabilityRoots`, and reads thread-scoped
+`mcpServerStatus/list`. It sends no model turn and no MCP tool call.
+
+The only build is `0.3.1+codex.20260729184240`, generated once before commit.
+The final protected `master` commit, annotated `v0.3.1` peeled commit,
+source-only GitHub Release target, and install-manifest `sourceCommit` must be
+identical. No post-tag closeout commit is allowed. All real host, Hyper-V, VM,
+checkpoint, credential, guest, package, portable, WebDriver, network, UI,
+evidence, and manual-attestation operations remain `notPerformed`.
 
 ### Protected packaging amendment and G6.2 source result
 
