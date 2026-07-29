@@ -31,6 +31,59 @@ function Assert-HcrReadback {
     }
 }
 
+function Get-HcrGitBlobBytes {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepositoryRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ObjectSpec
+    )
+
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $script:GitCommand.Source
+    $startInfo.Arguments = (
+        '-C "{0}" cat-file blob "{1}"' -f
+        $RepositoryRoot.Replace('"', '\"'),
+        $ObjectSpec.Replace('"', '\"')
+    )
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    $memory = New-Object IO.MemoryStream
+    try {
+        Assert-HcrReadback $process.Start() `
+            "Could not start git cat-file for $ObjectSpec."
+        $process.StandardOutput.BaseStream.CopyTo($memory)
+        $errorText = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        Assert-HcrReadback ($process.ExitCode -eq 0) `
+            "git cat-file failed for $ObjectSpec`: $errorText"
+        return ,$memory.ToArray()
+    }
+    finally {
+        $memory.Dispose()
+        $process.Dispose()
+    }
+}
+
+function Get-HcrSha256Bytes {
+    param([Parameter(Mandatory = $true)][byte[]]$Bytes)
+
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString(
+                $sha256.ComputeHash($Bytes)
+            )).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $sha256.Dispose()
+    }
+}
+
 function Invoke-HcrGhApi {
     param([Parameter(Mandatory = $true)][string]$Endpoint)
 
@@ -233,16 +286,30 @@ try {
     foreach ($payload in @($sourceInventory.files)) {
         $payloadPath = [string]$payload.path
         $repositoryPath = "hyperv-clean-room/$payloadPath"
-        $expectedBlob = [string](& $gitCommand.Source -C $repoRoot rev-parse `
-                "$ExpectedMasterCommit`:$repositoryPath")
-        Assert-HcrReadback ($LASTEXITCODE -eq 0 -and
-                $expectedBlob.Trim() -cmatch '^[a-f0-9]{40}$') `
-            "Reviewed commit has no ordinary blob for $repositoryPath."
         $workingPath = Join-Path $sourceRoot $payloadPath.Replace('/', '\')
-        $workingBlob = [string](& $gitCommand.Source -C $repoRoot hash-object `
-                "--path=$repositoryPath" -- $workingPath)
-        Assert-HcrReadback ($LASTEXITCODE -eq 0 -and
-                $workingBlob.Trim() -ceq $expectedBlob.Trim()) `
+        $committedBytes = Get-HcrGitBlobBytes `
+            -RepositoryRoot $repoRoot `
+            -ObjectSpec "$ExpectedMasterCommit`:$repositoryPath"
+        if ($payloadPath.EndsWith('.ps1', [StringComparison]::OrdinalIgnoreCase)) {
+            $strictUtf8 = New-Object Text.UTF8Encoding($false, $true)
+            $committedText = $strictUtf8.GetString($committedBytes)
+            Assert-HcrReadback (-not $committedText.Contains("`r")) `
+                "Reviewed PowerShell blob is not LF-normalized: $repositoryPath"
+            $expectedBytes = $strictUtf8.GetBytes(
+                $committedText.Replace("`n", "`r`n")
+            )
+        }
+        elseif ($payloadPath -cmatch '\.(json|md|ya?ml)$') {
+            $expectedBytes = $committedBytes
+        }
+        else {
+            throw "Unsupported v0.3.1 payload type: $repositoryPath"
+        }
+        $workingBytes = [IO.File]::ReadAllBytes($workingPath)
+        $expectedHash = Get-HcrSha256Bytes $expectedBytes
+        $workingHash = Get-HcrSha256Bytes $workingBytes
+        Assert-HcrReadback ($workingHash -ceq $expectedHash -and
+                $workingHash -ceq [string]$payload.sha256) `
             "Working payload bytes differ from the reviewed commit: $repositoryPath"
     }
 }

@@ -90,7 +90,9 @@ against that reviewed source checkout. The checkout itself must have
 change under `hyperv-clean-room/`; assume-unchanged and skip-worktree index
 flags are also forbidden on that source. All source identity and inventory Git
 reads run with replacement objects disabled, and every working payload blob
-OID must equal the corresponding `ExpectedMasterCommit:path` blob OID.
+must byte-match the corresponding raw `ExpectedMasterCommit:path` blob after
+only the frozen `.ps1` LF-to-CRLF checkout transformation. No local attribute
+or filter driver participates in this comparison.
 
 The historical H4/G9 `validate-gate4.ps1` installed-copy smoke calls
 `inspect_host` and a missing-ISO plan. It is not part of this recovery gate and

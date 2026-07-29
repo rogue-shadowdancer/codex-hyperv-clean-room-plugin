@@ -287,7 +287,9 @@ Acceptance requires:
   that reviewed commit and whose plugin source has no index, worktree, or
   untracked changes and no assume-unchanged or skip-worktree flags; replacement
   objects are disabled for all source identity and inventory Git reads, and
-  every working payload blob OID must equal its reviewed-commit blob OID;
+  every working payload must byte-match its raw reviewed-commit blob after only
+  the frozen `.ps1` LF-to-CRLF checkout transformation; local attributes and
+  filter drivers do not participate;
 - exact 31-file payload plus two installer records and one personal marketplace
   entry;
 - a fresh app-server thread with
