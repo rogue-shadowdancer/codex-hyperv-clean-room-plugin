@@ -1,4 +1,4 @@
-# Task handoff: G7/P3.1 Hyper-V Clean Room 0.3 contract freeze
+# Task handoff: G7/P3.2 Hyper-V Clean Room 0.3 source runtime
 
 `relayProtocolVersion: 1`
 
@@ -6,40 +6,35 @@
 
 ## Status
 
-P3.1 freezes the schema, compatibility, fixture, and documentation target for
-plugin base version `0.3.0`. Runtime, installed copies, personal installation,
-and the latest immutable plugin Release remain `0.2.0`. P3.2 implementation
-and P3.3 source Release/install/readback remain separate atomic gates.
+G7/P3.2 implements the frozen P3.1 external portable contract in the Windows
+PowerShell 5.1 source runtime as plugin base version `0.3.0`. It preserves the
+exact 20 public tool names and inputs, all schema-v1 bytes, the seven public
+schema-v2 paths, and the complete embedded `0.2.0` behavior.
 
-This gate consumes only protected Birdsgone source results. It performs no
-Hyper-V, VM, checkpoint, guest, credential, package lifecycle, driver,
-network, UI, manual-attestation, installation, tag, or Release operation.
+P3.2 changes source runtime and source-tree installed schema copies only. It
+does not build or install a package, create or modify a tag/Release, update a
+cachebuster or marketplace entry, or mutate a personal installed copy. The
+immutable plugin `v0.2.0` Release and its release-derived personal installation
+remain `0.2.0`. P3.3 publication/install/source-match is the only successor
+gate.
 
-PR #26 protected-rebase-merged the reviewed P3.1 contract as protected
-`master` `5c4eeb84fec5d5476d3b97c52d2a52af597d430e`, tree
-`00724b73939e9e390943d2c1d348c2af0c4080d7`. The candidate and protected
-trees are byte-identical. The first post-merge required run failed closed
-before schema validation because GitHub generated all nineteen rebased commits
-with the approved public noreply email but a different committer display name.
-The bounded follow-up records only those nineteen exact raw commit SHA-256
-digests in the existing history-exception allowlist and preserves default
-rejection of every other display-name mismatch.
+The historical H4/G9 installed-copy acceptance remains the authority for that
+unchanged personal `0.2.0` installation; P3.2 neither reruns nor supersedes it.
 
-## Protected upstream authority
+P3.2 validation is synthetic and mock/parser/schema/static only. It performs no
+real Hyper-V, VM, checkpoint, credential, guest, package, portable,
+WebDriver, UI, network, evidence, or manual-attestation operation.
 
+## Protected input authority
+
+- Plugin protected predecessor `master`:
+  `e42dfd4784f0f07382a632190884341e5a3de178`
+- Predecessor tree:
+  `688645a48ba65f16c415d22a285d6b1d0462e307`
 - Birdsgone protected `main`:
   `5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c`
-- Protected tree:
+- Birdsgone protected tree:
   `dbe98a0b0621353ed09cebff79d7cde64145881d`
-- G6.2 reviewed PR candidate:
-  `1b616aab0c996ae643a254df352ae9216d919c25`
-- G6.2 protected merge:
-  PR #22, rebase-merged as the protected `main` commit above
-- G6.1 amendment candidate:
-  `4ea9de2627f52a47506416b8f71da1932081a184`
-- G6.1 protected merge:
-  PR #21, rebase-merged as
-  `f3f54181769a6187eb9d584fbd2599561319d8f9`
 - Consumer contract:
   - path: `docs/gates/hyperv-clean-room-0.3-contract.md`
   - blob: `e2202a8de07cc90d6b31389853437e9fa025843a`
@@ -53,147 +48,133 @@ rejection of every other display-name mismatch.
   - SHA-256:
     `dcb70fbf91155d4db25813458043d30255c2189ce8d8861a49fb05b0105f1bcb`
 
-The earlier `00643a13` / `runtime-and-legal-only` G6 result remains historical
-evidence only. It does not satisfy an executable external profile, a
-release-ready candidate, or a clean-room pass.
+The earlier `runtime-and-legal-only` G6 result remains historical evidence
+only. It cannot satisfy an executable external profile, a release-ready
+candidate, or a clean-room pass.
 
-## G6.2 package-local source result
+## P3.2 conclusions
 
-Protected G6.2 verification passed twice with the system unchanged, zero
-install side effects, and zero residual owned processes. Hosted CI remained
-`notPerformed` because `ci:capacity` was
-`unknown/billing-api-unavailable`.
-
-The protected four-asset set is:
-
-| Asset | Bytes | SHA-256 |
-| --- | ---: | --- |
-| `Birdsgone_0.1.0_windows-x64-portable.zip` | `344467332` | `4f1028a6ce1dd15b13cc1583dbac1f7cb0ff0b4da6993eeb9f8c1ab0016b4f66` |
-| `portable-manifest.json` | `141840` | `0f141d12bcfe92a9017a3e19e905214c0e4d9f9c19e0ae485909984fb654f886` |
-| `SBOM.cdx.json` | `445475` | `aee22775cf2e5bd7902222e4cf3ed6c47b6c3673d88e378e176ea7cb82848e71` |
-| `SHA256SUMS` | `276` | `91dd656b357488f55c33c0e6952f04dd3267a1c62eb747b320d527b9019d3561` |
-
-This is package-local source evidence. Hyper-V/VM, install/uninstall, ADB,
-Win32, LAN, signing, tag, and GitHub Release remain `notPerformed`. Do not
-reinterpret G6.2 as clean-room or guest evidence.
-
-## P3.1 conclusions
-
-- Exact public tool count remains `20`; every tool name and input is unchanged.
-- The original 16 schema-v1 tools and all five public v1 schema files remain
+- Plugin manifest, server identity, compatibility metadata, and tool catalog
+  expose source runtime base `0.3.0`.
+- The exact public tool count remains `20`; every tool name and input is
+  unchanged.
+- The original 16 schema-v1 tools and all five public schema-v1 files remain
   compatible and byte-identical.
 - All seven schema-v2 paths and `$id` values remain stable.
-- Exact integer `schemaVersion` dispatch remains fail-closed; unknown versions
+- All seven source-tree installed schema-v2 copies are byte-identical to their
+  authorities under `contracts/v2/schemas`.
+- Exact integer `schemaVersion` dispatch remains fail closed; unknown versions
   never fall back.
 - The embedded portable profile/manifest/evidence branch retains its `0.2.0`
-  semantics, fixed `--portable` argument, and mandatory fixed-component/driver
-  behavior.
-- External profile artifacts require:
-  - `portableManifestSource: externalProfileRelative`
-  - a safe profile-relative manifest path
-  - bounded manifest size and exact SHA-256
-  - `requiredDistributionBoundary: end-user-complete`
-- External manifests dispatch between two closed branches:
-  - `runtime-and-legal-only` is schema-readable historical evidence only and
-    cannot back a new executable profile.
-  - `end-user-complete` is the only executable branch and requires complete
-    ZIP inventory, source-to-ZIP documentation mapping, source commit/tree,
-    documentation count/bytes/digest, and retained runtime/legal digests.
-- The protected completeness inventory freezes:
-  - all tracked regular files below `docs/`
-  - six exact root mappings
-  - `62` documentation files
-  - `1371442` documentation bytes
-  - documentation digest
-    `dbd8e7fcc1b8222ccc53a94c8ce9a320e766650e05da5a50e3cdbc81499769fc`
-  - twelve required user manuals grouped into seven topics
-  - fourteen complete non-developer prerequisites
-  - exactly four manual distribution assets, with manifest/SBOM/SHA256SUMS
-    remaining external companions
-- Generic non-UI external packages may omit MaaFramework, WebView2,
-  EdgeDriver, and UI steps. UI profiles retain the closed `data-testid` DSL
-  and fixed Microsoft x64 EdgeDriver identity/version rules.
-- External evidence structurally uses `evidenceKind: externalPortable` and
-  binds the required end-user boundary, ZIP/manifest source and guest
-  identities, documentation source/inventory identity, retained runtime/legal
-  digests, fixtures, deployment/data, conditional driver, Plan/Apply,
-  recovery, assertions, cleanup, and status derivation.
-- Fixtures remain synthetic. They contain no real asset identity, local
-  machine path, OCR data, credential, token, or execution evidence.
-- P3.1 acceptance freezes six positive target fixtures, five direct
-  schema-negative fixtures, and an exact 41-case negative matrix.
-- No arbitrary command, shell, script, selector, URL, JavaScript, download,
-  executable argument, unmanaged adoption, VM deletion, or host-file deletion
-  surface is introduced.
+  semantics, fixed `--portable` argument, and fixed component/driver behavior.
+- The external branch:
+  - resolves one regular non-reparse manifest below the canonical profile
+    directory;
+  - independently binds profile/source/staged/guest path, size, and SHA-256;
+  - requires the five profile-root collections, external inventories, and
+    nested `webView2.files` to remain true JSON arrays, and requires
+    string-typed paths before any PowerShell collection wrapping or
+    normalization;
+  - parses strict UTF-8 and rejects BOM, NUL, malformed bytes, trailing data,
+    duplicate properties, and unknown root or nested provenance fields;
+  - applies NFC, ordinal, ordinal-ignore-case, reserved-device, traversal,
+    ADS, trailing-dot/space, collision, and reparse/link path controls;
+  - treats the manifest as a sidecar, never as a ZIP entry, fixture, or
+    mutable-data file;
+  - verifies manifest-to-ZIP and ZIP-to-manifest membership, size, and SHA-256;
+  - rejects undeclared, missing, colliding, linked, companion, and packaged
+    `data/` entries;
+  - derives complete portable and documentation inventory identities only from
+    validated bytes;
+  - atomically publishes a new operation-owned deployment slot only after full
+    validation while preserving independently inventoried prior data;
+  - binds every later portable launch to that operation's exact application,
+    deployment, active-record fingerprint, and slot identity, failing closed on
+    concurrent active-pointer replacement;
+  - binds the deployed entrypoint path, length, and SHA-256 and re-hashes it
+    immediately before process creation while denying write/delete sharing
+    through process creation, while no-follow directory handles deny
+    replacement of every path component from the local volume root;
+  - launches only the declared entrypoint with zero caller arguments;
+  - permits a generic non-UI package to omit MaaFramework, WebView2, driver,
+    and UI steps;
+  - requires the manifest WebView2 identity and fixed Microsoft x64
+    EdgeDriver/data-testid rules for the UI branch;
+  - emits structurally separate external evidence with exact candidate,
+    runtime, deployment, data, fixture, driver, standard-user, and elevated
+    orchestration bindings;
+  - closes installed provenance against the exact installer owner,
+    manifest/version, and re-hashes every current ordinary payload byte before
+    runtime identity.
+- Plan/Apply, atomic plan consumption, paired single-use recovery, cleanup
+  separation, and evidence status derivation remain unchanged.
 
 ## Changed areas
 
-- `README.md`
-- `TASK_HANDOFF.md`
-- `contracts/v2/README.md`
-- `contracts/v2/compatibility.json`
-- `contracts/v2/consumer-contract.json`
-- `contracts/v2/schemas/evidence.schema.json`
-- `contracts/v2/schemas/portable-manifest.schema.json`
-- `contracts/v2/schemas/test-profile.schema.json`
-- `contracts/v2/tool-catalog.json`
-- `docs/README.md`
-- `docs/specification.md`
-- `scripts/validate-gate6.ps1`
-- `tests/gate6_contract_tests.py`
-- `tests/gate7_implementation_tests.py`
-- `tests/fixtures/v3/*`
-- `docs/release-process.md`
-- `tests/publication_hygiene_policy_tests.py`
-- `tests/publication_hygiene_tests.py`
+- Plugin/runtime identity:
+  - `hyperv-clean-room/.codex-plugin/plugin.json`
+  - `hyperv-clean-room/mcp/lib/Common.ps1`
+  - `contracts/v2/compatibility.json`
+  - `contracts/v2/tool-catalog.json`
+- External runtime and production seams:
+  - `hyperv-clean-room/mcp/lib/Validation.V2.ps1`
+  - `hyperv-clean-room/mcp/lib/Tools.Guest.V2.ps1`
+  - `hyperv-clean-room/mcp/lib/Adapters.ps1`
+  - `hyperv-clean-room/mcp/lib/GuestWorker.ps1`
+- Exact source-tree schema copies:
+  - `hyperv-clean-room/schemas/v2/evidence.schema.json`
+  - `hyperv-clean-room/schemas/v2/portable-manifest.schema.json`
+  - `hyperv-clean-room/schemas/v2/test-profile.schema.json`
+- Validation and test isolation:
+  - `scripts/install-common.ps1`
+  - `scripts/validate-gate1.ps1`
+  - `scripts/validate-gate4.ps1`
+  - `scripts/validate-gate6.ps1`
+  - `scripts/validate-gate7.ps1`
+  - `tests/gate1-contract.tests.ps1`
+  - `tests/gate4-installation.tests.ps1`
+  - `tests/gate4-installed-copy.tests.ps1`
+  - `tests/gate6_contract_tests.py`
+  - `tests/gate7-runtime.tests.ps1`
+  - `tests/gate7_implementation_tests.py`
+  - `tests/public_release_contract_tests.py`
+- Documentation:
+  - `README.md`
+  - `CHANGELOG.md`
+  - `contracts/v2/README.md`
+  - `docs/README.md`
+  - `docs/architecture.md`
+  - `docs/installation.md`
+  - `docs/maintenance.md`
+  - `docs/operations.md`
+  - `docs/profile-authoring.md`
+  - `docs/security.md`
+  - `docs/specification.md`
+  - `docs/troubleshooting.md`
+  - `TASK_HANDOFF.md`
 
 ## Verification
 
-The candidate must retain these exact outcomes after its final commit:
+The final exact candidate must retain:
 
-- protected Birdsgone `main`/tree and both protected document hashes read back
-  exactly as recorded above
-- inherited Gate 2 validation with isolated pinned dependencies and
-  `SkipRealHostSmoke`
-- schema-v1 tools preserved: `16`
-- schema-v1 files preserved: `5`
-- schema-v2 files: `7`
-- total tools: `20`
+- strict UTF-8 documentation: `17` documents, `100` local links, zero mojibake
+- exact tool count: `20`
+- preserved schema-v1 tools: `16`
+- preserved schema-v1 files: `5`
+- exact source-tree installed schema-v2 copies: `7`
+- Gate 7 mock runtime assertions: `355`
+- generated mock evidence documents validated: `10`
 - P3.1 positive fixtures: `6`
 - P3.1 direct schema-invalid fixtures: `5`
 - P3.1 negative cases: `41`
 - `p3_1Closable: true`
-- Gate 7 mock runtime assertions: `216`
-- generated mock evidence documents validated: `5`
+- inherited Gate 2 with isolated pinned dependencies and
+  `SkipRealHostSmoke`
+- Gate 6 contract validation with isolated pinned dependencies
 - `git diff --check`
-- publication hygiene accepts exactly eight preserved pre-release commits plus
-  the nineteen immutable GitHub-generated P3.1 rebase commits by raw commit
-  SHA-256, while rejecting any unlisted public-email/display-name mismatch
-- Eighteen Codex review passes found thirty actionable fail-closed or regression
-  coverage gaps: external ZIP
-  artifact leaf/size binding, cleanup-only UI driver dispatch and WebView2
-  cross-binding, embedded-evidence rejection of external fixture identities,
-  non-passing external fixture-identity status derivation, independently bound
-  expected fixture IDs, executable-manifest unsigned enforcement, deployed
-  payload inventory binding, fixture-artifact size binding, and executable-
-  manifest runtime/packaging provenance, profile/manifest/evidence-consistent
-  Windows-safe ZIP-leaf enforcement, superscript COM/LPT aliases, and complete
-  manifest/profile/evidence ZIP-leaf regression coverage, Windows console-device
-  aliases in inventory paths, non-NFC external ZIP leaves, and comprehensive
-  control/NFC enforcement for every schema-bound relative path, ASCII DEL
-  exclusion, composition/alias-aware coverage introspection, reusable
-  cross-document ZIP/application identity validation, and manifest-artifact name
-  binding, plus full profile/manifest/evidence provenance and inventory
-  cross-binding, independently derived candidate source/profile/fixture-set/
-  WebDriver provenance, and exact profile-to-evidence fixture path/size/hash
-  binding, including independently pinned non-empty fixture-set and non-null
-  WebDriver digest oracles, plus exact preservation of the embedded manifest's
-  legacy product-version grammar while only external manifests use bounded
-  build metadata, Windows/.NET UTF-16 ordinal inventory ordering, and
-  exact Windows ordinal-ignore-case manifest-sidecar/fixture path separation
-  without Unicode multi-character case-fold expansion. All thirty are repaired
-  with direct regression probes; the final published candidate requires a
-  fresh zero-actionable-findings review.
+- substantive exact-candidate review with zero actionable findings
+- a fresh 30-minute unchanged-head review window before protected merge
+- required exact-head hosted checks and the required post-merge run
 - real host operations: `0`
 - real Hyper-V mutations: `0`
 - real guest operations: `0`
@@ -201,43 +182,32 @@ The candidate must retain these exact outcomes after its final commit:
 - WebDriver launches: `0`
 - UI operations: `0`
 
-Existing ignored operational artifacts must not be read, reused, moved,
-overwritten, or deleted. Task-owned isolated dependency directories may be
-created only for validation and must be removed afterward. Mock test evidence
-is not real machine evidence.
+Existing ignored operational artifacts belong to the user and must not be
+read, reused, moved, overwritten, or deleted. P3.2 validation uses only
+uniquely named ignored task-owned roots. Mock test evidence is not real
+machine evidence.
 
-The historical H4/G9 installed-copy validator `scripts/validate-gate4.ps1` is
-not applicable to P3.1 because the executable and installed runtime
-intentionally remain `0.2.0`; target-ahead-of-runtime copies are checked
-against `compatibility.json` instead. P3.2 must restore authoritative-to-
-installed byte equality before P3.3 publication.
+## Blockers
+
+`blockers: []`
 
 ## Next gate
 
-`nextGate: G7/P3.2 runtime implementation and mock/parser/static validation
-only`
+`nextGate: G7/P3.3 source publication, Release/install, and exact readback only`
 
-P3.2 must start in a separate task from exact protected plugin `master` after
-P3.1 is protected-merged and read back. It implements the frozen external
-staging, strict JSON, complete inventory, conditional component/driver, atomic
-deployment/data preservation, and evidence behavior under PowerShell 5.1 and
-the fixed worker. It must preserve exactly 20 tools and all legacy behavior,
-use only mock/parser/static tests, and keep every real-operation counter at
-zero.
+P3.3 must start in a separate task after P3.2 is protected-merged, its required
+post-merge run passes, repository protection is read back unchanged, and Issue
+#19 records P3.2 closure. P3.3 owns only the separately reviewed source
+publication, plugin Release/install/cachebuster work permitted by its
+authoritative gate, and exact installed/source readback. It must preserve the
+20-tool catalog, v1/embedded semantics, external branch, Plan/Apply, recovery,
+closed UI DSL, and the explicit distinction between mock evidence and real
+machine work.
 
-P3.2 does not authorize:
-
-- P3.3 source Release/install/readback
-- H5E-R2 or any other machine diagnostic
-- Hyper-V, VM, checkpoint, credential, guest, package, portable, driver,
-  network, UI, evidence, or manual-attestation operation
-- Birdsgone G8+
-- a Birdsgone tag or GitHub Release
-
-After P3.2 protected closure, P3.3 must be a separate atomic task. H5E-R2 is
-still pending and must be separately scheduled before G8. Any real Hyper-V or
-guest mutation requires a separate confirmation naming the VM, credential
-profile, artifact, profile, and exact intended delta.
+P3.3 does not authorize H5E-R2, Birdsgone G8+, or any real Hyper-V, VM,
+checkpoint, credential, guest, package lifecycle, portable execution,
+WebDriver, UI, network, or manual-attestation operation unless a later
+authority explicitly names and approves that exact operation.
 
 ## Downstream publication requirement
 
@@ -252,17 +222,16 @@ Birdsgone distribution Release.
 ## Safety constraints
 
 - One writable plugin gate owner at a time.
-- Do not begin P3.2 or P3.3 in this task.
+- Do not begin P3.3 in P3.2.
 - Do not run H5E-R2 concurrently.
 - Do not access or mutate Birdsgone ignored artifact directories.
 - Do not run package, installation, Hyper-V, VM, checkpoint, credential,
-  guest, ADB, Win32, LAN, driver, UI, network, or evidence operations.
+  guest, ADB, Win32, LAN, driver, UI, network, or real evidence operations.
 - Do not modify or overwrite the immutable plugin `v0.2.0` tag/Release.
 - Do not tag, publish a Release, change visibility, force-push, rewrite
   history, delete a branch, or weaken protection.
-- Do not claim hosted CI success when capacity is unavailable.
-- Do not convert `notPerformed`, mock, parser, or static results into real
-  machine evidence.
+- Do not convert `notPerformed`, mock, parser, schema, or static results into
+  real machine evidence.
 
 `ownership.previousTask: read-only-after-relay`
 

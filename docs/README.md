@@ -25,15 +25,19 @@ automatic-checkpoint ownership without changing the 20-tool or schema
 contracts. Future creation disables automatic checkpoints; pre-fix
 differencing chains are recognized only when they terminate at the unchanged
 recorded base with a complete canonical identity fingerprint.
-G7/P3.1 now freezes the additive `0.3.0` external-manifest target under the
+G7/P3.1 freezes the additive `0.3.0` external-manifest target under the
 same authoritative [`contracts/v2`](../contracts/v2/README.md) directory. It
-keeps the executable and installed runtime at `0.2.0`, preserves the old
-embedded branch and exact 20-tool surface, and adds only closed schema,
-compatibility, fixture, and documentation artifacts. The external dispatch
+preserves the old embedded branch and exact 20-tool surface. The external dispatch
 keeps `runtime-and-legal-only` historical evidence readable and requires
 `end-user-complete` documentation/prerequisite identity for every executable
-external profile. P3.2 implementation and P3.3 release/install/source-match
-remain separate and `notPerformed`.
+external profile. G7/P3.2 implements that target in source plugin `0.3.0`:
+strict sidecar parsing, closed native provenance, bidirectional ZIP inventory,
+atomic data-preserving deployment, zero-argument entrypoint launch, conditional
+UI/driver behavior, separate orchestration/test-user identity, and external
+evidence. All seven source-tree installed v2 schema copies now exactly match
+their authorities. Validation remains mock/parser/schema/static with every
+real-operation counter zero. P3.3 release/install/source-match remains
+`notPerformed`; the immutable Release and personal install remain `0.2.0`.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.
@@ -109,6 +113,16 @@ Gate 8/H3 已发布不可变、source-only 的 `v0.2.0` release，Gate 9/H4 已�
 20-tool 与 schema contract 不变。新建 VM 会禁用 automatic checkpoints；pre-fix
 differencing chain 只有在完整 canonical identity fingerprint 终止于未改变的 recorded
 base 时才会被识别。
+
+G7/P3.1 冻结 `0.3.0` external-manifest target；G7/P3.2 已把它集成到 source
+plugin `0.3.0`，包括 strict sidecar parser、闭合 native provenance、双向 ZIP
+inventory、atomic data-preserving deployment、zero-argument entrypoint、
+conditional UI/driver、分离的 orchestration/test-user identity 与 external
+evidence。七份 source-tree installed v2 schema 已与权威文件逐字节一致，20-tool
+surface、v1 与 embedded `0.2.0` 语义不变。验证仍仅限
+mock/parser/schema/static，全部真实 operation counter 为零。P3.3
+release/install/source-match 仍为 `notPerformed`；不可变 Release 与 personal
+install 仍为 `0.2.0`。
 继承的 Gate 2 测试仍在 Windows PowerShell 5.1 下使用 mock
 adapter、parser、production-adapter static seam、严格文档
 检查和有界真实 host 只读 smoke。Production guest adapter 已包含固定的 administrator-supervised

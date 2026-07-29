@@ -2,12 +2,15 @@
 
 Status: Gate 6/H1 freezes the additive plugin `0.2.0`, schema-v2 automation
 contract, and Gate 7/H2 integrates it into the Windows PowerShell 5.1 source.
-The implementation exposes exactly 20 MCP tools, preserves the first 16
-schema-v1 tools and five schema-v1 files byte-for-byte, installs seven
-schema-v2 files, and dispatches only by the exact integer `schemaVersion`.
-Gate 7 validation is mock/parser/static only. No real host, VM, checkpoint,
-credential, guest, package, portable, WebDriver, network, UI, installation,
-release, or clean-machine operation was executed or claimed.
+G7/P3.1 freezes the additive external portable `0.3.0` target, and G7/P3.2
+implements that target in the source runtime. The implementation exposes
+exactly 20 MCP tools, preserves the first 16 schema-v1 tools and five schema-v1
+files byte-for-byte, installs seven authoritative schema-v2 copies, and
+dispatches only by the exact integer `schemaVersion`. G7/P3.2 validation is
+mock/parser/schema/static only. The immutable Release and personal
+installation remain `0.2.0`; no real host, VM, checkpoint, credential, guest,
+package, portable, WebDriver, network, UI, installation, release, or
+clean-machine operation was executed or claimed.
 
 Gate H5A adds a backward-compatible repair for Hyper-V automatic checkpoints.
 Newly created managed VMs must disable automatic checkpoints before ownership
@@ -179,7 +182,13 @@ The portable manifest and ZIP must not declare a `data` entry or any `data/`
 descendant; that mutable directory is created empty for a first deployment or
 copied only from the revalidated prior active deployment.
 Failed deployment must not replace the active slot or delete prior data. No H1
-contract creates a general unzip, copy, delete, or command surface.
+contract creates a general unzip, copy, delete, or command surface. A successful
+deployment also binds its application ID, deployment ID, active-record
+fingerprint, and slot ID into the owning operation. Every later portable launch
+must re-read the active record, match all four identities, and then use that
+matched immutable slot path. A concurrent operation that replaces the shared
+active pointer therefore fails the older operation with
+`PORTABLE_DEPLOYMENT_DRIFT` instead of launching a different candidate.
 
 The WebDriver manifest fixes Microsoft EdgeDriver x64 to the exact fixed
 WebView2 four-part version. Its Microsoft HTTPS acquisition policy, archive
@@ -195,13 +204,25 @@ arbitrary selectors, and script execution are forbidden.
 Schema-v2 portable profiles declare fixtures by ID, safe relative file name,
 size, and SHA-256; fixture bytes are staged and dual-hashed by the server.
 
-External evidence uses the SHA-256 of the exact validated profile-file bytes.
+External evidence uses the SHA-256 retained from the exact profile-file bytes
+that were parsed and validated; it never reopens the caller-owned path to
+derive that identity. The shared JSON reader rejects malformed UTF-8 rather
+than replacing invalid byte sequences. Native host validation and the guest
+worker both require the exact JSON integer/boolean scalar types declared by the
+external manifest schema; PowerShell coercion is not a compatibility path.
 Its fixture-set digest is lowercase SHA-256 over UTF-8 without a BOM of the
 compact JSON array, in profile order, containing each fixture's fields in this
 exact order: `id`, slash-normalized `sourceRelativePath`, `sizeBytes`,
 lowercase `sha256`, and `mediaType`. The evidence fixture identity for every
-declared ID must repeat that normalized path, declared size, and declared hash
-as its profile/source/guest values; all three observations must agree and pass.
+declared ID repeats that normalized path, declared size, and declared hash as
+its required profile/source/guest identity. The frozen external evidence branch
+therefore becomes evidence-ready only after the ZIP, sidecar, and every fixture
+have independent guest size/hash observations. A staging failure before that
+boundary returns a failed tool envelope and leaves an immutable operation
+record whose `preEvidenceFailure` and nullable guest identity fields state what
+was unavailable; it does not fabricate a guest hash or publish a schema-v2
+evidence document. Failures after the complete staging boundary remain valid,
+exportable failure evidence.
 When a profile contains a WebDriver object, its manifest digest is computed
 over that object's compact UTF-8 JSON in declaration order; the non-UI branch
 uses `null`.
@@ -1135,7 +1156,11 @@ strict UTF-8 without BOM, NUL, or duplicate JSON properties. Rooted, drive,
 UNC, device, URI, traversal, ADS, percent-ambiguous, environment-expanded,
 trailing-dot/space, reserved-device, non-NFC, case-colliding, link, junction,
 or reparse paths fail closed. Profile-declared size/SHA and source/guest
-size/SHA are independently rebound for the current operation.
+size/SHA are independently rebound for the current operation. The ZIP leaf is
+compared case-sensitively and literally against both the profile and manifest.
+External fixture paths use the same Windows-safe predicate, and the server
+compares volume/file-index identities so aliases and hard links cannot make a
+fixture resolve to the sidecar.
 
 The manifest is a sidecar. It is not inserted into the ZIP, copied into the
 portable `data/` directory, or treated as a fixture. External ZIPs forbid root
@@ -1235,6 +1260,81 @@ P3.1 performs no runtime implementation, packaging, release, installation,
 credential, Hyper-V, VM, checkpoint, guest, portable, driver, UI, network,
 manual-attestation, or evidence operation. P3.2 implementation and P3.3
 release/install/source-match are separate atomic tasks.
+
+## G7/P3.2 plugin 0.3 source-runtime boundary
+
+P3.2 changes the plugin manifest and PowerShell source runtime to base version
+`0.3.0`. `compatibility.json` and the public tool catalog now record runtime
+`0.3.0`, and every one of the seven source-tree installed schema-v2 files is an
+exact byte copy of its authoritative `contracts/v2/schemas` document. The five
+schema-v1 files, all twenty public tool names and input schemas, integer
+version dispatch, Plan/Apply behavior, single-use paired network recovery, and
+the embedded `0.2.0` profile/manifest/evidence branch remain unchanged.
+
+The five profile-root collections (`fixtures`, `applications`, `steps`,
+`cleanupSteps`, and `manualAssertions`) must remain JSON arrays before the
+runtime performs any PowerShell collection wrapping. The external branch
+resolves exactly one manifest below the canonical profile directory. The
+sidecar must be a regular non-reparse file within the declared size bound and
+must match the profile SHA-256 before strict UTF-8 parsing.
+BOM, NUL, malformed UTF-8, trailing JSON data, duplicate properties, unknown
+root or nested provenance fields, unsafe/non-NFC Windows paths, reserved
+devices, traversal, ADS, trailing-dot/space segments, and ordinal-ignore-case
+collisions fail closed. Array-valued inventories must remain JSON arrays even
+when they contain one item, and every path field must remain a string before
+normalization; PowerShell object wrapping and scalar coercion are forbidden.
+The runtime derives the exact ordinal portable and documentation inventory
+identities from the validated manifest; it does not accept them from a caller.
+
+The ZIP, manifest sidecar, and each fixture are staged separately and rebound
+by source/staged/guest byte count and SHA-256. The fixed guest worker verifies
+bidirectional manifest-to-ZIP membership, entry size/hash, path closure,
+forbidden companions, reparse/link metadata, and the absence of packaged
+mutable `data/`. Only after complete validation may it atomically publish a new
+operation-owned deployment slot while preserving independently inventoried
+prior data. The sidecar and fixtures never enter that slot. External launch
+uses the manifest entrypoint and supplies no caller or fixed portable argument;
+the embedded branch continues to use its exact fixed `--portable` argument.
+Deployment evidence binds the entrypoint relative path, length, and SHA-256.
+Immediately before process creation, the worker re-reads the entrypoint as an
+ordinary non-reparse file and re-hashes it while retaining a handle that denies
+write/delete sharing until process creation returns. It also retains no-follow
+directory handles without delete sharing for every path component from the
+local volume root, preventing directory or junction replacement
+before `Start-Process` resolves the path again. Any missing path, reparse or
+ordinary-file identity change, open failure, or byte drift fails closed with
+`PORTABLE_ENTRYPOINT_DRIFT`.
+
+External evidence is structurally selected by
+`evidenceKind: externalPortable`. Candidate identity copies the validated
+runtime/packaging/documentation/ZIP/manifest/fixture identities. Runtime
+identity binds base/build version, source commit, installed inventory, and
+adapter mode. Before emitting that identity, the runtime closes the installed
+file set against `install-manifest.json`, requires the exact
+`hyperv-clean-room-installer/v1` owner, revalidates target/version,
+and re-reads every declared ordinary file's current size and SHA-256. Missing,
+extra, redirected, or byte-drifted installed files fail with
+`RUNTIME_PROVENANCE_INVALID`. Guest identity separately records the exact-medium
+non-administrator test token and the revalidated elevated orchestration token.
+Deployment evidence binds slot, entrypoint, inventory, and preserved data.
+Generic non-UI profiles omit WebDriver and emit null driver identity; UI
+profiles require the closed manifest WebView2 identity and existing fixed
+Microsoft x64 EdgeDriver/data-testid rules.
+
+P3.2 acceptance uses only synthetic ZIPs, fixtures, mock adapters, native
+parsers, schema validators, and static production seams. It validates all
+twenty tools, the preserved sixteen schema-v1 tools, seven exact installed
+schema-v2 copies, 355 mock runtime assertions, ten generated evidence
+documents, and the inherited Gate 2/Gate 6 contract suites. Every real host,
+Hyper-V, guest, portable, WebDriver, and UI operation counter remains zero.
+
+P3.2 does not create a package, tag, Release, cachebuster, marketplace entry,
+or personal installation and does not mutate an installed plugin copy. The
+immutable `v0.2.0` Release and release-derived personal installation remain
+`0.2.0`. P3.3 alone owns source publication, Release/install work, and exact
+installed/source readback. P3.2 performs no real Hyper-V, VM, checkpoint,
+credential, guest, package, portable, WebDriver, UI, network,
+manual-attestation, or evidence operation.
 
 ### Protected packaging amendment and G6.2 source result
 

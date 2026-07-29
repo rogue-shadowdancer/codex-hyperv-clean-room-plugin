@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 
-$script:HcrPluginVersion = '0.2.0'
+$script:HcrPluginVersion = '0.3.0'
 $script:HcrSchemaVersion = 1
 $script:HcrSchemaVersionV2 = 2
 $script:HcrPlanLifetimeMinutes = 15
@@ -301,6 +301,87 @@ function Get-HcrSha256File {
     }
     finally {
         $sha.Dispose()
+        $stream.Dispose()
+    }
+}
+
+function Get-HcrSha256Bytes {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [byte[]]$Bytes
+    )
+
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString(
+                $sha.ComputeHash($Bytes)
+            )).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function Get-HcrLocalFileIdentity {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string]$ErrorCode = 'INVALID_FILE'
+    )
+
+    if ($null -eq ('HcrFileIdentityNative' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HcrByHandleFileInformation
+{
+    public uint FileAttributes;
+    public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
+    public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
+    public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
+    public uint VolumeSerialNumber;
+    public uint FileSizeHigh;
+    public uint FileSizeLow;
+    public uint NumberOfLinks;
+    public uint FileIndexHigh;
+    public uint FileIndexLow;
+}
+
+public static class HcrFileIdentityNative
+{
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetFileInformationByHandle(
+        SafeFileHandle file,
+        out HcrByHandleFileInformation information);
+}
+'@ -ErrorAction Stop
+    }
+
+    $item = Assert-HcrRegularLocalFile $Path $ErrorCode
+    $stream = [IO.File]::Open(
+        $item.FullName,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)
+    )
+    try {
+        $information = New-Object HcrByHandleFileInformation
+        if (-not [HcrFileIdentityNative]::GetFileInformationByHandle(
+                $stream.SafeFileHandle,
+                [ref]$information
+            )) {
+            Throw-HcrError $ErrorCode 'The local file identity could not be resolved.'
+        }
+        return '{0:x8}:{1:x8}{2:x8}' -f
+            $information.VolumeSerialNumber,
+            $information.FileIndexHigh,
+            $information.FileIndexLow
+    }
+    finally {
         $stream.Dispose()
     }
 }

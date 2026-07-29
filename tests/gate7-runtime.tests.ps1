@@ -144,7 +144,20 @@ function Clear-Gate7MutationFault {
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $pluginRoot = Join-Path $repoRoot 'hyperv-clean-room'
-$testRoot = Join-Path $repoRoot ('.artifacts\gate7-tests-' + [Guid]::NewGuid().ToString('N'))
+$testRoot = if ([string]::IsNullOrWhiteSpace($env:HCR_GATE7_TEST_ROOT)) {
+    Join-Path $repoRoot ('.artifacts\gate7-tests-' + [Guid]::NewGuid().ToString('N'))
+}
+else {
+    $candidateRoot = [IO.Path]::GetFullPath($env:HCR_GATE7_TEST_ROOT)
+    $repoPrefix = [IO.Path]::GetFullPath($repoRoot).TrimEnd('\', '/') + '\'
+    if (-not (($candidateRoot.TrimEnd('\', '/') + '\').StartsWith(
+                $repoPrefix,
+                [StringComparison]::OrdinalIgnoreCase
+            )) -or (Test-Path -LiteralPath $candidateRoot)) {
+        throw 'The explicit isolated Gate 7 test root is invalid or already exists.'
+    }
+    $candidateRoot
+}
 $vmRoot = Join-Path $testRoot 'vm-root'
 $stateRoot = Join-Path $testRoot 'state'
 $credentialRoot = Join-Path $testRoot 'credentials'
@@ -159,6 +172,21 @@ $manifestMismatchProfilePath = Join-Path $testRoot 'portable-manifest-mismatch-p
 $unknownPath = Join-Path $testRoot 'unknown-profile.json'
 $legacyV2ProfilePath = Join-Path $testRoot 'legacy-v2-profile.json'
 $legacyArtifactPath = Join-Path $testRoot 'SampleApp-0.2.0-x64.exe'
+$externalPortablePath = Join-Path $testRoot 'ContractSample_1.2.3_windows-x64-portable.zip'
+$externalManifestPath = Join-Path $testRoot 'external-portable-manifest.json'
+$externalProfilePath = Join-Path $testRoot 'external-portable-profile.json'
+$externalUiManifestPath = Join-Path $testRoot 'external-portable-manifest-ui.json'
+$externalUiProfilePath = Join-Path $testRoot 'external-portable-profile-ui.json'
+$duplicateManifestPath = Join-Path $testRoot 'external-portable-manifest-duplicate.json'
+$duplicateProfilePath = Join-Path $testRoot 'external-portable-profile-duplicate.json'
+$unknownNestedManifestPath = Join-Path $testRoot 'external-portable-manifest-unknown-nested.json'
+$unknownNestedProfilePath = Join-Path $testRoot 'external-portable-profile-unknown-nested.json'
+$externalManifestAliasPath = Join-Path $testRoot 'external-portable-manifest-hardlink.json'
+$externalManifestAliasProfilePath = Join-Path $testRoot 'external-portable-profile-hardlink.json'
+$externalTrailingFixtureProfilePath = Join-Path $testRoot 'external-portable-profile-trailing-fixture.json'
+$invalidUtf8ProfilePath = Join-Path $testRoot 'profile-invalid-utf8.json'
+$externalCaseArtifactDirectory = Join-Path $testRoot 'external-case-artifact'
+$externalFailureExportRoot = Join-Path $testRoot 'external-failure-export'
 $volumeRoot = [IO.Path]::GetPathRoot($testRoot)
 
 foreach ($directory in @($vmRoot, $fixtureDirectory)) {
@@ -210,6 +238,142 @@ finally {
 }
 [IO.File]::WriteAllBytes($fixturePath, [byte[]](1..64))
 [IO.File]::WriteAllBytes($legacyArtifactPath, [byte[]](1..80))
+
+$externalExecutableBytes = [Text.Encoding]::UTF8.GetBytes('synthetic executable bytes')
+$externalReadmeBytes = [Text.Encoding]::UTF8.GetBytes('synthetic end-user documentation')
+$externalPayloads = [ordered]@{
+    'ContractSample.exe' = $externalExecutableBytes
+    'README.md' = $externalReadmeBytes
+}
+$externalStream = [IO.File]::Open(
+    $externalPortablePath,
+    [IO.FileMode]::Create,
+    [IO.FileAccess]::ReadWrite,
+    [IO.FileShare]::None
+)
+try {
+    $externalArchive = New-Object IO.Compression.ZipArchive(
+        $externalStream,
+        [IO.Compression.ZipArchiveMode]::Create,
+        $true
+    )
+    try {
+        foreach ($entryName in $externalPayloads.Keys) {
+            $entry = $externalArchive.CreateEntry($entryName)
+            $entryStream = $entry.Open()
+            try {
+                $bytes = [byte[]]$externalPayloads[$entryName]
+                $entryStream.Write($bytes, 0, $bytes.Length)
+            }
+            finally { $entryStream.Dispose() }
+        }
+    }
+    finally { $externalArchive.Dispose() }
+}
+finally { $externalStream.Dispose() }
+$externalZipItem = Get-Item -LiteralPath $externalPortablePath
+$externalZipSha = (Get-FileHash -LiteralPath $externalPortablePath -Algorithm SHA256).Hash.ToLowerInvariant()
+$externalFiles = @($externalPayloads.Keys | ForEach-Object {
+    $bytes = [byte[]]$externalPayloads[$_]
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant()
+    }
+    finally { $sha.Dispose() }
+    [ordered]@{ path=$_; size=[int64]$bytes.Length; sha256=$hash }
+})
+$readmeIdentity = @($externalFiles | Where-Object { $_.path -ceq 'README.md' })[0]
+$documentationIdentity = [ordered]@{
+    sourcePath='README.md'; archivePath='README.md'
+    size=[int64]$readmeIdentity.size; sha256=[string]$readmeIdentity.sha256
+}
+$documentationBuilder = New-Object Text.StringBuilder
+[void]$documentationBuilder.Append('README.md')
+[void]$documentationBuilder.Append([char]0)
+[void]$documentationBuilder.Append([string][int64]$readmeIdentity.size)
+[void]$documentationBuilder.Append([char]0)
+[void]$documentationBuilder.Append([string]$readmeIdentity.sha256)
+[void]$documentationBuilder.Append([char]0)
+[void]$documentationBuilder.Append('README.md')
+[void]$documentationBuilder.Append("`n")
+$documentationSha = [Security.Cryptography.SHA256]::Create()
+try {
+    $documentationDigest = ([BitConverter]::ToString(
+        $documentationSha.ComputeHash(
+            (New-Object Text.UTF8Encoding($false)).GetBytes(
+                $documentationBuilder.ToString()
+            )
+        )
+    )).Replace('-', '').ToLowerInvariant()
+}
+finally { $documentationSha.Dispose() }
+$externalManifest = [ordered]@{
+    schemaVersion=2; packageKind='windows-x64-portable'
+    distributionBoundary='end-user-complete'
+    fileName=$externalZipItem.Name; version='1.2.3'; architecture='x86_64'
+    entrypoint='ContractSample.exe'; distributionMode='fixed-portable'
+    dataRoot='data/'; unsigned=$true
+    newZipSize=[int64]$externalZipItem.Length; newZipSha256=$externalZipSha
+    documentationFiles=@($documentationIdentity)
+    documentationSourceCommit=('4' * 40); documentationSourceTree=('5' * 40)
+    documentationFileCount=1; documentationPayloadSize=[int64]$readmeIdentity.size
+    documentationInventoryDigest=$documentationDigest
+    runtimeSourceCommit=('9' * 40); runtimeSourceTree=('a' * 40)
+    packagingCommit=('b' * 40); packagingTree=('c' * 40)
+    oldRuntimeInventoryDigest=('7' * 64); newRuntimeInventoryDigest=('7' * 64)
+    sbom=[ordered]@{
+        path='SBOM.cdx.json'; size=1; sha256=('6' * 64)
+        derivedFromPath='licenses/SBOM.cdx.json'
+    }
+    webView2=[ordered]@{
+        trackedManifest='WebView2.manifest.json'
+        trackedManifestSha256=('d' * 64)
+        version='138.0.3351.121'
+        architecture='x64'
+        rootDirectory='WebView2'
+        archiveSize=1
+        archiveSha256=('e' * 64)
+        fileCount=1
+        totalSize=1
+    }
+    files=$externalFiles
+}
+Write-Gate7Json $externalManifestPath $externalManifest
+$externalManifestItem = Get-Item -LiteralPath $externalManifestPath
+$externalManifestSha = (Get-FileHash -LiteralPath $externalManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$externalProfile = [ordered]@{
+    schemaVersion=2; id='external-neutral-runtime'
+    workflowKind='portableAutomation'; platform='windows-x64'
+    baselineType='stock-clean'
+    artifact=[ordered]@{
+        packageKind='portableZip'; fileNamePattern=$externalZipItem.Name
+        architecture='x64'; sha256=$externalZipSha
+        sizeBytes=[int64]$externalZipItem.Length
+        requiredDistributionBoundary='end-user-complete'
+        portableManifestSource='externalProfileRelative'
+        portableManifestRelativePath=$externalManifestItem.Name
+        portableManifestSizeBytes=[int64]$externalManifestItem.Length
+        portableManifestSha256=$externalManifestSha
+    }
+    fixtures=@()
+    applications=@([ordered]@{
+        id='app'; packageKind='portableZip'
+        executableRelativePath='ContractSample.exe'
+        dataDirectoryRelativePath='data'; processName='ContractSample'
+    })
+    steps=@(
+        [ordered]@{id='stage';type='stageArtifact';timeoutSeconds=120;required=$true},
+        [ordered]@{id='deploy';type='deployPortable';application='app';timeoutSeconds=120;required=$true},
+        [ordered]@{id='launch';type='launchApplication';application='app';timeoutSeconds=120;required=$true},
+        [ordered]@{id='stop';type='stopApplication';application='app';timeoutSeconds=120;required=$true}
+    )
+    cleanupSteps=@([ordered]@{
+        id='cleanup-stop';type='stopApplication';application='app'
+        timeoutSeconds=30;required=$true
+    })
+    manualAssertions=@()
+}
+Write-Gate7Json $externalProfilePath $externalProfile
 
 $mockState = [ordered]@{
     schemaVersion = 1
@@ -278,6 +442,153 @@ foreach ($runtimeFile in @(
     . (Join-Path (Join-Path (Join-Path $pluginRoot 'mcp') 'lib') $runtimeFile)
 }
 Initialize-HcrRuntime $pluginRoot
+
+$runtimeInstallRoot = Join-Path $testRoot 'runtime-install'
+$runtimeInstallPluginDirectory = Join-Path $runtimeInstallRoot '.codex-plugin'
+$runtimeInstallMcpDirectory = Join-Path $runtimeInstallRoot 'mcp'
+[void](New-Item -ItemType Directory -Path $runtimeInstallPluginDirectory)
+[void](New-Item -ItemType Directory -Path $runtimeInstallMcpDirectory)
+$runtimeInstallPluginPath = Join-Path $runtimeInstallPluginDirectory 'plugin.json'
+$runtimeInstallPayloadPath = Join-Path $runtimeInstallMcpDirectory 'runtime.ps1'
+Write-Gate7Json $runtimeInstallPluginPath ([ordered]@{
+    name = 'hyperv-clean-room'
+    version = '0.3.0+codex.20260729090000'
+})
+[IO.File]::WriteAllText(
+    $runtimeInstallPayloadPath,
+    "runtime-payload`n",
+    (New-Object Text.UTF8Encoding($false))
+)
+$runtimeInstallRows = @(
+    $runtimeInstallPluginPath,
+    $runtimeInstallPayloadPath
+) | ForEach-Object {
+    $item = Get-Item -LiteralPath $_
+    [pscustomobject][ordered]@{
+        path = $item.FullName.Substring(
+            $runtimeInstallRoot.TrimEnd('\', '/').Length + 1
+        ).Replace('\', '/')
+        size = [int64]$item.Length
+        sha256 = (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).
+            Hash.ToLowerInvariant()
+    }
+}
+$runtimeInstallationId = [Guid]::NewGuid().ToString()
+$runtimeOwnershipPath = Join-Path `
+    $runtimeInstallPluginDirectory `
+    'install-ownership.json'
+Write-Gate7Json (
+    $runtimeOwnershipPath
+) ([ordered]@{
+    installationId = $runtimeInstallationId
+    owner = 'hyperv-clean-room-installer/v1'
+    pluginName = 'hyperv-clean-room'
+    schemaVersion = 1
+    targetRoot = $runtimeInstallRoot
+})
+Write-Gate7Json (
+    Join-Path $runtimeInstallPluginDirectory 'install-manifest.json'
+) ([ordered]@{
+    schemaVersion = 1
+    pluginName = 'hyperv-clean-room'
+    installationId = $runtimeInstallationId
+    sourceRoot = $runtimeInstallRoot
+    targetRoot = $runtimeInstallRoot
+    sourceVersion = '0.3.0+codex.20260729090000'
+    sourceCommit = ('e' * 40)
+    cachebuster = '20260729090000'
+    installedAtUtc = [DateTime]::UtcNow.ToString('o')
+    files = @($runtimeInstallRows)
+})
+$originalPluginRoot = $script:HcrPluginRoot
+try {
+    $script:HcrPluginRoot = $runtimeInstallRoot
+    $verifiedRuntimeIdentity = Get-HcrV2RuntimeIdentity
+    $expectedRuntimeRows = @($runtimeInstallRows | ForEach-Object {
+        "$($_.path)`t$($_.size)`t$($_.sha256)"
+    } | Sort-Object)
+    Assert-Gate7Equal ([string]$verifiedRuntimeIdentity.installedInventorySha256) `
+        (Get-HcrSha256Text ($expectedRuntimeRows -join "`n")) `
+        'Runtime identity did not rebind the exact installed bytes.'
+
+    $wrongRuntimeOwnership = Read-HcrJsonFile `
+        $runtimeOwnershipPath `
+        'RUNTIME_PROVENANCE_INVALID'
+    $wrongRuntimeOwnership.owner = 'wrong-owner/v1'
+    Write-Gate7Json $runtimeOwnershipPath $wrongRuntimeOwnership
+    $wrongRuntimeOwnerCode = $null
+    try { [void](Get-HcrV2RuntimeIdentity) }
+    catch {
+        $wrongRuntimeOwnerCode = [string](Get-HcrExceptionData $_.Exception).code
+    }
+    Assert-Gate7Equal $wrongRuntimeOwnerCode 'RUNTIME_PROVENANCE_INVALID' `
+        'Runtime identity accepted a non-installer ownership marker.'
+    $wrongRuntimeOwnership.owner = 'hyperv-clean-room-installer/v1'
+    Write-Gate7Json $runtimeOwnershipPath $wrongRuntimeOwnership
+
+    [IO.File]::WriteAllText(
+        $runtimeInstallPayloadPath,
+        "tampered-runtime-payload`n",
+        (New-Object Text.UTF8Encoding($false))
+    )
+    $tamperedRuntimeCode = $null
+    try { [void](Get-HcrV2RuntimeIdentity) }
+    catch { $tamperedRuntimeCode = [string](Get-HcrExceptionData $_.Exception).code }
+    Assert-Gate7Equal $tamperedRuntimeCode 'RUNTIME_PROVENANCE_INVALID' `
+        'Runtime identity trusted a manifest after installed payload mutation.'
+
+    [IO.File]::WriteAllText(
+        $runtimeInstallPayloadPath,
+        "runtime-payload`n",
+        (New-Object Text.UTF8Encoding($false))
+    )
+    $runtimeUnexpectedPath = Join-Path $runtimeInstallRoot 'unexpected.txt'
+    [IO.File]::WriteAllText(
+        $runtimeUnexpectedPath,
+        "unexpected`n",
+        (New-Object Text.UTF8Encoding($false))
+    )
+    $runtimeClosureCode = $null
+    try { [void](Get-HcrV2RuntimeIdentity) }
+    catch { $runtimeClosureCode = [string](Get-HcrExceptionData $_.Exception).code }
+    Assert-Gate7Equal $runtimeClosureCode 'RUNTIME_PROVENANCE_INVALID' `
+        'Runtime identity accepted a file outside the installed manifest closure.'
+
+    Move-Item -LiteralPath $runtimeUnexpectedPath -Destination (
+        Join-Path $testRoot 'runtime-unexpected-stashed.txt'
+    )
+    Move-Item -LiteralPath $runtimeInstallPayloadPath -Destination (
+        Join-Path $testRoot 'runtime-payload-removed.ps1'
+    )
+    $runtimeMissingCode = $null
+    try { [void](Get-HcrV2RuntimeIdentity) }
+    catch { $runtimeMissingCode = [string](Get-HcrExceptionData $_.Exception).code }
+    Assert-Gate7Equal $runtimeMissingCode 'RUNTIME_PROVENANCE_INVALID' `
+        'Runtime identity trusted a manifest after an installed payload file disappeared.'
+}
+finally {
+    $script:HcrPluginRoot = $originalPluginRoot
+}
+
+$pluginManifest = Get-Content -LiteralPath (Join-Path $pluginRoot '.codex-plugin\plugin.json') `
+    -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+Assert-Gate7 ([string]$pluginManifest.version -match '^0\.3\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') `
+    'The loaded Gate 7 runtime does not expose the frozen 0.3.0 version.'
+$runtimeCatalog = Get-Content -LiteralPath (Join-Path $repoRoot 'contracts\v2\tool-catalog.json') `
+    -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+Assert-Gate7Equal ([string]$runtimeCatalog.currentRuntimeVersion) '0.3.0' `
+    'The tool catalog did not advance with the loaded runtime.'
+foreach ($schemaName in @(
+        'evidence.schema.json', 'operation-envelope.schema.json',
+        'portable-manifest.schema.json', 'test-profile.schema.json',
+        'vm-network-plan.schema.json', 'vm-power-plan.schema.json',
+        'webdriver-manifest.schema.json'
+    )) {
+    $authoritative = [IO.File]::ReadAllBytes((Join-Path $repoRoot (Join-Path 'contracts\v2\schemas' $schemaName)))
+    $installed = [IO.File]::ReadAllBytes((Join-Path $pluginRoot (Join-Path 'schemas\v2' $schemaName)))
+    Assert-Gate7 ([Convert]::ToBase64String($authoritative) -eq [Convert]::ToBase64String($installed)) `
+        "The installed schema-v2 copy drifted from the 0.3.0 authority: $schemaName"
+}
 
 $definitions = @(Get-HcrToolDefinitions)
 $expectedNames = @(
@@ -607,12 +918,98 @@ $profile = [ordered]@{
 }
 Write-Gate7Json $profilePath $profile
 
+$externalUiManifest = Copy-HcrObject ([pscustomobject]$externalManifest)
+$externalUiManifest | Add-Member `
+    -NotePropertyName webView2 `
+    -NotePropertyValue ([pscustomobject][ordered]@{
+    trackedManifest = 'WebView2.manifest.json'
+    trackedManifestSha256 = ('d' * 64)
+    version = [string]$profile.webDriver.browserVersion
+    architecture = 'x64'
+    rootDirectory = 'WebView2'
+    archiveSize = 1
+    archiveSha256 = ('e' * 64)
+    fileCount = 1
+    totalSize = 1
+}) `
+    -Force
+Write-Gate7Json $externalUiManifestPath $externalUiManifest
+$externalUiManifestItem = Get-Item -LiteralPath $externalUiManifestPath
+$externalUiManifestSha = (Get-FileHash `
+    -LiteralPath $externalUiManifestPath `
+    -Algorithm SHA256).Hash.ToLowerInvariant()
+$externalUiProfile = Copy-HcrObject ([pscustomobject]$externalProfile)
+$externalUiProfile.id = 'external-ui-runtime'
+$externalUiProfile.artifact.portableManifestRelativePath =
+    $externalUiManifestItem.Name
+$externalUiProfile.artifact.portableManifestSizeBytes =
+    [int64]$externalUiManifestItem.Length
+$externalUiProfile.artifact.portableManifestSha256 = $externalUiManifestSha
+$externalUiProfile | Add-Member `
+    -NotePropertyName webDriver `
+    -NotePropertyValue (Copy-HcrObject $profile.webDriver) `
+    -Force
+$externalUiProfile.webDriver.driverVersion = '138.0.3351.122'
+$externalUiProfile.steps = @(
+    [pscustomobject][ordered]@{
+        id='stage';type='stageArtifact';timeoutSeconds=120;required=$true
+    },
+    [pscustomobject][ordered]@{
+        id='deploy';type='deployPortable';application='app'
+        timeoutSeconds=120;required=$true
+    },
+    [pscustomobject][ordered]@{
+        id='launch';type='launchApplication';application='app'
+        timeoutSeconds=120;required=$true
+    },
+    [pscustomobject][ordered]@{
+        id='driver';type='acquireWebDriver';timeoutSeconds=120;required=$true
+    },
+    [pscustomobject][ordered]@{
+        id='ui-start';type='startUiSession';application='app'
+        timeoutSeconds=60;required=$true
+    },
+    [pscustomobject][ordered]@{
+        id='ui-click';type='uiClick';testId='open-settings'
+        timeoutSeconds=30;required=$true
+    },
+    [pscustomobject][ordered]@{
+        id='ui-stop';type='stopUiSession';timeoutSeconds=30;required=$true
+    },
+    [pscustomobject][ordered]@{
+        id='stop';type='stopApplication';application='app'
+        timeoutSeconds=30;required=$true
+    }
+)
+Write-Gate7Json $externalUiProfilePath $externalUiProfile
+
 $profileValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
     profilePath = $profilePath
 })
 Assert-Gate7 $profileValidation.ok `
     ('The valid schema-v2 profile failed exact-version validation: ' +
         ((Get-HcrPropertyValue $profileValidation 'error') | ConvertTo-Json -Depth 10 -Compress))
+$profileArrayScalarCases = [ordered]@{
+    fixtures = $profile.fixtures[0]
+    applications = $profile.applications[0]
+    steps = $profile.steps[0]
+    cleanupSteps = $externalProfile.cleanupSteps[0]
+    manualAssertions = $profile.manualAssertions[0]
+}
+foreach ($profileArrayField in $profileArrayScalarCases.Keys) {
+    $scalarArrayProfile = Copy-HcrObject ([pscustomobject]$profile)
+    $scalarArrayProfile.$profileArrayField =
+        Copy-HcrObject $profileArrayScalarCases[$profileArrayField]
+    $scalarArrayValidation = Test-HcrProfileDocumentV2 $scalarArrayProfile
+    $expectedArrayError = '$.' + $profileArrayField + ' must be an array.'
+    Assert-Gate7 (
+        -not $scalarArrayValidation.valid -and
+        @($scalarArrayValidation.errors | Where-Object {
+                [string]$_ -ceq $expectedArrayError
+            }).Count -eq 1
+    ) ("The native schema-v2 validator accepted or misclassified object-valued " +
+        "$profileArrayField.")
+}
 $portableWithoutProcess = Copy-HcrObject ([pscustomobject]$profile)
 $portableWithoutProcess.applications[0].PSObject.Properties.Remove('processName')
 $portableWithoutProcessValidation = Test-HcrProfileDocumentV2 $portableWithoutProcess
@@ -778,6 +1175,485 @@ Assert-Gate7 (-not $hashDriftValidation.valid) `
     'The native evidence-v2 validator accepted artifact hash drift.'
 Assert-Gate7Equal ([string]$hashDriftValidation.derivedMachineStatus) 'failed' `
     'Artifact hash drift did not deterministically fail machine status.'
+
+$externalNativeValidation = Read-AndValidate-HcrProfile $externalProfilePath
+Assert-Gate7 $externalNativeValidation.valid `
+    ('The mock external portable profile failed native validation: ' +
+        ($externalNativeValidation.errors -join '; '))
+Assert-Gate7Equal ([string]$externalNativeValidation.sha256) `
+    (Get-HcrSha256File $externalProfilePath) `
+    'Profile validation did not retain the exact bytes that were parsed.'
+
+$invalidUtf8Prefix = [Text.Encoding]::UTF8.GetBytes(
+    '{"schemaVersion":2,"description":"'
+)
+$invalidUtf8Suffix = [Text.Encoding]::UTF8.GetBytes('"}')
+[IO.File]::WriteAllBytes(
+    $invalidUtf8ProfilePath,
+    [byte[]]@($invalidUtf8Prefix + [byte[]](0xC3,0x28) + $invalidUtf8Suffix)
+)
+$invalidUtf8Rejected = $false
+try {
+    [void](Read-HcrJsonDocument $invalidUtf8ProfilePath 'PROFILE_INVALID' 4MB)
+}
+catch {
+    $invalidUtf8Rejected = $_.Exception.Message -eq
+        'The file is not valid UTF-8 JSON.'
+}
+Assert-Gate7 $invalidUtf8Rejected `
+    'The shared JSON reader accepted or misclassified malformed UTF-8 bytes.'
+
+$trailingFixtureProfile = Copy-HcrObject ([pscustomobject]$externalProfile)
+$trailingFixtureProfile.fixtures = @([pscustomobject][ordered]@{
+    id='manifest-alias'
+    sourceRelativePath=([string]$externalManifestItem.Name + '.')
+    sizeBytes=[int64]$externalManifestItem.Length
+    sha256=$externalManifestSha
+    mediaType='application/json'
+})
+Write-Gate7Json $externalTrailingFixtureProfilePath $trailingFixtureProfile
+$trailingFixtureValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $externalTrailingFixtureProfilePath
+})
+Assert-Gate7Error $trailingFixtureValidation 'PROFILE_INVALID' `
+    'The external profile accepted a Windows-aliased trailing-dot fixture path.'
+
+[void](New-Item -ItemType HardLink `
+    -Path $externalManifestAliasPath `
+    -Target $externalManifestPath)
+$aliasFixtureProfile = Copy-HcrObject ([pscustomobject]$externalProfile)
+$aliasFixtureProfile.fixtures = @([pscustomobject][ordered]@{
+    id='manifest-alias'
+    sourceRelativePath=[IO.Path]::GetFileName($externalManifestAliasPath)
+    sizeBytes=[int64]$externalManifestItem.Length
+    sha256=$externalManifestSha
+    mediaType='application/json'
+})
+Write-Gate7Json $externalManifestAliasProfilePath $aliasFixtureProfile
+$aliasFixtureValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $externalManifestAliasProfilePath
+})
+Assert-Gate7Error $aliasFixtureValidation 'PROFILE_INVALID' `
+    'The external profile accepted a fixture resolving to the sidecar file identity.'
+
+[void](New-Item -ItemType Directory -Path $externalCaseArtifactDirectory)
+$externalCaseArtifactPath = Join-Path `
+    $externalCaseArtifactDirectory `
+    ([string]$externalZipItem.Name).ToUpperInvariant()
+Copy-Item -LiteralPath $externalPortablePath -Destination $externalCaseArtifactPath
+$caseMismatchedRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $externalProfilePath
+    artifactPath = $externalCaseArtifactPath
+})
+Assert-Gate7Error $caseMismatchedRun 'ARTIFACT_PROFILE_MISMATCH' `
+    'The external runtime accepted a case-insensitive ZIP leaf mismatch.'
+
+$validExternalJson = [IO.File]::ReadAllText(
+    $externalManifestPath,
+    (New-Object Text.UTF8Encoding($false, $true))
+)
+$duplicateExternalJson = $validExternalJson.Replace(
+    '"schemaVersion":2,',
+    '"schemaVersion":2,"schemaVersion":2,'
+)
+[IO.File]::WriteAllText(
+    $duplicateManifestPath,
+    $duplicateExternalJson,
+    (New-Object Text.UTF8Encoding($false))
+)
+$duplicateManifestItem = Get-Item -LiteralPath $duplicateManifestPath
+$duplicateManifestSha = (Get-FileHash -LiteralPath $duplicateManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$duplicateProfile = Copy-HcrObject ([pscustomobject]$externalProfile)
+$duplicateProfile.artifact.portableManifestRelativePath = $duplicateManifestItem.Name
+$duplicateProfile.artifact.portableManifestSizeBytes = [int64]$duplicateManifestItem.Length
+$duplicateProfile.artifact.portableManifestSha256 = $duplicateManifestSha
+Write-Gate7Json $duplicateProfilePath $duplicateProfile
+$duplicateValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $duplicateProfilePath
+})
+Assert-Gate7Error $duplicateValidation 'PROFILE_INVALID' `
+    'The external sidecar parser accepted a duplicate JSON property.'
+
+foreach ($scalarCase in @(
+        [pscustomobject]@{
+            name = 'schemaVersion'
+            value = '2'
+        },
+        [pscustomobject]@{
+            name = 'unsigned'
+            value = 'true'
+        }
+    )) {
+    $scalarManifest = Copy-HcrObject ([pscustomobject]$externalManifest)
+    $scalarManifest.($scalarCase.name) = $scalarCase.value
+    $scalarManifestPath = Join-Path `
+        $testRoot `
+        "external-portable-manifest-$($scalarCase.name)-string.json"
+    Write-Gate7Json $scalarManifestPath $scalarManifest
+    $scalarManifestItem = Get-Item -LiteralPath $scalarManifestPath
+    $scalarManifestSha = (Get-FileHash `
+        -LiteralPath $scalarManifestPath `
+        -Algorithm SHA256).Hash.ToLowerInvariant()
+    $scalarProfile = Copy-HcrObject ([pscustomobject]$externalProfile)
+    $scalarProfile.artifact.portableManifestRelativePath =
+        $scalarManifestItem.Name
+    $scalarProfile.artifact.portableManifestSizeBytes =
+        [int64]$scalarManifestItem.Length
+    $scalarProfile.artifact.portableManifestSha256 = $scalarManifestSha
+    $scalarProfilePath = Join-Path `
+        $testRoot `
+        "external-portable-profile-$($scalarCase.name)-string.json"
+    Write-Gate7Json $scalarProfilePath $scalarProfile
+    $scalarValidation = Invoke-Gate7Tool `
+        'validate_test_profile' `
+        ([pscustomobject]@{ profilePath = $scalarProfilePath })
+    Assert-Gate7Error $scalarValidation 'PROFILE_INVALID' `
+        "Native validation accepted string-typed $($scalarCase.name)."
+}
+
+foreach ($shapeCase in @(
+        'files-object',
+        'documentationFiles-object',
+        'webView-files-object',
+        'fileName-number',
+        'entrypoint-number',
+        'file-path-number',
+        'documentation-sourcePath-number',
+        'documentation-archivePath-number'
+    )) {
+    $shapeManifest = Copy-HcrObject ([pscustomobject]$externalManifest)
+    switch ($shapeCase) {
+        'files-object' {
+            $shapeManifest.files = $shapeManifest.files[0]
+        }
+        'documentationFiles-object' {
+            $shapeManifest.documentationFiles = $shapeManifest.documentationFiles[0]
+        }
+        'webView-files-object' {
+            $shapeManifest.webView2 | Add-Member `
+                -NotePropertyName files `
+                -NotePropertyValue $shapeManifest.files[0] `
+                -Force
+        }
+        'fileName-number' {
+            $shapeManifest.fileName = 123
+        }
+        'entrypoint-number' {
+            $shapeManifest.entrypoint = 123
+        }
+        'file-path-number' {
+            $shapeManifest.files[0].path = 123
+        }
+        'documentation-sourcePath-number' {
+            $shapeManifest.documentationFiles[0].sourcePath = 123
+        }
+        'documentation-archivePath-number' {
+            $shapeManifest.documentationFiles[0].archivePath = 123
+        }
+    }
+    $shapeManifestPath = Join-Path `
+        $testRoot `
+        "external-portable-manifest-$shapeCase.json"
+    Write-Gate7Json $shapeManifestPath $shapeManifest
+    $shapeManifestItem = Get-Item -LiteralPath $shapeManifestPath
+    $shapeManifestSha = (Get-FileHash `
+        -LiteralPath $shapeManifestPath `
+        -Algorithm SHA256).Hash.ToLowerInvariant()
+    $shapeProfile = Copy-HcrObject ([pscustomobject]$externalProfile)
+    $shapeProfile.artifact.portableManifestRelativePath =
+        $shapeManifestItem.Name
+    $shapeProfile.artifact.portableManifestSizeBytes =
+        [int64]$shapeManifestItem.Length
+    $shapeProfile.artifact.portableManifestSha256 = $shapeManifestSha
+    $shapeProfilePath = Join-Path `
+        $testRoot `
+        "external-portable-profile-$shapeCase.json"
+    Write-Gate7Json $shapeProfilePath $shapeProfile
+    $shapeValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+        profilePath = $shapeProfilePath
+    })
+    Assert-Gate7Error $shapeValidation 'PROFILE_INVALID' `
+        "Native validation accepted schema-invalid external manifest shape $shapeCase."
+}
+
+$unknownNestedManifest = Copy-HcrObject ([pscustomobject]$externalManifest)
+$unknownNestedManifest.sbom | Add-Member `
+    -NotePropertyName unexpected `
+    -NotePropertyValue $true `
+    -Force
+Write-Gate7Json $unknownNestedManifestPath $unknownNestedManifest
+$unknownNestedManifestItem = Get-Item -LiteralPath $unknownNestedManifestPath
+$unknownNestedManifestSha = (Get-FileHash `
+    -LiteralPath $unknownNestedManifestPath `
+    -Algorithm SHA256).Hash.ToLowerInvariant()
+$unknownNestedProfile = Copy-HcrObject ([pscustomobject]$externalProfile)
+$unknownNestedProfile.artifact.portableManifestRelativePath =
+    $unknownNestedManifestItem.Name
+$unknownNestedProfile.artifact.portableManifestSizeBytes =
+    [int64]$unknownNestedManifestItem.Length
+$unknownNestedProfile.artifact.portableManifestSha256 =
+    $unknownNestedManifestSha
+Write-Gate7Json $unknownNestedProfilePath $unknownNestedProfile
+$unknownNestedValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $unknownNestedProfilePath
+})
+Assert-Gate7Error $unknownNestedValidation 'PROFILE_INVALID' `
+    'Native external sidecar validation accepted an unknown nested provenance field.'
+
+$externalRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $externalProfilePath
+    artifactPath = $externalPortablePath
+})
+Assert-Gate7 $externalRun.ok `
+    ('The external mock portable workflow failed: ' +
+        ((Get-HcrPropertyValue $externalRun 'error') | ConvertTo-Json -Depth 20 -Compress))
+Assert-Gate7Equal ([string]$externalRun.data.machineStatus) 'passed' `
+    'The non-UI external mock run did not derive machineStatus=passed.'
+Assert-Gate7Equal ([string]$externalRun.data.overallStatus) 'passed' `
+    'The assertion-complete external mock run did not derive overallStatus=passed.'
+$externalOperation = Get-HcrOperationRecord ([string]$externalRun.data.testOperationId)
+$externalEvidence = Read-HcrJsonFile ([string]$externalOperation.evidenceFile) 'EVIDENCE_NOT_READY'
+Assert-Gate7Equal ([string]$externalEvidence.evidenceKind) 'externalPortable' `
+    'The external evidence structural discriminator is missing.'
+Assert-Gate7Equal ([string]$externalEvidence.runtime.pluginBaseVersion) '0.3.0' `
+    'External evidence did not bind the 0.3.0 runtime base.'
+Assert-Gate7Equal ([string]$externalEvidence.candidate.packagingCommit) ('b' * 40) `
+    'External evidence fabricated or lost the manifest packaging commit.'
+Assert-Gate7Equal ([string]$externalEvidence.candidate.portableZipSourceSha256) `
+    ([string]$externalEvidence.candidate.portableZipGuestSha256) `
+    'External evidence did not independently rebind source and guest ZIP hashes.'
+Assert-Gate7Equal ([string]$externalEvidence.candidate.portableManifestSourceSha256) `
+    ([string]$externalEvidence.candidate.portableManifestGuestSha256) `
+    'External evidence did not independently rebind source and guest sidecar hashes.'
+Assert-Gate7 ($null -eq $externalEvidence.candidate.webDriverManifestSha256 -and
+        -not [bool]$externalEvidence.automation.uiRequired -and
+        $null -eq $externalEvidence.automation.fixedWebView2Version -and
+        $null -eq $externalEvidence.automation.webDriverVersion) `
+    'The non-UI external branch fabricated a conditional UI identity.'
+$externalEvidenceValidation = Invoke-Gate7Tool 'validate_evidence' ([pscustomobject]@{
+    evidencePath = [string]$externalOperation.evidenceFile
+})
+Assert-Gate7 $externalEvidenceValidation.ok `
+    'Generated external schema-v2 evidence failed native validation.'
+
+$deploymentDriftState = Read-HcrMockAdapterState
+$deploymentDriftState | Add-Member -NotePropertyName portableActiveDeploymentOverride `
+    -NotePropertyValue ([pscustomobject][ordered]@{
+        applicationId = 'contract-sample'
+        deploymentId = [Guid]::NewGuid().ToString()
+        deploymentFingerprint = ('f' * 64)
+        slotId = 'concurrent-replacement-slot'
+    }) -Force
+Write-HcrMockAdapterState $deploymentDriftState
+$deploymentDriftRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $externalProfilePath
+    artifactPath = $externalPortablePath
+})
+Assert-Gate7 $deploymentDriftRun.ok `
+    'Concurrent portable deployment drift did not produce auditable failure evidence.'
+Assert-Gate7Equal ([string]$deploymentDriftRun.data.machineStatus) 'failed' `
+    'Concurrent portable deployment drift did not fail the machine result.'
+$deploymentDriftAssertions = @($deploymentDriftRun.data.automaticAssertions | Where-Object {
+        [string]$_.id -eq 'launch'
+    })
+Assert-Gate7Equal $deploymentDriftAssertions.Count 1 `
+    'Concurrent portable deployment drift did not bind the launch assertion.'
+Assert-Gate7 (
+    [string]$deploymentDriftAssertions[0].status -eq 'failed' -and
+    @($deploymentDriftAssertions[0].observations | Where-Object {
+            [string]$_.name -eq 'errorcode' -and
+            [string]$_.value -eq 'PORTABLE_DEPLOYMENT_DRIFT'
+        }).Count -eq 1
+) 'The launch did not fail closed with PORTABLE_DEPLOYMENT_DRIFT.'
+$deploymentDriftOperation = Get-HcrOperationRecord `
+    ([string]$deploymentDriftRun.data.testOperationId)
+$deploymentDriftEvidence = Read-HcrJsonFile `
+    ([string]$deploymentDriftOperation.evidenceFile) 'EVIDENCE_NOT_READY'
+Assert-Gate7 (Test-HcrEvidenceDocumentV2 `
+        $deploymentDriftEvidence $deploymentDriftOperation).valid `
+    'The native validator rejected concurrent-deployment-drift evidence.'
+$restoredDeploymentDriftState = Read-HcrMockAdapterState
+$restoredDeploymentDriftState.PSObject.Properties.Remove(
+    'portableActiveDeploymentOverride'
+)
+Write-HcrMockAdapterState $restoredDeploymentDriftState
+
+$entrypointDriftState = Read-HcrMockAdapterState
+$entrypointDriftState | Add-Member `
+    -NotePropertyName portableEntrypointDriftOnLaunch `
+    -NotePropertyValue $true `
+    -Force
+Write-HcrMockAdapterState $entrypointDriftState
+$entrypointDriftRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $externalProfilePath
+    artifactPath = $externalPortablePath
+})
+Assert-Gate7 $entrypointDriftRun.ok `
+    'Portable entrypoint drift did not produce auditable failure evidence.'
+Assert-Gate7Equal ([string]$entrypointDriftRun.data.machineStatus) 'failed' `
+    'Portable entrypoint drift did not fail the machine result.'
+$entrypointDriftAssertions = @(
+    $entrypointDriftRun.data.automaticAssertions |
+        Where-Object { [string]$_.id -eq 'launch' }
+)
+Assert-Gate7Equal $entrypointDriftAssertions.Count 1 `
+    'Portable entrypoint drift did not bind the launch assertion.'
+Assert-Gate7 (
+    [string]$entrypointDriftAssertions[0].status -eq 'failed' -and
+    @($entrypointDriftAssertions[0].observations | Where-Object {
+            [string]$_.name -eq 'errorcode' -and
+            [string]$_.value -eq 'PORTABLE_ENTRYPOINT_DRIFT'
+        }).Count -eq 1
+) 'The launch did not fail closed with PORTABLE_ENTRYPOINT_DRIFT.'
+$entrypointDriftOperation = Get-HcrOperationRecord `
+    ([string]$entrypointDriftRun.data.testOperationId)
+$entrypointDriftEvidence = Read-HcrJsonFile `
+    ([string]$entrypointDriftOperation.evidenceFile) `
+    'EVIDENCE_NOT_READY'
+Assert-Gate7 (Test-HcrEvidenceDocumentV2 `
+        $entrypointDriftEvidence $entrypointDriftOperation).valid `
+    'The native validator rejected portable-entrypoint-drift evidence.'
+$restoredEntrypointDriftState = Read-HcrMockAdapterState
+$restoredEntrypointDriftState.PSObject.Properties.Remove(
+    'portableEntrypointDriftOnLaunch'
+)
+Write-HcrMockAdapterState $restoredEntrypointDriftState
+
+$unknownRuntimeEvidence = Copy-HcrObject $externalEvidence
+$unknownRuntimeEvidence.runtime | Add-Member `
+    -NotePropertyName unexpected `
+    -NotePropertyValue $true `
+    -Force
+$unknownRuntimeValidation = Test-HcrEvidenceDocumentV2 `
+    $unknownRuntimeEvidence `
+    $externalOperation
+Assert-Gate7 (-not $unknownRuntimeValidation.valid) `
+    'Native external evidence validation accepted an unknown runtime field.'
+Assert-Gate7 (@($unknownRuntimeValidation.errors | Where-Object {
+            [string]$_ -match '\$\.runtime contains unsupported field'
+        }).Count -eq 1) `
+    'Unknown external runtime provenance did not fail through closed-object validation.'
+
+$externalStageFailureState = Read-HcrMockAdapterState
+$externalStageFailureState | Add-Member -NotePropertyName stageAdapterFailure `
+    -NotePropertyValue $true -Force
+Write-HcrMockAdapterState $externalStageFailureState
+$externalStageFailureRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $externalProfilePath
+    artifactPath = $externalPortablePath
+})
+Assert-Gate7 (-not [bool]$externalStageFailureRun.ok) `
+    'An external staging failure fabricated an evidence-ready result.'
+Assert-Gate7Equal ([string]$externalStageFailureRun.error.code) 'MOCK_STAGE_FAILURE' `
+    'An external staging failure did not preserve the adapter failure code.'
+$externalStageFailureOperation = Get-HcrOperationRecord `
+    ([string]$externalStageFailureRun.operationId)
+Assert-Gate7 (
+    $null -eq $externalStageFailureOperation.evidenceFile -and
+    $null -eq $externalStageFailureOperation.portableZipGuestSha256 -and
+    $null -eq $externalStageFailureOperation.portableManifestGuestSha256 -and
+    $null -eq $externalStageFailureOperation.portableManifestGuestSizeBytes -and
+    [string]$externalStageFailureOperation.preEvidenceFailure.code -eq
+        'MOCK_STAGE_FAILURE'
+) 'External staging failure state did not explicitly retain unavailable guest identities.'
+[void](New-Item -ItemType Directory -Path $externalFailureExportRoot)
+$externalStageFailureExport = Invoke-Gate7Tool 'collect_evidence' ([pscustomobject]@{
+    operationId = [string]$externalStageFailureRun.operationId
+    outputDirectory = $externalFailureExportRoot
+})
+Assert-Gate7 (
+    -not [bool]$externalStageFailureExport.ok -and
+    [string]$externalStageFailureExport.error.code -eq 'EVIDENCE_NOT_READY'
+) 'collect_evidence exported a pre-evidence external staging failure.'
+$restoredExternalStageState = Read-HcrMockAdapterState
+$restoredExternalStageState.stageAdapterFailure = $false
+Write-HcrMockAdapterState $restoredExternalStageState
+
+$externalPostStageFailureState = Read-HcrMockAdapterState
+$externalPostStageFailureState | Add-Member -NotePropertyName stepAdapterFailureId `
+    -NotePropertyValue 'deploy' -Force
+Write-HcrMockAdapterState $externalPostStageFailureState
+$externalPostStageFailureRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $externalProfilePath
+    artifactPath = $externalPortablePath
+})
+Assert-Gate7 $externalPostStageFailureRun.ok `
+    'A post-staging external failure did not produce auditable failure evidence.'
+Assert-Gate7Equal ([string]$externalPostStageFailureRun.data.machineStatus) 'failed' `
+    'A post-staging external failure did not derive machineStatus=failed.'
+$externalPostStageFailureOperation = Get-HcrOperationRecord `
+    ([string]$externalPostStageFailureRun.data.testOperationId)
+$externalPostStageFailureEvidence = Read-HcrJsonFile `
+    ([string]$externalPostStageFailureOperation.evidenceFile) `
+    'EVIDENCE_NOT_READY'
+$externalPostStageFailureValidation = Test-HcrEvidenceDocumentV2 `
+    $externalPostStageFailureEvidence `
+    $externalPostStageFailureOperation
+Assert-Gate7 $externalPostStageFailureValidation.valid `
+    ('Native validation rejected post-staging external failure evidence: ' +
+        ($externalPostStageFailureValidation.errors -join '; '))
+Assert-Gate7 (
+    [string]$externalPostStageFailureEvidence.candidate.portableZipGuestSha256 -eq
+        [string]$externalPostStageFailureEvidence.candidate.portableZipSourceSha256 -and
+    [string]$externalPostStageFailureEvidence.candidate.portableManifestGuestSha256 -eq
+        [string]$externalPostStageFailureEvidence.candidate.portableManifestSourceSha256 -and
+    [int64]$externalPostStageFailureEvidence.candidate.portableManifestGuestSizeBytes -eq
+        [int64]$externalPostStageFailureEvidence.candidate.portableManifestSourceSizeBytes
+) 'Post-staging external failure evidence lost independently observed guest identities.'
+$externalPostStageFailureExport = Invoke-Gate7Tool 'collect_evidence' ([pscustomobject]@{
+    operationId = [string]$externalPostStageFailureRun.data.testOperationId
+    outputDirectory = $externalFailureExportRoot
+})
+Assert-Gate7 $externalPostStageFailureExport.ok `
+    'collect_evidence rejected post-staging external failure evidence.'
+$restoredExternalPostStageState = Read-HcrMockAdapterState
+$restoredExternalPostStageState.stepAdapterFailureId = $null
+Write-HcrMockAdapterState $restoredExternalPostStageState
+
+$externalUiValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $externalUiProfilePath
+})
+Assert-Gate7 $externalUiValidation.ok `
+    'The external UI profile failed native validation.'
+$externalUiRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $externalUiProfilePath
+    artifactPath = $externalPortablePath
+})
+Assert-Gate7 $externalUiRun.ok `
+    ('The external mock UI workflow failed: ' +
+        ((Get-HcrPropertyValue $externalUiRun 'error') |
+            ConvertTo-Json -Depth 20 -Compress))
+$externalUiOperation = Get-HcrOperationRecord `
+    ([string]$externalUiRun.data.testOperationId)
+$externalUiEvidence = Read-HcrJsonFile `
+    ([string]$externalUiOperation.evidenceFile) `
+    'EVIDENCE_NOT_READY'
+Assert-Gate7 ([bool]$externalUiEvidence.automation.uiRequired -and
+        [string]$externalUiEvidence.automation.fixedWebView2Version -eq
+            [string]$externalUiManifest.webView2.version -and
+        [string]$externalUiEvidence.automation.webDriverVersion -eq
+            [string]$externalUiProfile.webDriver.driverVersion -and
+        $null -ne $externalUiEvidence.automation.webDriverManifestSha256) `
+    'The external UI branch did not bind its conditional component and driver identity.'
+$externalUiEvidenceValidation = Invoke-Gate7Tool 'validate_evidence' ([pscustomobject]@{
+    evidencePath = [string]$externalUiOperation.evidenceFile
+})
+Assert-Gate7 $externalUiEvidenceValidation.ok `
+    'Generated external UI evidence failed native validation.'
 
 $cleanupFailureProfile = Copy-HcrObject ([pscustomobject]$profile)
 $cleanupFailureProfile.id = 'portable-cleanup-failure'
@@ -1161,4 +2037,5 @@ Assert-Gate7Equal ([int]$legacyEvidence.schemaVersion) 1 `
     portableDeployments = 0
     webDriverLaunches = 0
     uiOperations = 0
+    testRoot = $testRoot
 } | ConvertTo-Json -Compress

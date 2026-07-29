@@ -16,6 +16,21 @@ fixture 位于 [`contracts/v2`](../contracts/v2/README.md)。Gate 7/H2 已把七
 `UNSUPPORTED_SCHEMA_VERSION`。H2 只通过 mock、parser 与 static 验证，不能当作
 真实 guest、portable、WebDriver 或 UI 验收证据。
 
+G7/P3.2 已把 source runtime 更新为 `0.3.0`，同时保留以下两个互斥分支：
+
+- 原有 embedded manifest 分支继续使用 ZIP 根 `portable-manifest.json`、固定
+  `--portable`、固定 component/driver 与既有 evidence 语义；
+- external 分支使用 `portableManifestSource: externalProfileRelative`，sidecar
+  必须位于 profile directory 内并绑定 path/size/SHA，且
+  `requiredDistributionBoundary` 只能为 `end-user-complete`。
+
+external sidecar 不进入 ZIP、fixture set 或 `data/`。non-UI profile 必须省略
+`webDriver`，对应 evidence 的 driver 字段为 `null`；只要 ordinary/cleanup step
+包含 UI type，就必须同时提供 manifest `webView2` 与固定 `webDriver`，browser
+version 必须相等且 driver/browser 前三段相同。external entrypoint 只从 manifest
+取得，runtime 不向它传 caller argument。P3.2 验证仍为 mock/parser/schema/static；
+不得把本文当作 P3.3 安装说明或真实 guest 操作授权。
+
 ## Schema-v2 portable automation
 
 V2 保留原有 `legacyPackageLifecycle`，并增加

@@ -855,6 +855,7 @@ function Invoke-HcrCollectEvidence {
         $sourceRoot = [string](Get-HcrPropertyValue $operation 'evidenceRoot')
         $evidencePath = [string](Get-HcrPropertyValue $operation 'evidenceFile')
         if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container) -or
+            [string]::IsNullOrWhiteSpace($evidencePath) -or
             -not (Test-Path -LiteralPath $evidencePath -PathType Leaf)) {
             Throw-HcrError 'EVIDENCE_NOT_READY' 'The operation evidence staging root is unavailable.'
         }

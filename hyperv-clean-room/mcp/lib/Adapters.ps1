@@ -544,6 +544,52 @@ function Invoke-HcrMockAdapter {
                 Throw-HcrError 'MOCK_STEP_ADAPTER_FAILURE' 'The configured mock guest step adapter failed.'
             }
             $result = Get-HcrMockConfiguredResult $state 'stepResults' $id "Mock step '$id' passed."
+            if ((Get-HcrPropertyValue $result 'status') -eq 'passed' -and
+                (Get-HcrPropertyValue $step 'type') -eq 'launchApplication' -and
+                [int](Get-HcrPropertyValue $Arguments 'schemaVersion' 1) -eq 2) {
+                $applicationId = [string](Get-HcrPropertyValue $step 'application')
+                $application = @((Get-HcrPropertyValue $Arguments 'applications' @()) |
+                    Where-Object { [string](Get-HcrPropertyValue $_ 'id') -eq $applicationId } |
+                    Select-Object -First 1)
+                if ($application.Count -eq 1 -and
+                    (Get-HcrPropertyValue $application[0] 'packageKind') -eq 'portableZip') {
+                    $deployment = Get-HcrPropertyValue $Arguments 'deployment'
+                    if ($null -eq $deployment -or
+                        [string](Get-HcrPropertyValue $deployment 'applicationId') -cne $applicationId -or
+                        -not (Test-HcrUuid (Get-HcrPropertyValue $deployment 'deploymentId')) -or
+                        (Get-HcrPropertyValue $deployment 'deploymentFingerprint') -isnot [string] -or
+                        [string](Get-HcrPropertyValue $deployment 'deploymentFingerprint') -notmatch '^[0-9a-f]{64}$' -or
+                        (Get-HcrPropertyValue $deployment 'slotId') -isnot [string] -or
+                        [string](Get-HcrPropertyValue $deployment 'slotId') -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' -or
+                        (Get-HcrPropertyValue $deployment 'entrypointRelativePath') -isnot [string] -or
+                        -not (Test-HcrV2WindowsSafeRelativePath (
+                                Get-HcrPropertyValue $deployment 'entrypointRelativePath'
+                            )) -or
+                        -not (Test-HcrInteger (
+                                Get-HcrPropertyValue $deployment 'entrypointSizeBytes'
+                            )) -or
+                        [int64](Get-HcrPropertyValue $deployment 'entrypointSizeBytes') -lt 1 -or
+                        (Get-HcrPropertyValue $deployment 'entrypointSha256') -isnot [string] -or
+                        [string](Get-HcrPropertyValue $deployment 'entrypointSha256') -notmatch
+                            '^[0-9a-f]{64}$') {
+                        Throw-HcrError 'PORTABLE_DEPLOYMENT_BINDING_INVALID' 'The portable launch lacks a valid operation-owned deployment binding.'
+                    }
+                    $activeDeployment = Get-HcrPropertyValue $state 'portableActiveDeploymentOverride' $deployment
+                    if ([string](Get-HcrPropertyValue $activeDeployment 'applicationId') -cne
+                            [string](Get-HcrPropertyValue $deployment 'applicationId') -or
+                        [string](Get-HcrPropertyValue $activeDeployment 'deploymentId') -cne
+                            [string](Get-HcrPropertyValue $deployment 'deploymentId') -or
+                        [string](Get-HcrPropertyValue $activeDeployment 'deploymentFingerprint') -cne
+                            [string](Get-HcrPropertyValue $deployment 'deploymentFingerprint') -or
+                        [string](Get-HcrPropertyValue $activeDeployment 'slotId') -cne
+                            [string](Get-HcrPropertyValue $deployment 'slotId')) {
+                        Throw-HcrError 'PORTABLE_DEPLOYMENT_DRIFT' 'The active portable deployment no longer matches this operation.'
+                    }
+                    if ([bool](Get-HcrPropertyValue $state 'portableEntrypointDriftOnLaunch' $false)) {
+                        Throw-HcrError 'PORTABLE_ENTRYPOINT_DRIFT' 'The portable entrypoint bytes changed after deployment.'
+                    }
+                }
+            }
             if ((Get-HcrPropertyValue $step 'type') -eq 'launchApplication' -and
                 -not (Test-HcrProperty $result 'process')) {
                 $result | Add-Member -NotePropertyName process -NotePropertyValue ([pscustomobject][ordered]@{
@@ -556,14 +602,57 @@ function Invoke-HcrMockAdapter {
                 })
             }
             if ((Get-HcrPropertyValue $step 'type') -eq 'deployPortable') {
+                $portableManifest = Get-HcrPropertyValue $Arguments 'portableManifest'
+                $externalPortable = [bool](Get-HcrPropertyValue $Arguments 'externalPortable' $false)
+                $manifestDocument = Get-HcrPropertyValue $portableManifest 'document'
+                $inventory = Get-HcrPropertyValue $portableManifest 'inventory'
+                $entrypoint = if ($externalPortable) {
+                    [string](Get-HcrPropertyValue $manifestDocument 'entrypoint')
+                } else {
+                    [string](Get-HcrPropertyValue @((Get-HcrPropertyValue $Arguments 'applications'))[0] 'executableRelativePath')
+                }
+                $entrypointIdentity = @((Get-HcrPropertyValue $manifestDocument 'files' @()) |
+                    Where-Object {
+                        [StringComparer]::OrdinalIgnoreCase.Equals(
+                            ([string](Get-HcrPropertyValue $_ 'path')).Replace('\', '/'),
+                            $entrypoint.Replace('\', '/')
+                        )
+                    } |
+                    Select-Object -First 1)
+                $entrypointSize = if ($entrypointIdentity.Count -eq 1) {
+                    Get-HcrPropertyValue $entrypointIdentity[0] $(if ($externalPortable) { 'size' } else { 'sizeBytes' })
+                } else { 1 }
+                $entrypointSha = if ($entrypointIdentity.Count -eq 1) {
+                    [string](Get-HcrPropertyValue $entrypointIdentity[0] 'sha256')
+                } else {
+                    [string](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'artifact') 'guestSha256')
+                }
                 $result | Add-Member -NotePropertyName evidence -NotePropertyValue ([pscustomobject][ordered]@{
                     deploymentId = [Guid]::NewGuid().ToString()
                     deploymentFingerprint = Get-HcrSha256Text "$([string](Get-HcrPropertyValue $Arguments 'operationId'))|mock-portable-deployment"
+                    deploymentSlotId = 'operation-' + ([string](Get-HcrPropertyValue $Arguments 'operationId')).Substring(0, 8)
+                    entrypoint = $entrypoint
+                    entrypointSizeBytes = [int64]$entrypointSize
+                    entrypointSha256 = $entrypointSha
                     dataPreserved = $true
                     previousDataInventorySha256 = Get-HcrSha256Text 'mock-portable-data-inventory'
                     deployedDataInventorySha256 = Get-HcrSha256Text 'mock-portable-data-inventory'
                     portableManifestSha256 = [string](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'portableArtifact') 'portableManifestSha256')
-                    fixedWebView2Version = [string](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'webDriver') 'browserVersion')
+                    portableManifestGuestSizeBytes = if ($externalPortable) {
+                        [int64](Get-HcrPropertyValue $portableManifest 'guestSizeBytes')
+                    } else { 0 }
+                    portableInventorySha256 = if ($externalPortable) {
+                        [string](Get-HcrPropertyValue $inventory 'sha256')
+                    } else { [string](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'artifact') 'guestSha256') }
+                    portableInventoryFileCount = if ($externalPortable) {
+                        [int](Get-HcrPropertyValue $inventory 'fileCount')
+                    } else { 1 }
+                    portableInventorySizeBytes = if ($externalPortable) {
+                        [int64](Get-HcrPropertyValue $inventory 'payloadSizeBytes')
+                    } else { 1 }
+                    fixedWebView2Version = if ([bool](Get-HcrPropertyValue $Arguments 'uiRequired' $true)) {
+                        [string](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'webDriver') 'browserVersion')
+                    } else { $null }
                 }) -Force
             }
             if ((Get-HcrPropertyValue $step 'type') -eq 'acquireWebDriver') {
@@ -1158,6 +1247,44 @@ function Assert-HcrRealGuestStepContract {
             Throw-HcrError 'GUEST_PACKAGE_KIND_FORBIDDEN' 'The schema-v2 package kind is unsupported.'
         }
     }
+    if ($schemaVersion -eq 2 -and $type -eq 'launchApplication') {
+        $applicationId = [string](Get-HcrPropertyValue $step 'application')
+        $application = @((Get-HcrPropertyValue $Arguments 'applications' @()) |
+            Where-Object { [string](Get-HcrPropertyValue $_ 'id') -eq $applicationId } |
+            Select-Object -First 1)
+        if ($application.Count -eq 1 -and
+            (Get-HcrPropertyValue $application[0] 'packageKind') -eq 'portableZip') {
+            $deployment = Get-HcrPropertyValue $Arguments 'deployment'
+            $deploymentFields = @(
+                'applicationId', 'deploymentId', 'deploymentFingerprint',
+                'slotId', 'entrypointRelativePath', 'entrypointSizeBytes',
+                'entrypointSha256'
+            )
+            if ($null -eq $deployment -or
+                @((Get-HcrPropertyNames $deployment) | Where-Object {
+                        $deploymentFields -notcontains $_
+                    }).Count -ne 0 -or
+                @((Get-HcrPropertyNames $deployment)).Count -ne $deploymentFields.Count -or
+                [string](Get-HcrPropertyValue $deployment 'applicationId') -cne $applicationId -or
+                -not (Test-HcrUuid (Get-HcrPropertyValue $deployment 'deploymentId')) -or
+                (Get-HcrPropertyValue $deployment 'deploymentFingerprint') -isnot [string] -or
+                [string](Get-HcrPropertyValue $deployment 'deploymentFingerprint') -notmatch '^[0-9a-f]{64}$' -or
+                (Get-HcrPropertyValue $deployment 'slotId') -isnot [string] -or
+                [string](Get-HcrPropertyValue $deployment 'slotId') -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' -or
+                (Get-HcrPropertyValue $deployment 'entrypointRelativePath') -isnot [string] -or
+                -not (Test-HcrV2WindowsSafeRelativePath (
+                        Get-HcrPropertyValue $deployment 'entrypointRelativePath'
+                    )) -or
+                -not (Test-HcrInteger (
+                        Get-HcrPropertyValue $deployment 'entrypointSizeBytes'
+                    )) -or
+                [int64](Get-HcrPropertyValue $deployment 'entrypointSizeBytes') -lt 1 -or
+                (Get-HcrPropertyValue $deployment 'entrypointSha256') -isnot [string] -or
+                [string](Get-HcrPropertyValue $deployment 'entrypointSha256') -notmatch '^[0-9a-f]{64}$') {
+                Throw-HcrError 'PORTABLE_DEPLOYMENT_BINDING_INVALID' 'The portable launch lacks a valid operation-owned deployment binding.'
+            }
+        }
+    }
 }
 
 function New-HcrRealGuestContext {
@@ -1263,6 +1390,12 @@ function New-HcrRealGuestContext {
         vmName = $vmName
         profileName = $profileName
         metadata = $metadata
+        orchestrationIdentity = [pscustomobject][ordered]@{
+            userSid = [string](Get-HcrPropertyValue $administratorProbe 'sid')
+            isAdministrator = $true
+            isElevated = $true
+            tokenIntegrity = [string](Get-HcrPropertyValue $administratorProbe 'tokenIntegrity')
+        }
         administrator = $bundle.administrator
         testUser = $bundle.testUser
         session = $session
@@ -2334,7 +2467,12 @@ function Invoke-HcrRealInspectGuest {
             operationId = $context.operationId
             expectedTestUserSid = [string](Get-HcrPropertyValue $context.metadata 'testUserSid')
         }
-        return Invoke-HcrFixedGuestWorker $context 'InspectGuest' $input 60
+        $guest = Invoke-HcrFixedGuestWorker $context 'InspectGuest' $input 60
+        $guest | Add-Member `
+            -NotePropertyName orchestration `
+            -NotePropertyValue (Copy-HcrObject $context.orchestrationIdentity) `
+            -Force
+        return $guest
     }
     finally {
         Close-HcrRealGuestContext $context
@@ -2476,7 +2614,11 @@ function Invoke-HcrRealGuestStep {
             $input.fixtures = @(@((Get-HcrPropertyValue $Arguments 'fixtures' @())) |
                 ForEach-Object { Copy-HcrObject $_ })
             $input.webDriver = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'webDriver')
+            $input.deployment = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'deployment')
             $input.portableArtifact = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'portableArtifact')
+            $input.portableManifest = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'portableManifest')
+            $input.externalPortable = [bool](Get-HcrPropertyValue $Arguments 'externalPortable' $false)
+            $input.uiRequired = [bool](Get-HcrPropertyValue $Arguments 'uiRequired' $true)
             $input.sourceCommit = [string](Get-HcrPropertyValue $Arguments 'sourceCommit')
         }
         $mode = if ($Cleanup) { 'RunCleanupStep' } else { 'RunTestStep' }

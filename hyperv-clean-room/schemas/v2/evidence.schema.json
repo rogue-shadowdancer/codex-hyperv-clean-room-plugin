@@ -38,20 +38,18 @@
       "properties": {
         "id": { "$ref": "#/$defs/id" },
         "schemaVersion": { "const": 2 },
-        "sha256": { "$ref": "#/$defs/sha256" }
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "fixtureIds": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        }
       }
     },
+    "evidenceKind": { "const": "externalPortable" },
     "candidate": { "$ref": "#/$defs/candidateIdentity" },
-    "runtime": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["pluginVersion", "sourceCommit", "adapterMode"],
-      "properties": {
-        "pluginVersion": { "const": "0.2.0" },
-        "sourceCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
-        "adapterMode": { "enum": ["mock", "production"] }
-      }
-    },
+    "runtime": { "$ref": "#/$defs/runtimeIdentity" },
     "baselineType": {
       "enum": ["stock-clean", "webview2-absent-derived"]
     },
@@ -77,76 +75,19 @@
         "fingerprint": { "$ref": "#/$defs/sha256" }
       }
     },
-    "guest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "windowsBuild",
-        "architecture",
-        "userSid",
-        "userName",
-        "isAdministrator",
-        "isElevated",
-        "tokenIntegrity",
-        "profilePathContainsNonAscii"
-      ],
-      "properties": {
-        "windowsBuild": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "architecture": { "const": "x64" },
-        "userSid": { "type": "string", "pattern": "^S-1-[0-9-]+$" },
-        "userName": { "type": "string", "minLength": 1, "maxLength": 512 },
-        "isAdministrator": { "type": "boolean" },
-        "isElevated": { "type": "boolean" },
-        "tokenIntegrity": { "enum": ["low", "medium", "mediumPlus", "high", "system"] },
-        "profilePathContainsNonAscii": { "type": "boolean" }
-      }
-    },
+    "guest": { "$ref": "#/$defs/guestIdentity" },
     "artifacts": {
       "type": "array",
       "minItems": 1,
       "maxItems": 256,
       "items": { "$ref": "#/$defs/artifactIdentity" }
     },
-    "automation": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "deploymentId",
-        "deploymentFingerprint",
-        "dataPreserved",
-        "previousDataInventorySha256",
-        "deployedDataInventorySha256",
-        "webDriverManifestSha256",
-        "fixedWebView2Version",
-        "webDriverVersion",
-        "loopbackOnly",
-        "uiTrace"
-      ],
-      "properties": {
-        "deploymentId": { "type": "string", "format": "uuid" },
-        "deploymentFingerprint": { "$ref": "#/$defs/sha256" },
-        "dataPreserved": { "type": "boolean" },
-        "previousDataInventorySha256": {
-          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
-        },
-        "deployedDataInventorySha256": { "$ref": "#/$defs/sha256" },
-        "webDriverManifestSha256": { "$ref": "#/$defs/sha256" },
-        "fixedWebView2Version": {
-          "type": "string",
-          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
-        },
-        "webDriverVersion": {
-          "type": "string",
-          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
-        },
-        "loopbackOnly": { "type": "boolean" },
-        "uiTrace": {
-          "type": "array",
-          "maxItems": 512,
-          "items": { "$ref": "#/$defs/uiTraceResult" }
-        }
-      }
+    "fixtureIdentities": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/externalFixtureIdentity" }
     },
+    "automation": { "$ref": "#/$defs/automationIdentity" },
     "powerOperations": {
       "type": "array",
       "maxItems": 32,
@@ -214,6 +155,14 @@
               ]
             }
           },
+          "fixtureIdentities": {
+            "items": {
+              "allOf": [
+                { "$ref": "#/$defs/externalFixtureIdentity" },
+                { "properties": { "status": { "const": "passed" } } }
+              ]
+            }
+          },
           "powerOperations": {
             "items": {
               "allOf": [
@@ -250,10 +199,38 @@
               "required": ["required"]
             },
             "then": { "properties": { "status": { "const": "passed" } } }
-            }
           }
         }
       }
+    },
+    {
+      "oneOf": [
+        {
+          "allOf": [
+            { "not": { "required": ["evidenceKind"] } },
+            { "not": { "required": ["fixtureIdentities"] } }
+          ],
+          "properties": {
+            "profile": { "not": { "required": ["fixtureIds"] } },
+            "candidate": { "$ref": "#/$defs/embeddedCandidateIdentity" },
+            "runtime": { "$ref": "#/$defs/embeddedRuntimeIdentity" },
+            "guest": { "$ref": "#/$defs/embeddedGuestIdentity" },
+            "automation": { "$ref": "#/$defs/embeddedAutomationIdentity" }
+          }
+        },
+        {
+          "required": ["evidenceKind", "fixtureIdentities"],
+          "properties": {
+            "evidenceKind": { "const": "externalPortable" },
+            "profile": { "required": ["fixtureIds"] },
+            "candidate": { "$ref": "#/$defs/externalCandidateIdentity" },
+            "runtime": { "$ref": "#/$defs/externalRuntimeIdentity" },
+            "guest": { "$ref": "#/$defs/externalGuestIdentity" },
+            "automation": { "$ref": "#/$defs/externalAutomationIdentity" }
+          }
+        }
+      ]
+    }
   ],
   "$defs": {
     "id": {
@@ -261,12 +238,31 @@
       "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
     },
     "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitObject": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "safeRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?![A-Za-z]:)(?![\\\\/])(?!.*:)(?!.*%)(?!.*[\\u0000-\\u001F\\u007F])(?!(?:.*[\\\\/])?(?:[cC][oO][nN]|[pP][rR][nN]|[aA][uU][xX]|[nN][uU][lL]|[cC][oO][mM](?:[1-9]|[¹²³])|[lL][pP][tT](?:[1-9]|[¹²³])|[cC][oO][nN](?:[iI][nN]|[oO][uU][tT])\\$)(?:\\.[^\\\\/]*)?(?:[\\\\/]|$))(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$))(?!.*[. ](?:[\\\\/]|$)).+$"
+    },
+    "safeZipLeaf": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 260,
+      "pattern": "^(?!(?:[cC][oO][nN]|[pP][rR][nN]|[aA][uU][xX]|[nN][uU][lL]|[cC][oO][mM](?:[1-9]|[¹²³])|[lL][pP][tT](?:[1-9]|[¹²³])|[cC][oO][nN](?:[iI][nN]|[oO][uU][tT])\\$)(?:\\.|$))(?!.*[\\u0000-\\u001F\\u007F<>:\"|?*%])[^\\\\/]+\\.[zZ][iI][pP]$"
+    },
     "status": {
       "enum": ["passed", "failed", "notPerformed", "unsupported"]
     },
     "machineStatus": { "enum": ["passed", "failed"] },
     "overallStatus": { "enum": ["passed", "failed", "incomplete"] },
     "candidateIdentity": {
+      "oneOf": [
+        { "$ref": "#/$defs/embeddedCandidateIdentity" },
+        { "$ref": "#/$defs/externalCandidateIdentity" }
+      ]
+    },
+    "embeddedCandidateIdentity": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -283,6 +279,377 @@
         "fixtureSetSha256": { "$ref": "#/$defs/sha256" },
         "webDriverManifestSha256": { "$ref": "#/$defs/sha256" }
       }
+    },
+    "externalCandidateIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceCommit",
+        "runtimeSourceCommit",
+        "runtimeSourceTree",
+        "packagingCommit",
+        "packagingTree",
+        "portableZipFileName",
+        "portableZipSizeBytes",
+        "portableZipSha256",
+        "portableZipSourceSha256",
+        "portableZipGuestSha256",
+        "profileSha256",
+        "requiredDistributionBoundary",
+        "portableManifestDistributionBoundary",
+        "portableManifestSource",
+        "portableManifestRelativePath",
+        "portableManifestSizeBytes",
+        "portableManifestSourceSizeBytes",
+        "portableManifestGuestSizeBytes",
+        "portableManifestSha256",
+        "portableManifestSourceSha256",
+        "portableManifestGuestSha256",
+        "portableInventoryFileCount",
+        "portableInventorySizeBytes",
+        "portableInventorySha256",
+        "documentationSourceCommit",
+        "documentationSourceTree",
+        "documentationFileCount",
+        "documentationPayloadSize",
+        "documentationInventoryDigest",
+        "oldRuntimeInventoryDigest",
+        "newRuntimeInventoryDigest",
+        "fixtureSetSha256",
+        "webDriverManifestSha256"
+      ],
+      "properties": {
+        "sourceCommit": { "$ref": "#/$defs/gitObject" },
+        "runtimeSourceCommit": { "$ref": "#/$defs/gitObject" },
+        "runtimeSourceTree": { "$ref": "#/$defs/gitObject" },
+        "packagingCommit": { "$ref": "#/$defs/gitObject" },
+        "packagingTree": { "$ref": "#/$defs/gitObject" },
+        "portableZipFileName": { "$ref": "#/$defs/safeZipLeaf" },
+        "portableZipSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8589934592
+        },
+        "portableZipSha256": { "$ref": "#/$defs/sha256" },
+        "portableZipSourceSha256": { "$ref": "#/$defs/sha256" },
+        "portableZipGuestSha256": { "$ref": "#/$defs/sha256" },
+        "profileSha256": { "$ref": "#/$defs/sha256" },
+        "requiredDistributionBoundary": { "const": "end-user-complete" },
+        "portableManifestDistributionBoundary": {
+          "const": "end-user-complete"
+        },
+        "portableManifestSource": { "const": "externalProfileRelative" },
+        "portableManifestRelativePath": { "$ref": "#/$defs/safeRelativePath" },
+        "portableManifestSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
+        "portableManifestSourceSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
+        "portableManifestGuestSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
+        "portableManifestSha256": { "$ref": "#/$defs/sha256" },
+        "portableManifestSourceSha256": { "$ref": "#/$defs/sha256" },
+        "portableManifestGuestSha256": { "$ref": "#/$defs/sha256" },
+        "portableInventoryFileCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "portableInventorySizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8589934592
+        },
+        "portableInventorySha256": { "$ref": "#/$defs/sha256" },
+        "documentationSourceCommit": { "$ref": "#/$defs/gitObject" },
+        "documentationSourceTree": { "$ref": "#/$defs/gitObject" },
+        "documentationFileCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "documentationPayloadSize": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8589934592
+        },
+        "documentationInventoryDigest": { "$ref": "#/$defs/sha256" },
+        "oldRuntimeInventoryDigest": { "$ref": "#/$defs/sha256" },
+        "newRuntimeInventoryDigest": { "$ref": "#/$defs/sha256" },
+        "fixtureSetSha256": { "$ref": "#/$defs/sha256" },
+        "webDriverManifestSha256": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        }
+      }
+    },
+    "runtimeIdentity": {
+      "oneOf": [
+        { "$ref": "#/$defs/embeddedRuntimeIdentity" },
+        { "$ref": "#/$defs/externalRuntimeIdentity" }
+      ]
+    },
+    "embeddedRuntimeIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pluginVersion", "sourceCommit", "adapterMode"],
+      "properties": {
+        "pluginVersion": { "const": "0.2.0" },
+        "sourceCommit": { "$ref": "#/$defs/gitObject" },
+        "adapterMode": { "enum": ["mock", "production"] }
+      }
+    },
+    "externalRuntimeIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pluginBaseVersion",
+        "pluginBuildVersion",
+        "sourceCommit",
+        "installedInventorySha256",
+        "adapterMode"
+      ],
+      "properties": {
+        "pluginBaseVersion": { "const": "0.3.0" },
+        "pluginBuildVersion": {
+          "type": "string",
+          "pattern": "^0\\.3\\.0\\+codex\\.[0-9]{14}$"
+        },
+        "sourceCommit": { "$ref": "#/$defs/gitObject" },
+        "installedInventorySha256": { "$ref": "#/$defs/sha256" },
+        "adapterMode": { "enum": ["mock", "production"] }
+      }
+    },
+    "guestIdentity": {
+      "oneOf": [
+        { "$ref": "#/$defs/embeddedGuestIdentity" },
+        { "$ref": "#/$defs/externalGuestIdentity" }
+      ]
+    },
+    "standardGuestIdentity": {
+      "type": "object",
+      "required": [
+        "windowsBuild",
+        "architecture",
+        "userSid",
+        "userName",
+        "isAdministrator",
+        "isElevated",
+        "tokenIntegrity",
+        "profilePathContainsNonAscii"
+      ],
+      "properties": {
+        "windowsBuild": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "architecture": { "const": "x64" },
+        "userSid": { "type": "string", "pattern": "^S-1-[0-9-]+$" },
+        "userName": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "isAdministrator": { "type": "boolean" },
+        "isElevated": { "type": "boolean" },
+        "tokenIntegrity": {
+          "enum": ["low", "medium", "mediumPlus", "high", "system"]
+        },
+        "profilePathContainsNonAscii": { "type": "boolean" }
+      }
+    },
+    "embeddedGuestIdentity": {
+      "allOf": [{ "$ref": "#/$defs/standardGuestIdentity" }],
+      "unevaluatedProperties": false
+    },
+    "externalGuestIdentity": {
+      "allOf": [
+        { "$ref": "#/$defs/standardGuestIdentity" },
+        {
+          "required": ["orchestration"],
+          "properties": {
+            "orchestration": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "userSid",
+                "isAdministrator",
+                "isElevated",
+                "tokenIntegrity"
+              ],
+              "properties": {
+                "userSid": { "type": "string", "pattern": "^S-1-[0-9-]+$" },
+                "isAdministrator": { "const": true },
+                "isElevated": { "const": true },
+                "tokenIntegrity": { "enum": ["high", "system"] }
+              }
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "externalFixtureIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sourceRelativePath",
+        "profileSizeBytes",
+        "sourceSizeBytes",
+        "guestSizeBytes",
+        "profileSha256",
+        "sourceSha256",
+        "guestSha256",
+        "status"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "sourceRelativePath": { "$ref": "#/$defs/safeRelativePath" },
+        "profileSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1073741824
+        },
+        "sourceSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1073741824
+        },
+        "guestSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1073741824
+        },
+        "profileSha256": { "$ref": "#/$defs/sha256" },
+        "sourceSha256": { "$ref": "#/$defs/sha256" },
+        "guestSha256": { "$ref": "#/$defs/sha256" },
+        "status": { "$ref": "#/$defs/status" }
+      }
+    },
+    "automationIdentity": {
+      "oneOf": [
+        { "$ref": "#/$defs/embeddedAutomationIdentity" },
+        { "$ref": "#/$defs/externalAutomationIdentity" }
+      ]
+    },
+    "automationCommon": {
+      "type": "object",
+      "required": [
+        "deploymentId",
+        "deploymentFingerprint",
+        "dataPreserved",
+        "previousDataInventorySha256",
+        "deployedDataInventorySha256",
+        "webDriverManifestSha256",
+        "fixedWebView2Version",
+        "webDriverVersion",
+        "loopbackOnly",
+        "uiTrace"
+      ],
+      "properties": {
+        "deploymentId": { "type": "string", "format": "uuid" },
+        "deploymentFingerprint": { "$ref": "#/$defs/sha256" },
+        "dataPreserved": { "type": "boolean" },
+        "previousDataInventorySha256": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "deployedDataInventorySha256": { "$ref": "#/$defs/sha256" },
+        "webDriverManifestSha256": {
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "fixedWebView2Version": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            { "type": "null" }
+          ]
+        },
+        "webDriverVersion": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            { "type": "null" }
+          ]
+        },
+        "loopbackOnly": { "type": "boolean" },
+        "uiTrace": {
+          "type": "array",
+          "maxItems": 512,
+          "items": { "$ref": "#/$defs/uiTraceResult" }
+        }
+      }
+    },
+    "embeddedAutomationIdentity": {
+      "allOf": [
+        { "$ref": "#/$defs/automationCommon" },
+        {
+          "properties": {
+            "webDriverManifestSha256": { "$ref": "#/$defs/sha256" },
+            "fixedWebView2Version": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "webDriverVersion": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "externalAutomationIdentity": {
+      "allOf": [
+        { "$ref": "#/$defs/automationCommon" },
+        {
+          "required": ["deploymentSlotId", "entrypoint", "uiRequired"],
+          "properties": {
+            "deploymentSlotId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[a-zA-Z0-9._-]+$"
+            },
+            "entrypoint": { "$ref": "#/$defs/safeRelativePath" },
+            "uiRequired": { "type": "boolean" }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "uiRequired": { "const": true } },
+                "required": ["uiRequired"]
+              },
+              "then": {
+                "properties": {
+                  "webDriverManifestSha256": { "$ref": "#/$defs/sha256" },
+                  "fixedWebView2Version": {
+                    "type": "string",
+                    "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
+                  },
+                  "webDriverVersion": {
+                    "type": "string",
+                    "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "webDriverManifestSha256": { "type": "null" },
+                  "fixedWebView2Version": { "type": "null" },
+                  "webDriverVersion": { "type": "null" },
+                  "uiTrace": { "maxItems": 0 }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
     },
     "observation": {
       "type": "object",

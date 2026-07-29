@@ -168,15 +168,29 @@ function Read-HcrJsonDocument {
         Throw-HcrError $ErrorCode 'The JSON document exceeds the size limit.'
     }
     try {
-        $document = Get-Content -LiteralPath $item.FullName -Raw -Encoding UTF8 |
-            ConvertFrom-Json -ErrorAction Stop
+        $bytes = [IO.File]::ReadAllBytes($item.FullName)
+        if ([int64]$bytes.LongLength -gt $MaximumBytes) {
+            Throw-HcrError $ErrorCode 'The JSON document exceeds the size limit.'
+        }
+        $offset = if ($bytes.Length -ge 3 -and
+            $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and
+            $bytes[2] -eq 0xBF) { 3 } else { 0 }
+        $json = (New-Object Text.UTF8Encoding($false, $true)).GetString(
+            $bytes,
+            $offset,
+            $bytes.Length - $offset
+        )
+        $document = $json | ConvertFrom-Json -ErrorAction Stop
     }
     catch {
+        if ($_.Exception.Data.Contains('HcrCode')) { throw }
         Throw-HcrError $ErrorCode 'The file is not valid UTF-8 JSON.'
     }
     return [pscustomobject][ordered]@{
         path = $item.FullName
         document = $document
+        sha256 = Get-HcrSha256Bytes $bytes
+        sizeBytes = [int64]$bytes.LongLength
     }
 }
 

@@ -1,10 +1,11 @@
 # Hyper-V Clean Room 0.3 target contract
 
 This directory is the authoritative G7/P3.1 machine-readable target for plugin
-base version `0.3.0` and public schema version 2. The executable and installable
-runtime remains `0.2.0` until the separate P3.2 implementation gate closes.
-P3.1 changes no MCP tool name or input, performs no package/release/install
-operation, and invokes no Hyper-V or guest operation.
+base version `0.3.0` and public schema version 2. G7/P3.2 implements that target
+in the source runtime without changing any MCP tool name or input. P3.2
+performs no package/release/install operation and invokes no real Hyper-V or
+guest operation; the immutable Release and personal installation remain
+`0.2.0` until P3.3.
 
 `consumer-contract.json` binds this target to immutable Birdsgone protected
 `main` `5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c`, tree
@@ -45,10 +46,10 @@ differ. The old embedded branch keeps exact `--portable`, fixed WebView2/Maa,
 and exact driver behavior.
 
 `compatibility.json` pins the five byte-identical schema-v1 files and records
-the seven installed/runtime schema-v2 hashes. While target `0.3.0` is ahead of
-runtime `0.2.0`, installed copies must match those recorded runtime hashes.
-Once P3.2 makes target and runtime equal, every installed schema-v2 copy must be
-byte-identical to this authoritative directory.
+the seven installed/runtime schema-v2 hashes. P3.2 makes source target and
+runtime both `0.3.0`; every source-tree installed schema-v2 copy is therefore
+byte-identical to this authoritative directory. This is not a personal-install
+or Release source-match claim; that readback belongs to P3.3.
 
 `tool-catalog.json` continues to expose exactly 20 typed tools: the original 16
 schema-v1 tools are unchanged and the four power/network tools keep their
@@ -63,3 +64,25 @@ historical-only legacy external manifest; external evidence; schema-negative
 branch fixtures; and the complete parser/archive/documentation/prerequisite/
 cross-document negative-case inventory. They contain no private asset, machine
 path, OCR data, credential, token, or runtime evidence.
+
+The P3.2 native reader keeps the external manifest outside both the ZIP and
+fixture set, parses strict UTF-8 without BOM/NUL/duplicate properties, closes
+nested provenance, applies exact ordinal and ordinal-ignore-case path rules,
+and derives inventory/documentation identities from validated bytes. The mock
+worker independently rebinds ZIP, sidecar, fixtures, deployment inventory,
+standard-user identity, elevated orchestration identity, and conditional UI
+facts before schema-v2 evidence validation. The embedded branch retains its
+fixed `--portable`, component, and evidence semantics. After deployment, every
+portable launch also rebinds the operation-owned application, deployment,
+active-record fingerprint, and slot identities; concurrent active-pointer
+replacement fails closed rather than changing the candidate under test. It
+also re-hashes the deployed entrypoint path, length, and SHA-256 immediately
+before launch and holds that verified file open without write/delete sharing
+through process creation. No-follow directory handles without delete sharing
+bind every component from the local volume root against junction or directory
+replacement. Runtime identity separately requires the exact
+installer owner, then closes and re-hashes the installed payload before using
+manifest provenance. The five profile-root collections, external
+portable/documentation inventories, and nested `webView2.files` remain true
+JSON arrays, and their paths remain typed strings through both host and worker
+validation.

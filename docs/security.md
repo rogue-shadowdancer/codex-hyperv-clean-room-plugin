@@ -30,6 +30,43 @@ mock execution, parser checks, and static validation are not evidence that a
 real portable deployment, WebDriver session, network transition, UI workflow,
 or clean-machine run is safe or has been performed.
 
+G7/P3.2 advances only the source runtime to `0.3.0`. Its external portable
+branch treats the manifest as an untrusted profile-relative sidecar: strict
+UTF-8 rejects BOM, NUL, duplicate properties, trailing data, unsafe/non-NFC
+Windows paths, case collisions, reparse traversal, and closed-object drift.
+The fixed worker rebinds the ZIP, sidecar, fixtures, complete archive
+inventory, deployment slot, mutable-data preservation, standard-user token,
+and elevated orchestration token. No-UI evidence must contain null driver
+identity; UI evidence remains restricted to the fixed Microsoft x64 driver and
+closed `data-testid` DSL. No caller-supplied argument reaches the external
+entrypoint. These are source/mock/parser/static guarantees, not evidence of a
+real guest or clean machine.
+
+The portable launch path carries the owning operation's application,
+deployment, active-record fingerprint, and slot identities forward from the
+successful deployment step. The guest re-reads the shared active record and
+requires all four to match before resolving the executable. If another
+operation has changed the active pointer, the older launch fails closed with
+`PORTABLE_DEPLOYMENT_DRIFT`; it never silently launches the newer candidate.
+The deployment evidence additionally binds the entrypoint relative path,
+length, and SHA-256. The worker re-reads those bytes immediately before
+`Start-Process`, retains a handle that denies write/delete sharing until
+process creation returns, and retains no-follow directory handles without
+delete sharing for every component from the local volume root. It
+fails with `PORTABLE_ENTRYPOINT_DRIFT` if a component, reparse identity,
+ordinary-file identity, or byte changes after deployment.
+
+Runtime provenance is not copied blindly from the installed manifest. The
+runtime requires the exact `hyperv-clean-room-installer/v1` owner, rejects a
+redirected or malformed installation, closes the current ordinary file set
+against the declared payload plus the two installed-state records, and
+re-hashes every declared byte before emitting `installedInventorySha256`.
+The five profile-root collections and external manifest inventories, including
+nested `webView2.files`, must be true arrays, and all archive/documentation path
+values must be strings before path normalization. These checks prevent
+PowerShell collection wrapping or scalar coercion from weakening the published
+schema.
+
 ## Threats and controls
 
 ### Accidental mutation or stale approval

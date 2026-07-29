@@ -63,8 +63,36 @@ file decode.
 Run `scripts\validate-install-source.ps1` and use its bounded error. Do not
 install a payload with untracked files, reparse points, forbidden machine-state
 extensions, an unexpected folder/manifest name, or a version outside the
-current source base `0.2.0` plus one optional Codex cachebuster. The immutable
+installed release base `0.2.0` plus one optional Codex cachebuster. The P3.2
+repository source base is `0.3.0`, but P3.3 has not yet published or installed
+it. The immutable
 historical `v0.1.1` Release remains a separate accepted artifact.
+
+### A portable launch reports `PORTABLE_DEPLOYMENT_DRIFT`
+
+The shared active deployment changed after this operation published its own
+slot. The runtime intentionally refuses to launch the replacement candidate
+under the older operation's evidence identity. Do not bypass the binding or
+edit `active.json`; start a new test operation from current state.
+
+### A portable launch reports `PORTABLE_ENTRYPOINT_DRIFT`
+
+The deployed entrypoint path, size, SHA-256, or ordinary-file identity changed
+between validated deployment and the final pre-launch readback. The runtime
+intentionally refuses to start those bytes under the older deployment
+identity. The verified handle denies write/delete sharing until process
+creation returns, while no-follow directory handles deny replacement of every
+path component from the local volume root. Do not edit the slot or
+suppress the check; discard the candidate state and begin a new authorized
+test operation from known source bytes.
+
+### Evidence reports `RUNTIME_PROVENANCE_INVALID`
+
+The installed manifest, ownership record, plugin version, declared file
+identity, or closed installed file set no longer matches the current ordinary
+bytes. Do not edit the installed manifest or suppress the check. Treat the
+installation as untrusted and use the later P3.3 source-validation/install
+workflow to replace it from a verified source candidate.
 
 ### The target is not owned
 
@@ -297,6 +325,8 @@ Call `validate_test_profile` and address every bounded error. Typical causes:
 
 - the first and only `stageArtifact` rule is violated;
 - `cleanupSteps` is missing;
+- `fixtures`, `applications`, `steps`, `cleanupSteps`, or
+  `manualAssertions` is an object or scalar instead of a JSON array;
 - IDs are duplicated across ordinary, cleanup, and manual arrays;
 - an application reference is unknown;
 - a path is rooted, traversing, expanding, or otherwise unsafe;

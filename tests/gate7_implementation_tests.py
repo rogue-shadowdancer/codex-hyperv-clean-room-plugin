@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -41,8 +42,37 @@ def load(path: Path) -> object:
     return json.loads(read(path))
 
 
+def load_strict(path: Path) -> object:
+    """Mirror the external sidecar's wire-format invariants in test fixtures."""
+
+    raw = path.read_bytes()
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raise AssertionError(f"external sidecar has a UTF-8 BOM: {path.relative_to(ROOT)}")
+    if b"\0" in raw:
+        raise AssertionError(f"external sidecar has a NUL byte: {path.relative_to(ROOT)}")
+
+    def reject_duplicate_properties(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise AssertionError(
+                    f"external sidecar has a duplicate JSON property {key!r}: "
+                    f"{path.relative_to(ROOT)}"
+                )
+            result[key] = value
+        return result
+
+    return json.loads(raw.decode("utf-8", errors="strict"), object_pairs_hook=reject_duplicate_properties)
+
+
 def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def require_tokens(source: str, label: str, tokens: tuple[str, ...]) -> None:
+    missing = [token for token in tokens if token not in source]
+    if missing:
+        raise AssertionError(f"{label} is missing required P3.2 seam(s): {', '.join(missing)}")
 
 
 def main() -> int:
@@ -50,20 +80,20 @@ def main() -> int:
     catalog = load(CONTRACT / "tool-catalog.json")
     manifest = load(PLUGIN / ".codex-plugin" / "plugin.json")
     if not re.fullmatch(
-        r"0\.2\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?",
+        r"0\.3\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?",
         str(manifest["version"]),
     ):
         raise AssertionError(
-            "the integrated plugin version must preserve base 0.2.0 with at "
+            "the integrated plugin version must expose base 0.3.0 with at "
             "most one Codex cachebuster"
         )
     if (
         catalog["targetPluginVersion"] != "0.3.0"
         or compatibility["targetPluginVersion"] != "0.3.0"
-        or catalog["currentRuntimeVersion"] != "0.2.0"
-        or compatibility["currentRuntimeVersion"] != "0.2.0"
+        or catalog["currentRuntimeVersion"] != "0.3.0"
+        or compatibility["currentRuntimeVersion"] != "0.3.0"
     ):
-        raise AssertionError("P3.1 target/runtime integration metadata drifted")
+        raise AssertionError("P3.2 target/runtime integration metadata drifted")
     if len(catalog["tools"]) != 20:
         raise AssertionError("the integrated target must expose exactly 20 tools")
 
@@ -74,13 +104,8 @@ def main() -> int:
     for name in V2_NAMES:
         source = CONTRACT / "schemas" / name
         installed = PLUGIN / "schemas" / "v2" / name
-        if catalog["targetPluginVersion"] == catalog["currentRuntimeVersion"]:
-            if source.read_bytes() != installed.read_bytes():
-                raise AssertionError(f"installable schema-v2 copy drifted: {name}")
-        elif sha(installed) != compatibility["schemaV2RuntimeSha256"][name]:
-            raise AssertionError(
-                f"current runtime schema-v2 copy drifted during target freeze: {name}"
-            )
+        if source.read_bytes() != installed.read_bytes():
+            raise AssertionError(f"installable schema-v2 copy drifted: {name}")
 
     common = read(PLUGIN / "mcp" / "lib" / "Common.ps1")
     runtime = read(PLUGIN / "mcp" / "lib" / "Runtime.ps1")
@@ -89,11 +114,12 @@ def main() -> int:
     guest_v1 = read(PLUGIN / "mcp" / "lib" / "Tools.Guest.ps1")
     guest_v2 = read(PLUGIN / "mcp" / "lib" / "Tools.Guest.V2.ps1")
     worker = read(PLUGIN / "mcp" / "lib" / "GuestWorker.ps1")
+    validation_v1 = read(PLUGIN / "mcp" / "lib" / "Validation.ps1")
     validation = read(PLUGIN / "mcp" / "lib" / "Validation.V2.ps1")
     adapters = read(PLUGIN / "mcp" / "lib" / "Adapters.ps1")
     migration = read(PLUGIN / "mcp" / "Migrate-TestProfile.ps1")
 
-    for token in ("$script:HcrPluginVersion = '0.2.0'", "plan_vm_power", "apply_vm_power", "plan_vm_network", "apply_vm_network"):
+    for token in ("$script:HcrPluginVersion = '0.3.0'", "plan_vm_power", "apply_vm_power", "plan_vm_network", "apply_vm_network"):
         if token not in common:
             raise AssertionError(f"integrated runtime token is missing: {token}")
     for token in ("Validation.V2.ps1", "Tools.Host.V2.ps1", "Tools.Guest.V2.ps1", "$script:HcrPluginVersion"):
@@ -212,18 +238,380 @@ def main() -> int:
     if "Assert-HcrPairedNetworkRecoveryUsable $plan $pairedRecoveryRecord" not in host_v2:
         raise AssertionError("disconnect mutation does not validate exact paired recovery bindings")
 
-    artifact_roots = sorted(
-        (ROOT / ".artifacts").glob("gate7-tests-*"),
-        key=lambda path: path.stat().st_mtime_ns,
-        reverse=True,
+    # P3.2 external portable execution must be a strict, isolated branch.  These
+    # probes intentionally inspect only implementation text; the Gate 7 runner
+    # remains mock-only and must never touch a real profile, guest, ZIP, or driver.
+    external_sources = common + validation + guest_v2 + worker
+    require_tokens(
+        external_sources,
+        "external sidecar parser",
+        (
+            "externalProfileRelative",
+            "portableManifestRelativePath",
+            "portableManifestSizeBytes",
+            "portableManifestSha256",
+            "UTF8Encoding",
+            "NUL",
+            "ReparsePoint",
+            "duplicate",
+        ),
     )
-    if not artifact_roots:
-        raise AssertionError("Gate 7 runtime evidence is unavailable")
-    evidence_paths = list(artifact_roots[0].glob("state/evidence-staging/*/evidence.json"))
-    v2_evidence_paths = [path for path in evidence_paths if load(path).get("schemaVersion") == 2]
-    if len(v2_evidence_paths) != 5:
+    for label, pattern in (
+        (
+            "external sidecar schemaVersion scalar binding",
+            r"Test-HcrInteger \(\s*"
+            r"Get-HcrPropertyValue \$Manifest 'schemaVersion'\s*\)",
+        ),
+        (
+            "external sidecar unsigned scalar binding",
+            r"Test-HcrBoolean \(\s*"
+            r"Get-HcrPropertyValue \$Manifest 'unsigned'\s*\)",
+        ),
+    ):
+        if not re.search(pattern, validation):
+            raise AssertionError(f"{label} is missing")
+    require_tokens(
+        worker,
+        "worker external sidecar scalar bindings",
+        (
+            "Test-WorkerInteger (Get-WorkerProperty $manifest 'schemaVersion')",
+            "Test-WorkerBoolean (Get-WorkerProperty $manifest 'unsigned')",
+        ),
+    )
+    require_tokens(
+        common + validation,
+        "single-read external sidecar identity",
+        (
+            "function Get-HcrSha256Bytes",
+            "$bytes = [IO.File]::ReadAllBytes($item.FullName)",
+            "$sha256 = Get-HcrSha256Bytes $bytes",
+            "ConvertFrom-HcrStrictJsonBytes $bytes",
+        ),
+    )
+    if "Get-HcrSha256File $item.FullName" in validation:
         raise AssertionError(
-            "Gate 7 runtime must emit one passed and four failed schema-v2 evidence documents"
+            "external sidecar validation hashes the path separately from parsed bytes"
+        )
+    require_tokens(
+        validation + guest_v2,
+        "single-read profile identity",
+        (
+            "sha256 = Get-HcrSha256Bytes $bytes",
+            "sha256 = [string]$loaded.sha256",
+            "$profileSha = [string]$profileValidation.sha256",
+        ),
+    )
+    if "Get-HcrSha256File $profileValidation.path" in guest_v2:
+        raise AssertionError(
+            "runtime hashes the profile path separately from the parsed profile bytes"
+        )
+    require_tokens(
+        validation_v1,
+        "strict shared JSON UTF-8 decoding",
+        (
+            "Text.UTF8Encoding($false, $true)",
+            "The file is not valid UTF-8 JSON.",
+        ),
+    )
+    require_tokens(
+        external_sources,
+        "external candidate rebinding",
+        (
+            "portableManifestSourceSizeBytes",
+            "portableManifestGuestSizeBytes",
+            "portableManifestSourceSha256",
+            "portableManifestGuestSha256",
+            "portableZipSourceSizeBytes",
+            "portableZipGuestSizeBytes",
+            "portableZipSourceSha256",
+            "portableZipGuestSha256",
+        ),
+    )
+    require_tokens(
+        common + validation,
+        "external fixture file-identity separation",
+        (
+            "function Get-HcrLocalFileIdentity",
+            "GetFileInformationByHandle",
+            "Test-HcrV2WindowsSafeRelativePath $fixtureRelative",
+            "PORTABLE_MANIFEST_FIXTURE_PATH_COLLISION",
+        ),
+    )
+    require_tokens(
+        guest_v2,
+        "external exact ZIP leaf and failure evidence",
+        (
+            "$artifactItem.Name -ceq",
+            "Get-HcrPropertyValue $externalManifest.document 'fileName'",
+            "portableZipGuestSha256 = $null",
+            "portableManifestGuestSizeBytes = $null",
+            "if ($externalPortable -and $stageStatus -ne 'passed')",
+            "preEvidenceFailure",
+            "portableZipGuestSha256=$artifactGuestHash",
+            "portableManifestGuestSha256=$portableManifestGuestHash",
+            "guestSizeBytes=$fixtureGuestSize",
+        ),
+    )
+    require_tokens(
+        external_sources,
+        "external ZIP inventory closure",
+        (
+            "PORTABLE_ARCHIVE_UNDECLARED_ENTRY",
+            "portable-manifest.json",
+            "SHA256SUMS",
+            "SBOM.cdx.json",
+            "licenses/SBOM.cdx.json",
+            "data/",
+            "inventoryDigest",
+        ),
+    )
+    require_tokens(
+        external_sources,
+        "external evidence provenance",
+        (
+            "evidenceKind",
+            "externalPortable",
+            "runtimeSourceCommit",
+            "runtimeSourceTree",
+            "packagingCommit",
+            "packagingTree",
+            "documentationInventoryDigest",
+            "oldRuntimeInventoryDigest",
+            "newRuntimeInventoryDigest",
+            "machineStatus",
+            "overallStatus",
+        ),
+    )
+    require_tokens(
+        adapters,
+        "production orchestration evidence binding",
+        (
+            "orchestrationIdentity",
+            "administratorProbe",
+            "userSid",
+            "isElevated = $true",
+            "tokenIntegrity",
+            "-NotePropertyName orchestration",
+        ),
+    )
+    require_tokens(
+        common + validation,
+        "closed nested external manifest provenance",
+        (
+            "Test-HcrV2ExternalManifestProvenance",
+            "$manifest.sbom",
+            "$manifest.sourceInputs",
+            "$manifest.maa.agent",
+            "$manifest.webView2",
+            "contains unsupported field",
+        ),
+    )
+    require_tokens(
+        external_sources,
+        "conditional external UI branch",
+        (
+            "webView2",
+            "webDriver",
+            "cleanupSteps",
+            "driverVersion",
+            "browserVersion",
+        ),
+    )
+    require_tokens(
+        worker,
+        "worker conditional UI compatibility",
+        (
+            "Test-WorkerDriverVersionCompatibility",
+            "[string]::Join('.', $browserParts[0..2])",
+            "[string]::Join('.', $driverParts[0..2])",
+            "(-not $uiRequired -and $null -ne $webDriver)",
+            "Get-WorkerProperty $Input 'uiRequired' $false",
+        ),
+    )
+    require_tokens(
+        worker,
+        "failed portable deployment cleanup",
+        (
+            "$deploymentPublished=$false",
+            "if(-not $deploymentPublished -and $null-ne$slotsRoot)",
+            "Test-WorkerPathWithin $cleanupPath $slotsRoot",
+            "Remove-Item -LiteralPath $cleanupPath -Recurse -Force",
+            "PORTABLE_STAGING_CLEANUP_FAILED",
+            "$deploymentFailure.Exception.Data['GuestWorkerCleanupCode']",
+            "throw $deploymentFailure",
+        ),
+    )
+    require_tokens(
+        guest_v2 + adapters + worker,
+        "operation-owned portable launch binding",
+        (
+            "deployment = Copy-HcrObject $Context.deployment",
+            "$context.deployment = [pscustomobject][ordered]@{",
+            "$input.deployment = Copy-HcrObject",
+            "function Get-WorkerBoundPortableDeployment",
+            "PORTABLE_DEPLOYMENT_BINDING_INVALID",
+            "PORTABLE_DEPLOYMENT_DRIFT",
+            "$activeFingerprint -cne",
+            "portableActiveDeploymentOverride",
+        ),
+    )
+    require_tokens(
+        guest_v2 + adapters + worker,
+        "portable entrypoint byte rebinding immediately before launch",
+        (
+            "entrypointSizeBytes",
+            "entrypointSha256",
+            "Open-WorkerVerifiedPortableEntrypoint",
+            "PORTABLE_ENTRYPOINT_DRIFT",
+            "portableEntrypointDriftOnLaunch",
+            "[IO.FileShare]::Read",
+            "OpenDirectoryForLaunch",
+            "FileFlagOpenReparsePoint",
+            "FileShareRead | FileShareWrite",
+            "function Open-WorkerPortableLaunchPath",
+            "Get-WorkerPortableProductRoot $Application",
+            "[string]$env:LOCALAPPDATA",
+            "@('GUEST_PATH_INVALID', 'GUEST_REPARSE_FORBIDDEN')",
+            "$portableEntrypointBinding.stream.Dispose()",
+        ),
+    )
+    launch_scope = worker[worker.index("if ($type -eq 'launchApplication')"):]
+    portable_index = launch_scope.index("$portableApplication = $schemaVersion -eq 2")
+    generic_guard_index = launch_scope.index("if (-not $portableApplication -and")
+    verified_open_index = launch_scope.index(
+        "$portableEntrypointBinding = Open-WorkerVerifiedPortableEntrypoint"
+    )
+    process_start_index = launch_scope.index("Start-Process -FilePath $executable")
+    stream_dispose_index = launch_scope.index(
+        "$portableEntrypointBinding.stream.Dispose()"
+    )
+    if not (
+        portable_index < generic_guard_index < verified_open_index <
+        process_start_index < stream_dispose_index
+    ):
+        raise AssertionError(
+            "portable entrypoint verification is not held across process creation"
+        )
+    require_tokens(
+        guest_v2,
+        "installed runtime byte rebinding",
+        (
+            "function Get-HcrV2VerifiedInstalledInventory",
+            "Assert-HcrRegularLocalFile $installedPath",
+            "Get-HcrSha256File $item.FullName",
+            "$actualPaths.SetEquals($expectedPaths)",
+            "The installed plugin version differs from its provenance manifest.",
+            "hyperv-clean-room-installer/v1",
+        ),
+    )
+    require_tokens(
+        validation,
+        "external manifest array and path scalar closure",
+        (
+            "$filesValue -isnot [Array]",
+            "$documentationValue -isnot [Array]",
+            "$fileNameValue -isnot [string]",
+            "$entrypointValue -isnot [string]",
+            "$pathValue -isnot [string]",
+            "$sourcePathValue -isnot [string]",
+            "$archivePathValue -isnot [string]",
+            "$webViewFilesValue = Get-HcrPropertyValue",
+            "Test-HcrV2ExternalFileInventory",
+            "$webViewFilesValue -is [Array]",
+        ),
+    )
+    require_tokens(
+        validation,
+        "profile root array scalar closure",
+        (
+            "$fixturesValue -is [Array]",
+            "$applicationsValue -is [Array]",
+            "$stepsValue -is [Array]",
+            "$cleanupStepsValue -is [Array]",
+            "$manualAssertionsValue -is [Array]",
+            "' must be an array.'",
+        ),
+    )
+    require_tokens(
+        worker,
+        "worker external manifest array and path scalar closure",
+        (
+            "$externalFiles -isnot [Array]",
+            "$externalDocumentation -isnot [Array]",
+            "$externalFileName -isnot [string]",
+            "$externalEntrypoint -isnot [string]",
+            "$pathValue -isnot [string]",
+            "$sourcePathValue -isnot [string]",
+            "$archivePathValue -isnot [string]",
+            "$manifestFilesValue-isnot[Array]",
+        ),
+    )
+
+    fixture_root = ROOT / "tests" / "fixtures" / "v3"
+    external_manifest = load_strict(
+        fixture_root / "portable-manifest.external-neutral.valid.json"
+    )
+    external_profile = load_strict(
+        fixture_root / "test-profile.external-neutral.valid.json"
+    )
+    external_ui_profile = load_strict(
+        fixture_root / "test-profile.external-ui.valid.json"
+    )
+    external_evidence = load_strict(
+        fixture_root / "evidence.external-neutral.valid.json"
+    )
+    legacy_manifest = load_strict(
+        fixture_root / "portable-manifest.external-legacy-historical.valid.json"
+    )
+    if external_profile["artifact"]["portableManifestSource"] != "externalProfileRelative":
+        raise AssertionError("external profile fixture no longer selects the sidecar branch")
+    if external_manifest["distributionBoundary"] != "end-user-complete":
+        raise AssertionError("executable external fixture no longer requires end-user-complete")
+    if "webDriver" in external_profile or any(
+        step["type"] in {"acquireWebDriver", "startUiSession", "stopUiSession"}
+        for step in [*external_profile["steps"], *external_profile["cleanupSteps"]]
+    ):
+        raise AssertionError("generic non-UI external fixture accidentally requires the UI branch")
+    if any(
+        "webview2" in entry["path"].casefold() or "maafw" in entry["path"].casefold()
+        for entry in external_manifest["files"]
+    ):
+        raise AssertionError("generic non-UI external manifest includes a product-specific component")
+    if "webDriver" not in external_ui_profile or not any(
+        step["type"] == "stopUiSession" for step in external_ui_profile["cleanupSteps"]
+    ):
+        raise AssertionError("external cleanup UI fixture does not trigger the fixed UI branch")
+    browser = external_ui_profile["webDriver"]["browserVersion"].split(".")
+    driver = external_ui_profile["webDriver"]["driverVersion"].split(".")
+    if browser[:3] != driver[:3] or browser == driver:
+        raise AssertionError("external UI fixture does not pin the exact first-three version rule")
+    candidate = external_evidence["candidate"]
+    for field in (
+        "portableZipSourceSha256", "portableZipGuestSha256",
+        "portableManifestSourceSizeBytes", "portableManifestGuestSizeBytes",
+        "portableManifestSourceSha256", "portableManifestGuestSha256",
+        "portableInventorySha256", "portableInventoryFileCount",
+        "portableInventorySizeBytes",
+        "runtimeSourceCommit", "runtimeSourceTree", "packagingCommit", "packagingTree",
+    ):
+        if field not in candidate:
+            raise AssertionError(f"external evidence fixture lost immutable candidate binding: {field}")
+    if external_evidence.get("evidenceKind") != "externalPortable":
+        raise AssertionError("external evidence fixture lost its structural discriminator")
+    if legacy_manifest["distributionBoundary"] != "runtime-and-legal-only":
+        raise AssertionError("historical external manifest branch is no longer retained")
+
+    artifact_root_value = os.environ.get("HCR_GATE7_ARTIFACT_ROOT")
+    if not artifact_root_value:
+        raise AssertionError("HCR_GATE7_ARTIFACT_ROOT is required for isolated Gate 7 evidence")
+    artifact_root = Path(artifact_root_value).resolve()
+    if not artifact_root.is_relative_to(ROOT.resolve()) or not artifact_root.is_dir():
+        raise AssertionError("isolated Gate 7 artifact root is invalid")
+    evidence_paths = list(artifact_root.glob("state/evidence-staging/*/evidence.json"))
+    v2_evidence_paths = [path for path in evidence_paths if load(path).get("schemaVersion") == 2]
+    if len(v2_evidence_paths) != 10:
+        raise AssertionError(
+            "Gate 7 runtime must emit three passed and seven failed schema-v2 evidence documents"
         )
     schemas = {name: load(CONTRACT / "schemas" / name) for name in V2_NAMES}
     registry = Registry()
@@ -249,6 +637,11 @@ def main() -> int:
         "failed",
         "failed",
         "failed",
+        "failed",
+        "failed",
+        "failed",
+        "passed",
+        "passed",
         "passed",
     ]:
         raise AssertionError("Gate 7 runtime did not preserve passed and failed evidence")

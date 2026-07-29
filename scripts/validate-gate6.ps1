@@ -1,5 +1,9 @@
 [CmdletBinding()]
-param([switch]$SkipInheritedBaseline)
+param(
+    [switch]$SkipInheritedBaseline,
+    [string]$PythonExecutable,
+    [string]$DependencyPath
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -8,20 +12,32 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $runtimePath = Join-Path $repoRoot '.artifacts\test-python\runtime.json'
 $prepareHint = '.\scripts\prepare-test-python.ps1'
 
-if (-not (Test-Path -LiteralPath $runtimePath -PathType Leaf)) {
-    throw "Prepared test Python is unavailable. Run $prepareHint, then rerun validate-gate6.ps1."
-}
-
 if (-not $SkipInheritedBaseline) {
     $null = & (Join-Path $PSScriptRoot 'validate-gate2.ps1') -SkipRealHostSmoke
 }
 
-try {
-    $runtime = Get-Content -LiteralPath $runtimePath -Raw -Encoding UTF8 |
-        ConvertFrom-Json -ErrorAction Stop
+$runtime = if ([string]::IsNullOrWhiteSpace($PythonExecutable) -and
+    [string]::IsNullOrWhiteSpace($DependencyPath)) {
+    if (-not (Test-Path -LiteralPath $runtimePath -PathType Leaf)) {
+        throw "Prepared test Python is unavailable. Run $prepareHint, then rerun validate-gate6.ps1."
+    }
+    try {
+        Get-Content -LiteralPath $runtimePath -Raw -Encoding UTF8 |
+            ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        throw "Prepared test Python metadata is unreadable. Run $prepareHint to repair it."
+    }
 }
-catch {
-    throw "Prepared test Python metadata is unreadable. Run $prepareHint to repair it."
+elseif (-not [string]::IsNullOrWhiteSpace($PythonExecutable) -and
+    -not [string]::IsNullOrWhiteSpace($DependencyPath)) {
+    [pscustomobject]@{
+        pythonExecutable = [IO.Path]::GetFullPath($PythonExecutable)
+        dependencyPath = [IO.Path]::GetFullPath($DependencyPath)
+    }
+}
+else {
+    throw 'PythonExecutable and DependencyPath must be supplied together.'
 }
 
 $pythonExecutable = [string]$runtime.pythonExecutable
@@ -51,7 +67,7 @@ try {
     }
     if (-not [bool]$contractResult.ok -or
         [string]$contractResult.targetPluginVersion -cne '0.3.0' -or
-        [string]$contractResult.currentRuntimeVersion -cne '0.2.0' -or
+        [string]$contractResult.currentRuntimeVersion -cne '0.3.0' -or
         [int]$contractResult.v1ToolsPreserved -ne 16 -or
         [int]$contractResult.v2ToolsDeclared -ne 20 -or
         [int]$contractResult.v1SchemasPreserved -ne 5 -or

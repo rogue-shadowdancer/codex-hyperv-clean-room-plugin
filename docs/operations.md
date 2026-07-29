@@ -12,6 +12,28 @@ only a missing-ISO rejection before mutation. It does not
 authorize or prove a real Hyper-V mutation, real credential enrollment, guest
 transfer, package lifecycle, or clean-machine result.
 
+G7/P3.2 advances the repository source runtime to `0.3.0` and makes the seven
+source-tree installed v2 schemas exact copies of their authorities. It does not
+replace the release-derived personal installation: that installed runtime and
+the immutable Release remain `0.2.0` until P3.3. P3.2 acceptance exercises
+external sidecar parsing, mock ZIP/fixture staging, mock deployment/evidence,
+concurrent active-pointer drift rejection, and static production seams only.
+The launch seam must remain bound to the deployment identity returned to the
+same operation; a mismatched active record fails with
+`PORTABLE_DEPLOYMENT_DRIFT`. Immediately before process creation, it also
+re-hashes the deployed entrypoint against the operation-owned deployment
+identity, holds the verified file open without write/delete sharing through
+process creation, and holds no-follow directory handles without delete sharing
+for every path component from the local volume root. It fails with
+`PORTABLE_ENTRYPOINT_DRIFT` on byte, path, ordinary-file, reparse, or open
+failure.
+Runtime provenance requires the exact installer owner and re-hashes the closed
+installed payload instead of trusting manifest claims. Validation rejects
+object-valued profile-root collections or external inventories, including
+`webView2.files`, and rejects non-string paths. P3.2 does not authorize an
+operator to run a profile or perform a host, guest, package, driver, or network
+operation.
+
 H5A repairs the automatic-checkpoint ownership deadlock without changing the
 20-tool surface. Future VM creation disables automatic checkpoints before
 ownership publication and verifies the setting by readback. For a pre-fix
