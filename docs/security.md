@@ -61,10 +61,11 @@ runtime requires the exact `hyperv-clean-room-installer/v1` owner, rejects a
 redirected or malformed installation, closes the current ordinary file set
 against the declared payload plus the two installed-state records, and
 re-hashes every declared byte before emitting `installedInventorySha256`.
-External manifest inventories, including nested `webView2.files`, must be true
-arrays, and all archive/documentation path values must be strings before path
-normalization. These checks prevent PowerShell collection wrapping or scalar
-coercion from weakening the published schema.
+The five profile-root collections and external manifest inventories, including
+nested `webView2.files`, must be true arrays, and all archive/documentation path
+values must be strings before path normalization. These checks prevent
+PowerShell collection wrapping or scalar coercion from weakening the published
+schema.
 
 ## Threats and controls
 

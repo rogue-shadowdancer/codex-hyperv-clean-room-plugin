@@ -325,6 +325,8 @@ Call `validate_test_profile` and address every bounded error. Typical causes:
 
 - the first and only `stageArtifact` rule is violated;
 - `cleanupSteps` is missing;
+- `fixtures`, `applications`, `steps`, `cleanupSteps`, or
+  `manualAssertions` is an object or scalar instead of a JSON array;
 - IDs are duplicated across ordinary, cleanup, and manual arrays;
 - an application reference is unknown;
 - a path is rooted, traversing, expanding, or otherwise unsafe;

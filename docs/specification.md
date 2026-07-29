@@ -1271,9 +1271,12 @@ schema-v1 files, all twenty public tool names and input schemas, integer
 version dispatch, Plan/Apply behavior, single-use paired network recovery, and
 the embedded `0.2.0` profile/manifest/evidence branch remain unchanged.
 
-The external branch resolves exactly one manifest below the canonical profile
-directory. The sidecar must be a regular non-reparse file within the declared
-size bound and must match the profile SHA-256 before strict UTF-8 parsing.
+The five profile-root collections (`fixtures`, `applications`, `steps`,
+`cleanupSteps`, and `manualAssertions`) must remain JSON arrays before the
+runtime performs any PowerShell collection wrapping. The external branch
+resolves exactly one manifest below the canonical profile directory. The
+sidecar must be a regular non-reparse file within the declared size bound and
+must match the profile SHA-256 before strict UTF-8 parsing.
 BOM, NUL, malformed UTF-8, trailing JSON data, duplicate properties, unknown
 root or nested provenance fields, unsafe/non-NFC Windows paths, reserved
 devices, traversal, ADS, trailing-dot/space segments, and ordinal-ignore-case
@@ -1321,7 +1324,7 @@ Microsoft x64 EdgeDriver/data-testid rules.
 P3.2 acceptance uses only synthetic ZIPs, fixtures, mock adapters, native
 parsers, schema validators, and static production seams. It validates all
 twenty tools, the preserved sixteen schema-v1 tools, seven exact installed
-schema-v2 copies, 350 mock runtime assertions, ten generated evidence
+schema-v2 copies, 355 mock runtime assertions, ten generated evidence
 documents, and the inherited Gate 2/Gate 6 contract suites. Every real host,
 Hyper-V, guest, portable, WebDriver, and UI operation counter remains zero.
 

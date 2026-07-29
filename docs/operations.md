@@ -28,10 +28,11 @@ for every path component from the local volume root. It fails with
 `PORTABLE_ENTRYPOINT_DRIFT` on byte, path, ordinary-file, reparse, or open
 failure.
 Runtime provenance requires the exact installer owner and re-hashes the closed
-installed payload instead of trusting manifest claims. The external reader
-rejects object-valued inventories, including `webView2.files`, or non-string
-paths. P3.2 does not authorize an operator to run a profile or perform a host,
-guest, package, driver, or network operation.
+installed payload instead of trusting manifest claims. Validation rejects
+object-valued profile-root collections or external inventories, including
+`webView2.files`, and rejects non-string paths. P3.2 does not authorize an
+operator to run a profile or perform a host, guest, package, driver, or network
+operation.
 
 H5A repairs the automatic-checkpoint ownership deadlock without changing the
 20-tool surface. Future VM creation disables automatic checkpoints before

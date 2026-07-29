@@ -989,6 +989,27 @@ $profileValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@
 Assert-Gate7 $profileValidation.ok `
     ('The valid schema-v2 profile failed exact-version validation: ' +
         ((Get-HcrPropertyValue $profileValidation 'error') | ConvertTo-Json -Depth 10 -Compress))
+$profileArrayScalarCases = [ordered]@{
+    fixtures = $profile.fixtures[0]
+    applications = $profile.applications[0]
+    steps = $profile.steps[0]
+    cleanupSteps = $externalProfile.cleanupSteps[0]
+    manualAssertions = $profile.manualAssertions[0]
+}
+foreach ($profileArrayField in $profileArrayScalarCases.Keys) {
+    $scalarArrayProfile = Copy-HcrObject ([pscustomobject]$profile)
+    $scalarArrayProfile.$profileArrayField =
+        Copy-HcrObject $profileArrayScalarCases[$profileArrayField]
+    $scalarArrayValidation = Test-HcrProfileDocumentV2 $scalarArrayProfile
+    $expectedArrayError = '$.' + $profileArrayField + ' must be an array.'
+    Assert-Gate7 (
+        -not $scalarArrayValidation.valid -and
+        @($scalarArrayValidation.errors | Where-Object {
+                [string]$_ -ceq $expectedArrayError
+            }).Count -eq 1
+    ) ("The native schema-v2 validator accepted or misclassified object-valued " +
+        "$profileArrayField.")
+}
 $portableWithoutProcess = Copy-HcrObject ([pscustomobject]$profile)
 $portableWithoutProcess.applications[0].PSObject.Properties.Remove('processName')
 $portableWithoutProcessValidation = Test-HcrProfileDocumentV2 $portableWithoutProcess

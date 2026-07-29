@@ -71,8 +71,10 @@ candidate, or a clean-room pass.
   - resolves one regular non-reparse manifest below the canonical profile
     directory;
   - independently binds profile/source/staged/guest path, size, and SHA-256;
-  - requires true JSON arrays and string-typed paths before any PowerShell
-    collection wrapping or normalization;
+  - requires the five profile-root collections, external inventories, and
+    nested `webView2.files` to remain true JSON arrays, and requires
+    string-typed paths before any PowerShell collection wrapping or
+    normalization;
   - parses strict UTF-8 and rejects BOM, NUL, malformed bytes, trailing data,
     duplicate properties, and unknown root or nested provenance fields;
   - applies NFC, ordinal, ordinal-ignore-case, reserved-device, traversal,
@@ -160,7 +162,7 @@ The final exact candidate must retain:
 - preserved schema-v1 tools: `16`
 - preserved schema-v1 files: `5`
 - exact source-tree installed schema-v2 copies: `7`
-- Gate 7 mock runtime assertions: `350`
+- Gate 7 mock runtime assertions: `355`
 - generated mock evidence documents validated: `10`
 - P3.1 positive fixtures: `6`
 - P3.1 direct schema-invalid fixtures: `5`

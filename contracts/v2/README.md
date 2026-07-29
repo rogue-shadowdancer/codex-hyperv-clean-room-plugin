@@ -82,6 +82,7 @@ through process creation. No-follow directory handles without delete sharing
 bind every component from the local volume root against junction or directory
 replacement. Runtime identity separately requires the exact
 installer owner, then closes and re-hashes the installed payload before using
-manifest provenance. External portable/documentation inventories and nested
-`webView2.files` remain true JSON arrays, and their paths remain typed strings
-through both host and worker validation.
+manifest provenance. The five profile-root collections, external
+portable/documentation inventories, and nested `webView2.files` remain true
+JSON arrays, and their paths remain typed strings through both host and worker
+validation.

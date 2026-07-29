@@ -521,6 +521,18 @@ def main() -> int:
         ),
     )
     require_tokens(
+        validation,
+        "profile root array scalar closure",
+        (
+            "$fixturesValue -is [Array]",
+            "$applicationsValue -is [Array]",
+            "$stepsValue -is [Array]",
+            "$cleanupStepsValue -is [Array]",
+            "$manualAssertionsValue -is [Array]",
+            "' must be an array.'",
+        ),
+    )
+    require_tokens(
         worker,
         "worker external manifest array and path scalar closure",
         (

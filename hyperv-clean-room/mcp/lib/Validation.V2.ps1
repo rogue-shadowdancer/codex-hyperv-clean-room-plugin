@@ -834,6 +834,28 @@ function Test-HcrProfileDocumentV2 {
     if ((Get-HcrPropertyValue $Profile 'platform') -ne 'windows-x64') { Add-HcrValidationError $errors '$.platform must equal windows-x64.' }
     if (@('stock-clean', 'webview2-absent-derived') -notcontains (Get-HcrPropertyValue $Profile 'baselineType')) { Add-HcrValidationError $errors '$.baselineType is invalid.' }
 
+    $fixturesValue = Get-HcrPropertyValue $Profile 'fixtures'
+    $applicationsValue = Get-HcrPropertyValue $Profile 'applications'
+    $stepsValue = Get-HcrPropertyValue $Profile 'steps'
+    $cleanupStepsValue = Get-HcrPropertyValue $Profile 'cleanupSteps'
+    $manualAssertionsValue = Get-HcrPropertyValue $Profile 'manualAssertions'
+    $profileArraysValid = $true
+    foreach ($arrayField in @(
+            [pscustomobject]@{ name = 'fixtures'; value = $fixturesValue },
+            [pscustomobject]@{ name = 'applications'; value = $applicationsValue },
+            [pscustomobject]@{ name = 'steps'; value = $stepsValue },
+            [pscustomobject]@{ name = 'cleanupSteps'; value = $cleanupStepsValue },
+            [pscustomobject]@{ name = 'manualAssertions'; value = $manualAssertionsValue }
+        )) {
+        if ($arrayField.value -isnot [Array]) {
+            Add-HcrValidationError $errors ('$.' + $arrayField.name + ' must be an array.')
+            $profileArraysValid = $false
+        }
+    }
+    if (-not $profileArraysValid) {
+        return [pscustomobject]@{ valid = $false; errors = @($errors) }
+    }
+
     $artifact = Get-HcrPropertyValue $Profile 'artifact'
     $packageKind = [string](Get-HcrPropertyValue $artifact 'packageKind')
     $externalPortable = $workflow -eq 'portableAutomation' -and
@@ -911,7 +933,8 @@ function Test-HcrProfileDocumentV2 {
     }
 
     $fixtureIds = New-Object System.Collections.Generic.List[string]
-    $fixtures = @((Get-HcrPropertyValue $Profile 'fixtures' @()))
+    $fixtures = @()
+    if ($fixturesValue -is [Array]) { $fixtures = @($fixturesValue) }
     if ($fixtures.Count -gt 32) { Add-HcrValidationError $errors '$.fixtures exceeds the fixed count limit.' }
     for ($index = 0; $index -lt $fixtures.Count; $index++) {
         $fixture = $fixtures[$index]
@@ -934,7 +957,8 @@ function Test-HcrProfileDocumentV2 {
     }
 
     $applicationIds = New-Object System.Collections.Generic.List[string]
-    $applications = @((Get-HcrPropertyValue $Profile 'applications' @()))
+    $applications = @()
+    if ($applicationsValue -is [Array]) { $applications = @($applicationsValue) }
     if ($applications.Count -lt 1 -or $applications.Count -gt 16) { Add-HcrValidationError $errors '$.applications has an invalid count.' }
     for ($index = 0; $index -lt $applications.Count; $index++) {
         $application = $applications[$index]
@@ -962,7 +986,8 @@ function Test-HcrProfileDocumentV2 {
         }
     }
 
-    $steps = @((Get-HcrPropertyValue $Profile 'steps' @()))
+    $steps = @()
+    if ($stepsValue -is [Array]) { $steps = @($stepsValue) }
     if ($steps.Count -lt 1 -or $steps.Count -gt 128) { Add-HcrValidationError $errors '$.steps has an invalid count.' }
     $stepIds = New-Object System.Collections.Generic.HashSet[string]
     for ($index = 0; $index -lt $steps.Count; $index++) {
@@ -984,8 +1009,11 @@ function Test-HcrProfileDocumentV2 {
         foreach ($requiredType in $requiredPortableStepTypes) {
             if (@($stepTypes | Where-Object { $_ -eq $requiredType }).Count -ne 1) { Add-HcrValidationError $errors "$.steps requires exactly one $requiredType." }
         }
-        $cleanupTypes = @(@((Get-HcrPropertyValue $Profile 'cleanupSteps' @())) |
-            ForEach-Object { [string](Get-HcrPropertyValue $_ 'type') })
+        $cleanupTypes = @()
+        if ($cleanupStepsValue -is [Array]) {
+            $cleanupTypes = @(@($cleanupStepsValue) |
+                ForEach-Object { [string](Get-HcrPropertyValue $_ 'type') })
+        }
         $declaresUi = @(@($stepTypes + $cleanupTypes) | Where-Object {
                 $script:HcrV2UiStepTypes -contains $_
             }).Count -gt 0
@@ -1057,7 +1085,8 @@ function Test-HcrProfileDocumentV2 {
         if (@($stepTypes | Where-Object { $_ -eq 'deployPortable' -or $script:HcrV2UiStepTypes -contains $_ }).Count -gt 0) { Add-HcrValidationError $errors '$.steps contains portable/UI work forbidden for legacy package lifecycle profiles.' }
     }
 
-    $cleanup = @((Get-HcrPropertyValue $Profile 'cleanupSteps' @()))
+    $cleanup = @()
+    if ($cleanupStepsValue -is [Array]) { $cleanup = @($cleanupStepsValue) }
     if ($cleanup.Count -gt 16) { Add-HcrValidationError $errors '$.cleanupSteps exceeds the fixed cleanup budget.' }
     $cleanupBudgetSeconds = 0
     for ($index = 0; $index -lt $cleanup.Count; $index++) {
@@ -1070,7 +1099,8 @@ function Test-HcrProfileDocumentV2 {
     }
     if ($cleanupBudgetSeconds -gt 300) { Add-HcrValidationError $errors '$.cleanupSteps exceeds the 300-second total budget.' }
     if (@($cleanup | Where-Object { @('stopUiSession', 'captureUiScreenshot') -contains [string](Get-HcrPropertyValue $_ 'type') }).Count -gt 0 -and -not (Test-HcrProperty $Profile 'webDriver')) { Add-HcrValidationError $errors '$.cleanupSteps requires the fixed WebDriver contract.' }
-    $manual = @((Get-HcrPropertyValue $Profile 'manualAssertions' @()))
+    $manual = @()
+    if ($manualAssertionsValue -is [Array]) { $manual = @($manualAssertionsValue) }
     if ($manual.Count -gt 64) { Add-HcrValidationError $errors '$.manualAssertions exceeds the fixed count limit.' }
     for ($index = 0; $index -lt $manual.Count; $index++) {
         $assertion = $manual[$index]
