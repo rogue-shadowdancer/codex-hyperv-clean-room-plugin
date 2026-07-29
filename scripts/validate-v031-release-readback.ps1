@@ -3,6 +3,7 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$Repository = 'rogue-shadowdancer/codex-hyperv-clean-room-plugin',
 
+    [Parameter(Mandatory = $true)]
     [ValidatePattern('^[a-f0-9]{40}$')]
     [string]$ExpectedMasterCommit,
 
@@ -117,6 +118,9 @@ function Assert-HcrHistoricalRelease {
 
 $script:GhCommand = Get-Command gh -ErrorAction Stop
 $codexCommand = Get-Command codex -ErrorAction Stop
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$sourceRoot = Join-Path $repoRoot 'hyperv-clean-room'
+. (Join-Path $PSScriptRoot 'install-common.ps1')
 
 $branch = Invoke-HcrGhApi "repos/$Repository/branches/master"
 $masterCommit = [string]$branch.commit.sha
@@ -124,10 +128,8 @@ Assert-HcrReadback ($masterCommit -cmatch '^[a-f0-9]{40}$') `
     'Protected master returned an invalid commit SHA.'
 Assert-HcrReadback ([bool]$branch.protected) `
     'The GitHub master branch is not protected.'
-if (-not [string]::IsNullOrWhiteSpace($ExpectedMasterCommit)) {
-    Assert-HcrReadback ($masterCommit -ceq $ExpectedMasterCommit) `
-        "Protected master $masterCommit does not equal expected $ExpectedMasterCommit."
-}
+Assert-HcrReadback ($masterCommit -ceq $ExpectedMasterCommit) `
+    "Protected master $masterCommit does not equal expected $ExpectedMasterCommit."
 
 $currentTag = Get-HcrAnnotatedTagIdentity 'v0.3.1'
 Assert-HcrReadback ($currentTag.peeledCommit -ceq $masterCommit) `
@@ -186,6 +188,29 @@ $historical = @($historicalBaselines | ForEach-Object {
     })
 
 $resolvedInstallRoot = [IO.Path]::GetFullPath($InstallRoot)
+$sourceInventory = Get-HcrSourceInventory `
+    -SourceRoot $sourceRoot `
+    -RequireCachebuster
+Assert-HcrReadback ([string]$sourceInventory.sourceCommit -ceq
+        $ExpectedMasterCommit) `
+    'The reviewed source checkout does not equal ExpectedMasterCommit.'
+Assert-HcrReadback ([string]$sourceInventory.sourceVersion -ceq
+        '0.3.1+codex.20260729184240') `
+    'The reviewed source checkout is not the single frozen v0.3.1 build.'
+$installCheck = Get-HcrInstallCheck `
+    -SourceInventory $sourceInventory `
+    -TargetRoot $resolvedInstallRoot `
+    -MarketplacePath $MarketplacePath
+Assert-HcrReadback ([bool]$installCheck.installed -and
+        [bool]$installCheck.owned -and
+        [bool]$installCheck.matches) `
+    "Installed payload/ownership closure failed: $($installCheck.payloadError)"
+Assert-HcrReadback ([bool]$installCheck.marketplaceVisible -and
+        [int]$installCheck.marketplaceEntryCount -eq 1) `
+    "Installed marketplace/Codex closure failed: $($installCheck.marketplaceError)"
+Assert-HcrReadback ([int]$installCheck.sourceFileCount -eq 31) `
+    'Reviewed source inventory payload count is not 31.'
+
 $installManifestPath = Join-Path $resolvedInstallRoot '.codex-plugin\install-manifest.json'
 Assert-HcrReadback (Test-Path -LiteralPath $installManifestPath -PathType Leaf) `
     "Missing install manifest: $installManifestPath"
@@ -195,8 +220,8 @@ Assert-HcrReadback ([string]$installManifest.pluginName -ceq 'hyperv-clean-room'
     'The installed manifest names the wrong plugin.'
 Assert-HcrReadback ([string]$installManifest.sourceCommit -ceq $masterCommit) `
     'Installed sourceCommit does not equal protected master.'
-Assert-HcrReadback ([string]$installManifest.sourceVersion -cmatch
-        '^0\.3\.1\+codex\.[0-9]{14}$') `
+Assert-HcrReadback ([string]$installManifest.sourceVersion -ceq
+        '0.3.1+codex.20260729184240') `
     'Installed sourceVersion is not the frozen v0.3.1 build.'
 Assert-HcrReadback (@($installManifest.files).Count -eq 31) `
     'Installed manifest payload count is not 31.'

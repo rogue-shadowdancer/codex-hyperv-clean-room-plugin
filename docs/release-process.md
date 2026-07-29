@@ -281,7 +281,9 @@ Acceptance requires:
   install-manifest `sourceCommit`;
 - `validate-v031-release-readback.ps1` passes against the exact protected
   commit and also proves the v0.1.1, v0.2.0, and v0.3.0 tag/Release baselines
-  did not move or get reissued;
+  did not move or get reissued; its reviewed-commit argument is mandatory, it
+  accepts only `0.3.1+codex.20260729184240`, and it rehashes every installed
+  payload plus ownership/manifest state;
 - exact 31-file payload plus two installer records and one personal marketplace
   entry;
 - a fresh app-server thread with

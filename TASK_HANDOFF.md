@@ -82,6 +82,10 @@ The final readback fails closed unless protected `master`, the annotated
 `v0.3.1` peeled commit, the Release target, and installed `sourceCommit` are
 identical. It also rechecks the immutable v0.1.1, v0.2.0, and v0.3.0 tag
 objects, peeled commits, Release identities, flags, and zero-asset state.
+`ExpectedMasterCommit` is mandatory, the installed version must equal the
+single frozen build `0.3.1+codex.20260729184240`, and the check revalidates
+every payload path, size, SHA-256 value, ownership marker, and install manifest
+against that reviewed source checkout.
 
 The historical H4/G9 `validate-gate4.ps1` installed-copy smoke calls
 `inspect_host` and a missing-ISO plan. It is not part of this recovery gate and
