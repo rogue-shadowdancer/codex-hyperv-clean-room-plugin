@@ -4,7 +4,7 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
-## Unreleased - 0.3 external portable source runtime
+## 0.3.0 - Source release - 2026-07-29
 
 ### Added
 
@@ -24,9 +24,17 @@ the local plugin cache.
 
 - Plugin source base version is `0.3.0`; schema v1, embedded `0.2.0` semantics,
   Plan/Apply, recovery, and the public 20-tool catalog remain compatible.
-- The immutable `v0.2.0` tag/Release and its personal installation remain
-  unchanged. P3.3 publication, installation, and source-match readback are not
-  performed.
+- Published the immutable annotated, source-only `v0.3.0` tag and GitHub Release
+  from protected-master commit
+  `47151fdbe99346ec87af09460c79d0864978eabd`; tag workflow `30451106948` and
+  authenticated/anonymous readback pass, and the Release has zero uploaded
+  assets.
+- Created the single personal build `0.3.0+codex.20260729122233` and bound its
+  owned 31-file payload, exact source commit, per-file size/SHA-256 inventory,
+  cachebuster, one canonical marketplace entry, and Codex installed/enabled
+  state. Catalog-only installed-server readback exposes exactly 20 unique tools
+  without invoking an MCP tool.
+- The immutable `v0.1.1` and `v0.2.0` tags/Releases remain unchanged.
 - No real Hyper-V, VM, checkpoint, credential, guest, package, portable,
   WebDriver, UI, network, evidence, or manual-attestation operation is
   performed.

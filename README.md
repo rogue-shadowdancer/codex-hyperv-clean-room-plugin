@@ -6,7 +6,7 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: 0.3 source runtime implemented; release and personal install remain 0.2.0
+### Status: 0.3.0 source released; personal installation validated
 
 Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,
 profile, evidence, plan, and credential contracts. The first public release
@@ -97,11 +97,23 @@ an atomic data-preserving slot, launch the manifest entrypoint with zero caller
 arguments, and emit structurally separate external evidence. Generic non-UI
 packages omit driver identity; UI packages retain the closed fixed-driver DSL.
 The exact 20-tool catalog, v1 files, and embedded `0.2.0` semantics are
-unchanged. P3.2 validation is mock/parser/schema/static only. The immutable
-`v0.2.0` Release and release-derived personal installation remain `0.2.0`;
-P3.3 publication, installation, and source-match readback are not performed.
-No real Hyper-V, VM, checkpoint, credential, guest, package, portable,
-WebDriver, UI, network, or manual-attestation operation is performed in P3.2.
+unchanged. P3.2 validation is mock/parser/schema/static only.
+
+G7/P3.3 publishes the accepted protected-master source commit
+`47151fdbe99346ec87af09460c79d0864978eabd` as the immutable annotated,
+source-only
+[`v0.3.0`](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/releases/tag/v0.3.0)
+tag and GitHub Release. Tag workflow `30451106948`, authenticated readback, and
+anonymous readback bind the tag to that commit and confirm a non-draft,
+non-prerelease Release with zero uploaded assets. The one authorized personal
+build is `0.3.0+codex.20260729122233`; its owned 31-file payload, per-file
+size/SHA-256 inventory, exact source commit and cachebuster, single canonical
+personal marketplace entry, and Codex installed/enabled state are closed by
+the installer. Catalog-only installed-server readback negotiates MCP
+`2025-11-25` and discovers exactly 20 unique tools without calling any tool.
+No real host, Hyper-V, VM, checkpoint, credential, guest, package, portable,
+WebDriver, UI, network, evidence, or manual-attestation operation is performed
+in P3.3.
 
 [![public-release-validation](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
@@ -188,7 +200,7 @@ checkpoint success.
 `hyperv-clean-room` 是一个仅面向 Windows 的 Codex plugin 设计，用于受保护的
 Hyper-V VM 操作、声明式 current-user package lifecycle 测试和结构化 evidence。
 
-### 状态：0.3 source runtime 已实现；release 与 personal install 仍为 0.2.0
+### 状态：0.3.0 source 已发布；personal installation 已验收
 
 Gate 2 已依据冻结的 v1 cleanup、profile、evidence、plan 和 credential 合同实现
 PowerShell 5.1 MCP runtime。首个 public release 使用 plugin base version
@@ -256,10 +268,20 @@ portable manifest 作为 profile-relative sidecar 被 strict UTF-8 解析，经�
 Windows path、closed provenance、source/staged/guest byte binding 与双向 ZIP
 inventory 校验后，才会原子发布 data-preserving slot；entrypoint 不接收 caller
 argument。non-UI 分支不生成 driver identity，UI 分支继续使用闭合的固定 driver DSL。
-P3.2 仅执行 mock/parser/schema/static 验证；不可变 `v0.2.0` Release 与由其派生的
-personal installation 仍为 `0.2.0`，P3.3 的 publication/install/source-match 尚未
-执行。P3.2 未执行任何真实 Hyper-V、VM、checkpoint、credential、guest、package、
-portable、WebDriver、UI、network 或 manual-attestation operation。
+P3.2 仅执行 mock/parser/schema/static 验证。
+
+G7/P3.3 已把 protected `master`
+`47151fdbe99346ec87af09460c79d0864978eabd` 发布为不可变、annotated、source-only 的
+[`v0.3.0`](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/releases/tag/v0.3.0)
+tag 与 GitHub Release。tag workflow `30451106948`、认证读回与匿名读回均把 tag
+绑定到该 commit，并确认 Release 不是 draft/prerelease，且 uploaded asset 为零。
+唯一获授权的 personal build 为 `0.3.0+codex.20260729122233`；installer 对受
+ownership marker 保护的 31-file payload、逐文件 size/SHA-256、精确 source
+commit/cachebuster、唯一 canonical personal marketplace entry 及 Codex
+installed/enabled 状态实行闭合校验。catalog-only installed-server 读回协商 MCP
+`2025-11-25`，发现精确 20 个 unique tools，且不调用任何 tool。P3.3 未执行任何真实
+host、Hyper-V、VM、checkpoint、credential、guest、package、portable、WebDriver、
+UI、network、evidence 或 manual-attestation operation。
 
 JSON-RPC transport、common envelope、持久 ownership 与原子 plan guard、原生
 profile/evidence validation、mock-backed guest/test flow、evidence export 和交互式

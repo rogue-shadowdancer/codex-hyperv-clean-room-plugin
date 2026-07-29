@@ -1336,6 +1336,31 @@ installed/source readback. P3.2 performs no real Hyper-V, VM, checkpoint,
 credential, guest, package, portable, WebDriver, UI, network,
 manual-attestation, or evidence operation.
 
+## G7/P3.3 plugin 0.3 publication and install boundary
+
+P3.3 publishes protected-master commit
+`47151fdbe99346ec87af09460c79d0864978eabd` through one annotated `v0.3.0` tag
+and one non-draft, non-prerelease, source-only GitHub Release. The tag object
+must peel to that exact commit, the tag-triggered
+`public-release-validation` workflow must pass, authenticated and anonymous
+readback must agree, and the Release must contain zero uploaded assets. The
+immutable `v0.1.1` and `v0.2.0` tags and Releases remain unchanged.
+
+The only personal build is `0.3.0+codex.20260729122233`, created through the
+documented plugin-creator cachebuster helper exactly once. The accepted source
+commit must be clean. The owned personal installation contains exactly the 31
+tracked plugin payloads plus its two installer records; relative paths, sizes,
+SHA-256 values, source commit, version, and cachebuster must match. Exactly one
+canonical personal marketplace entry is allowed, and Codex must report the
+plugin installed and enabled at that version.
+
+Installed-server acceptance is limited to `initialize` and `tools/list` from
+the personal plugin directory. It requires server identity/version
+`hyperv-clean-room` / `0.3.0`, MCP protocol `2025-11-25`, and exactly 20 unique
+tool names. It calls no tool and performs no real host, Hyper-V, VM,
+checkpoint, credential, guest, package, portable, WebDriver, UI, network,
+evidence, or manual-attestation operation. All such counters remain zero.
+
 ### Protected packaging amendment and G6.2 source result
 
 The earlier blocking packaging gap is closed by the protected

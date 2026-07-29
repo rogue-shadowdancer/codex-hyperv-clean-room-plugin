@@ -2,20 +2,20 @@
 
 ## Current operating status
 
-Gate 9/H4 applies the ownership-marked personal install and cachebuster-reinstall
-workflow to the integrated plugin `0.2.0` runtime. Final acceptance requires the
-clean commit/reinstall state recorded in `TASK_HANDOFF.md`. Automated runtime
-acceptance still uses mock adapters and static seams for guest behavior. The
-installed-copy smoke starts only from `%USERPROFILE%\plugins\hyperv-clean-room`
-and discovers exactly 20 tools, performs read-only `inspect_host`, and exercises
-only a missing-ISO rejection before mutation. It does not
-authorize or prove a real Hyper-V mutation, real credential enrollment, guest
-transfer, package lifecycle, or clean-machine result.
+G7/P3.3 applies the ownership-marked personal install and cachebuster-reinstall
+workflow to plugin `0.3.0`. Final acceptance requires the clean
+commit/reinstall state recorded in `TASK_HANDOFF.md`. The installed build is
+`0.3.0+codex.20260729122233`. Catalog-only acceptance starts only from
+`%USERPROFILE%\plugins\hyperv-clean-room`, negotiates MCP `2025-11-25`, and
+discovers exactly 20 unique tools without calling any tool. It therefore does
+not inspect or mutate a real host, Hyper-V resource, VM, guest, credential,
+package, portable deployment, driver, UI, network, evidence, or manual result.
+It performs no real Hyper-V mutation.
 
 G7/P3.2 advances the repository source runtime to `0.3.0` and makes the seven
-source-tree installed v2 schemas exact copies of their authorities. It does not
-replace the release-derived personal installation: that installed runtime and
-the immutable Release remain `0.2.0` until P3.3. P3.2 acceptance exercises
+source-tree installed v2 schemas exact copies of their authorities. G7/P3.3
+publishes that protected source as immutable source-only `v0.3.0` and installs
+the one commit-bound personal cachebuster. P3.2 acceptance exercises
 external sidecar parsing, mock ZIP/fixture staging, mock deployment/evidence,
 concurrent active-pointer drift rejection, and static production seams only.
 The launch seam must remain bound to the deployment identity returned to the
@@ -30,9 +30,9 @@ failure.
 Runtime provenance requires the exact installer owner and re-hashes the closed
 installed payload instead of trusting manifest claims. Validation rejects
 object-valued profile-root collections or external inventories, including
-`webView2.files`, and rejects non-string paths. P3.2 does not authorize an
-operator to run a profile or perform a host, guest, package, driver, or network
-operation.
+`webView2.files`, and rejects non-string paths. Neither P3.2 nor P3.3 authorizes
+an operator to run a profile or perform a host, guest, package, driver, or
+network operation.
 
 H5A repairs the automatic-checkpoint ownership deadlock without changing the
 20-tool surface. Future VM creation disables automatic checkpoints before
@@ -125,6 +125,10 @@ installed-copy validation (the historical script name is retained):
 ```powershell
 .\scripts\validate-gate4.ps1
 ```
+
+P3.3 does not rerun that historical real-host smoke. Its stricter boundary uses
+`check_install.ps1` plus an installed-server `initialize`/`tools/list` session,
+requires 31/31 payload hashes and exactly 20 unique tools, and calls no tool.
 
 If preparation is missing, stale, or points to a removed interpreter,
 validation stops with a bounded message telling the operator to rerun
