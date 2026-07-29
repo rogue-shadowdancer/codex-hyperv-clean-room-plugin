@@ -118,6 +118,7 @@ function Assert-HcrHistoricalRelease {
 
 $script:GhCommand = Get-Command gh -ErrorAction Stop
 $codexCommand = Get-Command codex -ErrorAction Stop
+$gitCommand = Get-Command git -ErrorAction Stop
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $sourceRoot = Join-Path $repoRoot 'hyperv-clean-room'
 . (Join-Path $PSScriptRoot 'install-common.ps1')
@@ -186,6 +187,16 @@ $historicalBaselines = @(
 $historical = @($historicalBaselines | ForEach-Object {
         Assert-HcrHistoricalRelease $_
     })
+
+$repoHead = [string](& $gitCommand.Source -C $repoRoot rev-parse HEAD)
+Assert-HcrReadback ($LASTEXITCODE -eq 0 -and
+        $repoHead.Trim() -ceq $ExpectedMasterCommit) `
+    'The release-readback checkout HEAD does not equal ExpectedMasterCommit.'
+$sourceStatus = @(& $gitCommand.Source -C $repoRoot status `
+        --porcelain=v1 --untracked-files=all -- hyperv-clean-room)
+Assert-HcrReadback ($LASTEXITCODE -eq 0 -and $sourceStatus.Count -eq 0) `
+    ('The reviewed plugin source has index, worktree, or untracked changes: ' +
+        ($sourceStatus -join '; '))
 
 $resolvedInstallRoot = [IO.Path]::GetFullPath($InstallRoot)
 $sourceInventory = Get-HcrSourceInventory `

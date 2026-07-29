@@ -85,7 +85,9 @@ objects, peeled commits, Release identities, flags, and zero-asset state.
 `ExpectedMasterCommit` is mandatory, the installed version must equal the
 single frozen build `0.3.1+codex.20260729184240`, and the check revalidates
 every payload path, size, SHA-256 value, ownership marker, and install manifest
-against that reviewed source checkout.
+against that reviewed source checkout. The checkout itself must have
+`HEAD == ExpectedMasterCommit` and no staged, tracked-worktree, or untracked
+change under `hyperv-clean-room/`.
 
 The historical H4/G9 `validate-gate4.ps1` installed-copy smoke calls
 `inspect_host` and a missing-ISO plan. It is not part of this recovery gate and

@@ -283,7 +283,9 @@ Acceptance requires:
   commit and also proves the v0.1.1, v0.2.0, and v0.3.0 tag/Release baselines
   did not move or get reissued; its reviewed-commit argument is mandatory, it
   accepts only `0.3.1+codex.20260729184240`, and it rehashes every installed
-  payload plus ownership/manifest state;
+  payload plus ownership/manifest state from a checkout whose `HEAD` equals
+  that reviewed commit and whose plugin source has no index, worktree, or
+  untracked changes;
 - exact 31-file payload plus two installer records and one personal marketplace
   entry;
 - a fresh app-server thread with
