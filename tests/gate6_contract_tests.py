@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import ctypes
 import hashlib
 import json
 import re
 import subprocess
+import sys
 import unicodedata
 from collections import Counter
 from copy import deepcopy
@@ -399,7 +401,55 @@ def schema_bound_relative_path_fields(
 
 
 def normalized_archive_path(value: str) -> str:
-    return unicodedata.normalize("NFC", value.replace("\\", "/")).casefold()
+    return unicodedata.normalize("NFC", value.replace("\\", "/"))
+
+
+def utf16_code_unit_count(value: str) -> int:
+    return len(value.encode("utf-16-le", errors="surrogatepass")) // 2
+
+
+def windows_ordinal_ignore_case_equal(left: str, right: str) -> bool:
+    left_normalized = normalized_archive_path(left)
+    right_normalized = normalized_archive_path(right)
+    if sys.platform != "win32":
+        raise AssertionError(
+            "Windows OrdinalIgnoreCase validation requires the supported Windows host"
+        )
+    compare = ctypes.windll.kernel32.CompareStringOrdinal
+    compare.argtypes = [
+        ctypes.c_wchar_p,
+        ctypes.c_int,
+        ctypes.c_wchar_p,
+        ctypes.c_int,
+        ctypes.c_bool,
+    ]
+    compare.restype = ctypes.c_int
+    result = compare(
+        left_normalized,
+        utf16_code_unit_count(left_normalized),
+        right_normalized,
+        utf16_code_unit_count(right_normalized),
+        True,
+    )
+    if result == 0:
+        raise ctypes.WinError()
+    return result == 2
+
+
+def duplicate_windows_paths(paths: list[str]) -> list[str]:
+    buckets: dict[int, list[str]] = {}
+    duplicates: list[str] = []
+    for path in paths:
+        normalized = normalized_archive_path(path)
+        bucket = buckets.setdefault(utf16_code_unit_count(normalized), [])
+        if any(
+            windows_ordinal_ignore_case_equal(normalized, prior)
+            for prior in bucket
+        ):
+            duplicates.append(normalized)
+        else:
+            bucket.append(normalized)
+    return duplicates
 
 
 def windows_ordinal_key(value: str) -> tuple[int, ...]:
@@ -426,7 +476,7 @@ def validate_portable_manifest_semantics(manifest: dict[str, Any]) -> list[str]:
         if not is_safe_relative_path(path):
             errors.append(f"unsafe portable manifest path: {path!r}")
     normalized = [normalized_archive_path(path) for path in string_paths]
-    duplicates = duplicate_values(normalized)
+    duplicates = duplicate_windows_paths(string_paths)
     if duplicates:
         errors.append(f"case-insensitive duplicate portable paths: {duplicates}")
     boundary = manifest.get("distributionBoundary")
@@ -443,7 +493,10 @@ def validate_portable_manifest_semantics(manifest: dict[str, Any]) -> list[str]:
         if external
         else manifest.get("entryPointRelativePath")
     )
-    if isinstance(entry_point, str) and normalized_archive_path(entry_point) not in normalized:
+    if isinstance(entry_point, str) and not any(
+        windows_ordinal_ignore_case_equal(entry_point, path)
+        for path in normalized
+    ):
         errors.append("portable entry point is absent from the exact inventory")
     elif isinstance(entry_point, str):
         entry_items = [
@@ -451,8 +504,7 @@ def validate_portable_manifest_semantics(manifest: dict[str, Any]) -> list[str]:
             for item in files
             if isinstance(item, dict)
             and isinstance(item.get("path"), str)
-            and normalized_archive_path(item["path"])
-            == normalized_archive_path(entry_point)
+            and windows_ordinal_ignore_case_equal(item["path"], entry_point)
         ]
         size_field = "size" if external else "sizeBytes"
         if len(entry_items) != 1 or entry_items[0].get(size_field, 0) < 1:
@@ -463,9 +515,20 @@ def validate_portable_manifest_semantics(manifest: dict[str, Any]) -> list[str]:
         "sbom.cdx.json",
         "licenses/sbom.cdx.json",
     }
-    if any(path in forbidden_sidecars for path in normalized):
+    if any(
+        windows_ordinal_ignore_case_equal(path, sidecar)
+        for path in normalized
+        for sidecar in forbidden_sidecars
+    ):
         errors.append("portable inventory contains a forbidden sidecar")
-    if any(path == "data" or path.startswith("data/") for path in normalized):
+    if any(
+        windows_ordinal_ignore_case_equal(path, "data")
+        or (
+            len(path) >= 5
+            and windows_ordinal_ignore_case_equal(path[:5], "data/")
+        )
+        for path in normalized
+    ):
         errors.append("portable payload inventory contains mutable data")
     if boundary == "end-user-complete":
         documentation = manifest.get("documentationFiles", [])
@@ -481,9 +544,9 @@ def validate_portable_manifest_semantics(manifest: dict[str, Any]) -> list[str]:
         ]
         if any(not is_safe_relative_path(path) for path in source_paths + archive_paths):
             errors.append("documentation mapping contains an unsafe relative path")
-        if duplicate_values([normalized_archive_path(path) for path in source_paths]):
+        if duplicate_windows_paths(source_paths):
             errors.append("documentation source mapping is not unique")
-        if duplicate_values([normalized_archive_path(path) for path in archive_paths]):
+        if duplicate_windows_paths(archive_paths):
             errors.append("documentation archive mapping is not unique")
         if manifest.get("documentationFileCount") != len(documentation):
             errors.append("documentation file count does not match the mapping")
@@ -494,17 +557,23 @@ def validate_portable_manifest_semantics(manifest: dict[str, Any]) -> list[str]:
         )
         if manifest.get("documentationPayloadSize") != payload_size:
             errors.append("documentation payload size does not match the mapping")
-        file_by_path = {
-            normalized_archive_path(item["path"]): item
-            for item in files
-            if isinstance(item, dict) and isinstance(item.get("path"), str)
-        }
         for item in documentation:
             if not isinstance(item, dict) or not isinstance(
                 item.get("archivePath"), str
             ):
                 continue
-            archived = file_by_path.get(normalized_archive_path(item["archivePath"]))
+            archived = next(
+                (
+                    file
+                    for file in files
+                    if isinstance(file, dict)
+                    and isinstance(file.get("path"), str)
+                    and windows_ordinal_ignore_case_equal(
+                        file["path"], item["archivePath"]
+                    )
+                ),
+                None,
+            )
             if (
                 archived is None
                 or archived.get("size") != item.get("size")
@@ -530,7 +599,7 @@ def validate_webdriver_manifest_semantics(manifest: dict[str, Any]) -> list[str]
     string_paths = [path for path in paths if isinstance(path, str)]
     if any(not is_safe_relative_path(path) for path in string_paths):
         errors.append("WebDriver inventory contains an unsafe Windows path")
-    if duplicate_values([normalized_archive_path(path) for path in string_paths]):
+    if duplicate_windows_paths(string_paths):
         errors.append("WebDriver inventory contains colliding Windows paths")
     executable = manifest.get("executable", {})
     executable_path = executable.get("relativePath")
@@ -844,8 +913,9 @@ def validate_external_portable_bindings(
         errors.append("PORTABLE_ARTIFACT_IDENTITY_MISMATCH")
     manifest_path = artifact.get("portableManifestRelativePath")
     if isinstance(manifest_path, str) and any(
-        normalized_archive_path(str(fixture.get("sourceRelativePath", "")))
-        == normalized_archive_path(manifest_path)
+        windows_ordinal_ignore_case_equal(
+            str(fixture.get("sourceRelativePath", "")), manifest_path
+        )
         for fixture in profile.get("fixtures", [])
         if isinstance(fixture, dict)
     ):
@@ -2052,6 +2122,34 @@ def assert_p3_1_contract(
     )
     if "PORTABLE_MANIFEST_FIXTURE_PATH_COLLISION" not in collision_errors:
         raise AssertionError("external manifest sidecar was accepted as a fixture")
+    expanding_fold_profile = deepcopy(ui_profile)
+    expanding_fold_profile["artifact"][
+        "portableManifestRelativePath"
+    ] = "STRASSE.json"
+    expanding_fold_profile["fixtures"][0][
+        "sourceRelativePath"
+    ] = "straße.json"
+    expanding_fold_errors = validate_external_portable_bindings(
+        expanding_fold_profile, ui_manifest
+    )
+    if "PORTABLE_MANIFEST_FIXTURE_PATH_COLLISION" in expanding_fold_errors:
+        raise AssertionError(
+            "Windows-distinct expanding Unicode case folds were treated as equal"
+        )
+    unicode_case_profile = deepcopy(ui_profile)
+    unicode_case_profile["artifact"][
+        "portableManifestRelativePath"
+    ] = "FIXTURES/Å.JSON"
+    unicode_case_profile["fixtures"][0][
+        "sourceRelativePath"
+    ] = "fixtures/å.json"
+    unicode_case_errors = validate_external_portable_bindings(
+        unicode_case_profile, ui_manifest
+    )
+    if "PORTABLE_MANIFEST_FIXTURE_PATH_COLLISION" not in unicode_case_errors:
+        raise AssertionError(
+            "Windows-equal non-ASCII fixture/manifest paths did not collide"
+        )
     for schema_name in (
         "portable-manifest.schema.json",
         "test-profile.schema.json",
