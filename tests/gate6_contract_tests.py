@@ -143,6 +143,30 @@ UI_STEP_TYPES = {
     "assertUiElement",
     "captureUiScreenshot",
 }
+SAFE_RELATIVE_PATH_FIELDS = {
+    "archivePath",
+    "derivedFromPath",
+    "entrypoint",
+    "entryPointRelativePath",
+    "executablePath",
+    "executableRelativePath",
+    "inventoryPath",
+    "maaInventoryAuthority",
+    "moduleRelativePath",
+    "nativeInventoryPath",
+    "path",
+    "portableManifestRelativePath",
+    "registryPath",
+    "rootDirectory",
+    "runtimeManifestPath",
+    "sourcePath",
+    "sourceRelativePath",
+    "trackedManifest",
+}
+SAFE_RELATIVE_PATH_ARRAY_FIELDS = {
+    "excludedBirdsgoneTrackedFiles",
+    "removedPaths",
+}
 UI_ASSERT_STATES = {
     "visible",
     "hidden",
@@ -292,12 +316,76 @@ def is_safe_relative_path(value: object) -> bool:
     return True
 
 
+def iter_bound_relative_paths(value: object) -> list[object]:
+    paths: list[object] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in SAFE_RELATIVE_PATH_FIELDS:
+                paths.append(child)
+            elif key in SAFE_RELATIVE_PATH_ARRAY_FIELDS and isinstance(child, list):
+                paths.extend(child)
+            if isinstance(child, (dict, list)):
+                paths.extend(iter_bound_relative_paths(child))
+    elif isinstance(value, list):
+        for child in value:
+            if isinstance(child, (dict, list)):
+                paths.extend(iter_bound_relative_paths(child))
+    return paths
+
+
+def schema_bound_relative_path_fields(
+    schema: dict[str, Any],
+) -> tuple[set[str], set[str]]:
+    scalar_fields: set[str] = set()
+    array_fields: set[str] = set()
+
+    def directly_references_safe_path(node: object) -> bool:
+        if not isinstance(node, dict):
+            return False
+        if node.get("$ref") == "#/$defs/safeRelativePath":
+            return True
+        return any(
+            isinstance(item, dict)
+            and item.get("$ref") == "#/$defs/safeRelativePath"
+            for item in node.get("allOf", [])
+        )
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            properties = node.get("properties")
+            if isinstance(properties, dict):
+                for name, definition in properties.items():
+                    if directly_references_safe_path(definition):
+                        scalar_fields.add(name)
+                    if (
+                        isinstance(definition, dict)
+                        and isinstance(definition.get("items"), dict)
+                        and directly_references_safe_path(definition["items"])
+                    ):
+                        array_fields.add(name)
+            for child in node.values():
+                walk(child)
+        elif isinstance(node, list):
+            for child in node:
+                walk(child)
+
+    walk(schema)
+    return scalar_fields, array_fields
+
+
 def normalized_archive_path(value: str) -> str:
     return unicodedata.normalize("NFC", value.replace("\\", "/")).casefold()
 
 
 def validate_portable_manifest_semantics(manifest: dict[str, Any]) -> list[str]:
     errors: list[str] = []
+    unsafe_bound_paths = [
+        path
+        for path in iter_bound_relative_paths(manifest)
+        if not is_safe_relative_path(path)
+    ]
+    if unsafe_bound_paths:
+        errors.append(f"manifest contains unsafe bound relative paths: {unsafe_bound_paths!r}")
     files = manifest.get("files", [])
     paths = [item.get("path") for item in files if isinstance(item, dict)]
     string_paths = [path for path in paths if isinstance(path, str)]
@@ -473,6 +561,13 @@ def validate_network_plan_semantics(plan: dict[str, Any]) -> list[str]:
 
 def validate_profile_semantics(profile: dict[str, Any]) -> list[str]:
     errors: list[str] = []
+    unsafe_bound_paths = [
+        path
+        for path in iter_bound_relative_paths(profile)
+        if not is_safe_relative_path(path)
+    ]
+    if unsafe_bound_paths:
+        errors.append(f"profile contains unsafe bound relative paths: {unsafe_bound_paths!r}")
     steps = profile.get("steps", [])
     cleanup_steps = profile.get("cleanupSteps", [])
     manual_assertions = profile.get("manualAssertions", [])
@@ -711,6 +806,13 @@ def derive_status(results: list[dict[str, Any]]) -> str:
 
 def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
     errors: list[str] = []
+    unsafe_bound_paths = [
+        path
+        for path in iter_bound_relative_paths(evidence)
+        if not is_safe_relative_path(path)
+    ]
+    if unsafe_bound_paths:
+        errors.append(f"evidence contains unsafe bound relative paths: {unsafe_bound_paths!r}")
     automatic = evidence.get("automaticAssertions", [])
     manual = evidence.get("manualAssertions", [])
     machine_facts_passed = all(
@@ -1626,6 +1728,20 @@ def assert_p3_1_contract(
     neutral_evidence = load_json(
         P3_1_FIXTURE_ROOT / "evidence.external-neutral.valid.json"
     )
+    for schema_name in (
+        "portable-manifest.schema.json",
+        "test-profile.schema.json",
+        "evidence.schema.json",
+    ):
+        scalar_fields, array_fields = schema_bound_relative_path_fields(
+            schemas[schema_name]
+        )
+        if not scalar_fields.issubset(
+            SAFE_RELATIVE_PATH_FIELDS
+        ) or not array_fields.issubset(SAFE_RELATIVE_PATH_ARRAY_FIELDS):
+            raise AssertionError(
+                f"{schema_name} has safeRelativePath bindings outside semantic coverage"
+            )
     if (
         any(name in neutral_manifest for name in ("maa", "webView2"))
         or "webDriver" in neutral_profile
@@ -1647,6 +1763,18 @@ def assert_p3_1_contract(
                 "external inventory accepted a Windows console device path: "
                 f"{console_device_path!r}"
             )
+    control_path_manifest = deepcopy(neutral_manifest)
+    control_path_manifest["sbom"]["path"] = "bad\u0001.cdx.json"
+    if not list(
+        validator_for(
+            "portable-manifest.schema.json", schemas, registry
+        ).iter_errors(control_path_manifest)
+    ) or not validate_portable_manifest_semantics(control_path_manifest):
+        raise AssertionError("external manifest accepted a control character path")
+    decomposed_path_manifest = deepcopy(neutral_manifest)
+    decomposed_path_manifest["sbom"]["derivedFromPath"] = "Cafe\u0301.cdx.json"
+    if not validate_portable_manifest_semantics(decomposed_path_manifest):
+        raise AssertionError("external manifest accepted a non-NFC bound path")
     signed_external_probe = deepcopy(neutral_manifest)
     signed_external_probe["unsigned"] = False
     if not list(
