@@ -154,8 +154,11 @@ profile and ZIP hashes and is excluded from its own `files` array to avoid an
 impossible recursive self-hash. The immutable archive limits are: at most
 4,096 entries, 8 GiB expanded bytes, and 200:1 compression ratio.
 The evidence candidate source commit is derived from this hash-bound portable
-manifest; the separate runtime source commit is derived from the installed
-plugin manifest and the two commits are not required to match.
+manifest. For an external portable manifest it is exactly `packagingCommit`;
+the candidate also preserves the manifest's distinct runtime commit/tree and
+packaging commit/tree. The separate evidence runtime source commit is derived
+from the installed plugin manifest and is not required to match any candidate
+commit.
 
 Before extraction, the implementation must verify the host ZIP SHA-256 and
 manifest identity. It must normalize every path as a relative Windows path,
@@ -191,6 +194,17 @@ arbitrary selectors, and script execution are forbidden.
 
 Schema-v2 portable profiles declare fixtures by ID, safe relative file name,
 size, and SHA-256; fixture bytes are staged and dual-hashed by the server.
+
+External evidence uses the SHA-256 of the exact validated profile-file bytes.
+Its fixture-set digest is lowercase SHA-256 over UTF-8 without a BOM of the
+compact JSON array, in profile order, containing each fixture's fields in this
+exact order: `id`, slash-normalized `sourceRelativePath`, `sizeBytes`,
+lowercase `sha256`, and `mediaType`. The evidence fixture identity for every
+declared ID must repeat that normalized path, declared size, and declared hash
+as its profile/source/guest values; all three observations must agree and pass.
+When a profile contains a WebDriver object, its manifest digest is computed
+over that object's compact UTF-8 JSON in declaration order; the non-UI branch
+uses `null`.
 
 Each `fixture.sourceRelativePath` resolves beneath the already-validated local
 directory containing the profile. The server canonicalizes every parent and
