@@ -208,6 +208,14 @@ class PublicationHygienePolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "unexpected author/committer"):
             hygiene.assert_commit_metadata_safe("b" * 40, legacy)
 
+        alternate_public_name = self.synthetic_commit(
+            "Account Profile Name",
+            hygiene.PUBLIC_COMMIT_EMAIL,
+            "new change",
+        )
+        with self.assertRaisesRegex(AssertionError, "unexpected author/committer"):
+            hygiene.assert_commit_metadata_safe("b" * 40, alternate_public_name)
+
         private_path = "E:" + "\\study\\private"
         unsafe_message = self.synthetic_commit(
             hygiene.PUBLIC_COMMIT_NAME,

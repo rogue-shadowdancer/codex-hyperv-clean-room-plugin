@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MAX_SCANNED_BLOB_BYTES = 2 * 1024 * 1024
 ACCEPTED_LEGACY_COMMIT_SHA256 = {
+    # Eight preserved pre-release commits.
     "45193ddc75ba108b468a9bab180cfab9ae31620224817906420578cf6a3db0e1",
     "5f9aeac3283df11ffe1918c33d16434d8e6a834f63a9b64e70dd7083f8a5ea3a",
     "69bcfba21b8fcb68d1e4d8914631190eb3195c52bc160789c940f685dcd4795e",
@@ -19,6 +20,28 @@ ACCEPTED_LEGACY_COMMIT_SHA256 = {
     "d323ea912a0bf3805b875262206e7ef9c8141adfb554954a70339da2c7dc48bc",
     "b592529dc22c8b52289899035d1658d67fbc8eec5b57f0d50b0e13a5b7f3e55d",
     "3ffce4f4af707fc3fc3ad137962571fe19d14b28d3c394356fab3fec1e582f07",
+    # Nineteen GitHub-generated protected P3.1 rebase commits. GitHub retained
+    # the approved public noreply email but substituted the account profile
+    # display name for the repository-local public committer name.
+    "8f7b9eefa0686565cd4b341e15389902a6a633c4ccd7e2f1ffa7baa59bf57d8f",
+    "d32b7efa0eb6748294ff2370c7bb22bfd893d2615bf4c44d1f6df12f90cb6eaa",
+    "ea56163de2e73afbeadbe3eff3e56d41973433002eb234386abe55d989b99cf7",
+    "6ac9d854eb8b3d8e427938a39b9ebec172ce43748360a5d68df6c14834792f36",
+    "a7143b7ed790b5e7e923557b5a5ca24500a68ca0e71c5e35a1163b644476a1ab",
+    "9b7b38508a198051fa735ce180e6fdcf00477e832c87c089364b9ecc5eaebea6",
+    "f1e2ec9fff9720051d09b6879a5b4017fb356948fd791fba2240e14133ed1b1d",
+    "c143450a505691c6af60a648a64edc10f38d791c0df5c418b4cb893f08b82f7d",
+    "40ff721b73211145c0fe8fb90b713c66a784b415bf6ff29d78784e5a2813c1fd",
+    "13a79f17307eddffc7cb10876b5aca5af223c748d4c69301c384e06405ee6817",
+    "00df2d1fd812461ab655fbd7de07212932cafd2e8fb75b07c82839ff1b6e9534",
+    "405a3ae8d45d9f5ef284642affa5f78b0155475f436360341b1046cd812246ab",
+    "bb85fa86b83333e5b95142bd374629c32cc389a00af3966aa2ef1c44ed79621a",
+    "c66f6d1e20d4998e4974ec36dc7febae95b9b5529f7214d7399e4fadde7af674",
+    "25b7fc1f9d5d443a2e379bf4321f989cb664a8c30a96b8adc924a3c29b688fa7",
+    "3fe237ecaa65bd71281e4fa71db6a45dd32f172ca7d0eaec2a6da533fae15966",
+    "d7879604e2f84b92f52fac1171c5e94f194c478eba503dd67614705e0e431c04",
+    "8f96527be228138c809a18c7a7f6d1c86c22b702f3bd6efa701926725a0fb7db",
+    "044deeb3cc609fb461f3d1189b7c4b269aea9bc8bda51136b31417bc98781cbc",
 }
 PUBLIC_COMMIT_NAME = "rogue-shadowdancer"
 PUBLIC_COMMIT_EMAIL = "78423508+rogue-shadowdancer@users.noreply.github.com"
