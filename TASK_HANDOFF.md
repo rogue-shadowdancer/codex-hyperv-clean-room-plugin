@@ -15,6 +15,16 @@ This gate consumes only protected Birdsgone source results. It performs no
 Hyper-V, VM, checkpoint, guest, credential, package lifecycle, driver,
 network, UI, manual-attestation, installation, tag, or Release operation.
 
+PR #26 protected-rebase-merged the reviewed P3.1 contract as protected
+`master` `5c4eeb84fec5d5476d3b97c52d2a52af597d430e`, tree
+`00724b73939e9e390943d2c1d348c2af0c4080d7`. The candidate and protected
+trees are byte-identical. The first post-merge required run failed closed
+before schema validation because GitHub generated all nineteen rebased commits
+with the approved public noreply email but a different committer display name.
+The bounded follow-up records only those nineteen exact raw commit SHA-256
+digests in the existing history-exception allowlist and preserves default
+rejection of every other display-name mismatch.
+
 ## Protected upstream authority
 
 - Birdsgone protected `main`:
@@ -133,6 +143,9 @@ reinterpret G6.2 as clean-room or guest evidence.
 - `tests/gate6_contract_tests.py`
 - `tests/gate7_implementation_tests.py`
 - `tests/fixtures/v3/*`
+- `docs/release-process.md`
+- `tests/publication_hygiene_policy_tests.py`
+- `tests/publication_hygiene_tests.py`
 
 ## Verification
 
@@ -153,6 +166,9 @@ The candidate must retain these exact outcomes after its final commit:
 - Gate 7 mock runtime assertions: `216`
 - generated mock evidence documents validated: `5`
 - `git diff --check`
+- publication hygiene accepts exactly eight preserved pre-release commits plus
+  the nineteen immutable GitHub-generated P3.1 rebase commits by raw commit
+  SHA-256, while rejecting any unlisted public-email/display-name mismatch
 - Eighteen Codex review passes found thirty actionable fail-closed or regression
   coverage gaps: external ZIP
   artifact leaf/size binding, cleanup-only UI driver dispatch and WebView2
