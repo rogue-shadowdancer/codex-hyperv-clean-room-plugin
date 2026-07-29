@@ -1211,6 +1211,9 @@ Here, path ordinal means the exact Windows/.NET `StringComparer.Ordinal`
 ordering of UTF-16 code units, including supplementary Unicode characters.
 The normalized, case-insensitive manifest sidecar path must also be distinct
 from every fixture source path; the sidecar can never enter the fixture set.
+All case-insensitive path identity uses the supported Windows host's exact
+ordinal-ignore-case comparison over normalized UTF-16 paths. It does not use
+Unicode full case folding or multi-character expansions.
 
 P3.1 acceptance requires six positive target fixtures, five direct
 schema-negative fixtures, and the exact 41-case negative matrix under

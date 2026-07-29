@@ -153,7 +153,7 @@ The candidate must retain these exact outcomes after its final commit:
 - Gate 7 mock runtime assertions: `216`
 - generated mock evidence documents validated: `5`
 - `git diff --check`
-- Seventeen Codex review passes found twenty-nine actionable fail-closed or regression
+- Eighteen Codex review passes found thirty actionable fail-closed or regression
   coverage gaps: external ZIP
   artifact leaf/size binding, cleanup-only UI driver dispatch and WebView2
   cross-binding, embedded-evidence rejection of external fixture identities,
@@ -174,9 +174,10 @@ The candidate must retain these exact outcomes after its final commit:
   WebDriver digest oracles, plus exact preservation of the embedded manifest's
   legacy product-version grammar while only external manifests use bounded
   build metadata, Windows/.NET UTF-16 ordinal inventory ordering, and
-  case-insensitive manifest-sidecar/fixture path separation. All twenty-nine
-  are repaired with direct regression probes; the final published candidate
-  requires a fresh zero-actionable-findings review.
+  exact Windows ordinal-ignore-case manifest-sidecar/fixture path separation
+  without Unicode multi-character case-fold expansion. All thirty are repaired
+  with direct regression probes; the final published candidate requires a
+  fresh zero-actionable-findings review.
 - real host operations: `0`
 - real Hyper-V mutations: `0`
 - real guest operations: `0`
