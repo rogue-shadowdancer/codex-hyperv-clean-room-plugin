@@ -80,18 +80,18 @@ def main() -> int:
     catalog = load(CONTRACT / "tool-catalog.json")
     manifest = load(PLUGIN / ".codex-plugin" / "plugin.json")
     if not re.fullmatch(
-        r"0\.3\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?",
+        r"0\.3\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?",
         str(manifest["version"]),
     ):
         raise AssertionError(
-            "the integrated plugin version must expose base 0.3.0 with at "
+            "the integrated plugin version must expose base 0.3.1 with at "
             "most one Codex cachebuster"
         )
     if (
         catalog["targetPluginVersion"] != "0.3.0"
         or compatibility["targetPluginVersion"] != "0.3.0"
-        or catalog["currentRuntimeVersion"] != "0.3.0"
-        or compatibility["currentRuntimeVersion"] != "0.3.0"
+        or catalog["currentRuntimeVersion"] != "0.3.1"
+        or compatibility["currentRuntimeVersion"] != "0.3.1"
     ):
         raise AssertionError("P3.2 target/runtime integration metadata drifted")
     if len(catalog["tools"]) != 20:
@@ -119,7 +119,7 @@ def main() -> int:
     adapters = read(PLUGIN / "mcp" / "lib" / "Adapters.ps1")
     migration = read(PLUGIN / "mcp" / "Migrate-TestProfile.ps1")
 
-    for token in ("$script:HcrPluginVersion = '0.3.0'", "plan_vm_power", "apply_vm_power", "plan_vm_network", "apply_vm_network"):
+    for token in ("$script:HcrPluginVersion = '0.3.1'", "plan_vm_power", "apply_vm_power", "plan_vm_network", "apply_vm_network"):
         if token not in common:
             raise AssertionError(f"integrated runtime token is missing: {token}")
     for token in ("Validation.V2.ps1", "Tools.Host.V2.ps1", "Tools.Guest.V2.ps1", "$script:HcrPluginVersion"):

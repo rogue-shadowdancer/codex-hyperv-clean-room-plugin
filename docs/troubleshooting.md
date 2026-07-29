@@ -63,9 +63,10 @@ file decode.
 Run `scripts\validate-install-source.ps1` and use its bounded error. Do not
 install a payload with untracked files, reparse points, forbidden machine-state
 extensions, an unexpected folder/manifest name, or a version outside base
-`0.3.0` plus one optional Codex cachebuster. P3.3 publishes immutable
-source-only `v0.3.0` and accepts the single personal build
-`0.3.0+codex.20260729122233`. The immutable historical `v0.1.1` and `v0.2.0`
+`0.3.1` plus one optional Codex cachebuster. P3.3-R1 publishes immutable
+source-only `v0.3.1` and accepts the single personal build
+`0.3.1+codex.20260729184240`. The immutable historical `v0.1.1`, `v0.2.0`,
+and `v0.3.0`
 Releases remain separate accepted artifacts.
 
 ### A portable launch reports `PORTABLE_DEPLOYMENT_DRIFT`

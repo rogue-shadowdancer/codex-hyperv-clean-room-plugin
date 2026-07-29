@@ -2067,7 +2067,9 @@ $server.StandardInput.WriteLine('{"jsonrpc":"2.0","method":"notifications/initia
 foreach ($invalidListMessage in @(
     '{"jsonrpc":"2.0","id":34,"method":"tools/list","params":"scalar"}',
     '{"jsonrpc":"2.0","id":35,"method":"tools/list","params":{"unexpected":true}}',
-    '{"jsonrpc":"2.0","id":36,"method":"tools/list","params":null}'
+    '{"jsonrpc":"2.0","id":36,"method":"tools/list","params":null}',
+    '{"jsonrpc":"2.0","id":41,"method":"tools/list","params":{"cursor":1}}',
+    '{"jsonrpc":"2.0","id":42,"method":"tools/list","params":{"_meta":"scalar"}}'
 )) {
     $server.StandardInput.WriteLine($invalidListMessage)
     $invalidListResponse = $server.StandardOutput.ReadLine() | ConvertFrom-Json
@@ -2081,6 +2083,10 @@ $server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":37,"method":"tools/list"}
 $omittedListResponse = $server.StandardOutput.ReadLine() | ConvertFrom-Json
 Assert-Equal (@($omittedListResponse.result.tools).Count) 20 `
     'tools/list rejected omitted parameters.'
+$server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":43,"method":"tools/list","params":{"_meta":{"progressToken":"catalog-only"},"cursor":"opaque"}}')
+$modernListResponse = $server.StandardOutput.ReadLine() | ConvertFrom-Json
+Assert-Equal (@($modernListResponse.result.tools).Count) 20 `
+    'tools/list rejected MCP-standard _meta or cursor parameters.'
 
 foreach ($invalidToolCallMessage in @(
     '{"jsonrpc":"2.0","id":38,"method":"tools/call","params":"scalar"}',

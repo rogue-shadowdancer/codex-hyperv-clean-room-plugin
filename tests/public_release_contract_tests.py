@@ -157,17 +157,17 @@ def main() -> int:
             )
     version = str(manifest.get("version", ""))
     if not re.fullmatch(
-        r"0\.3\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?", version
+        r"0\.3\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?", version
     ):
         raise AssertionError(
-            "integrated source version must expose base 0.3.0 with at most "
+            "integrated source version must expose base 0.3.1 with at most "
             f"one Codex cachebuster: {version}"
         )
 
     server = read_text("hyperv-clean-room/mcp/server.ps1")
     common = read_text("hyperv-clean-room/mcp/lib/Common.ps1")
-    if "$script:HcrPluginVersion" not in server or "$script:HcrPluginVersion = '0.3.0'" not in common:
-        raise AssertionError("MCP serverInfo is not bound to plugin version 0.3.0")
+    if "$script:HcrPluginVersion" not in server or "$script:HcrPluginVersion = '0.3.1'" not in common:
+        raise AssertionError("MCP serverInfo is not bound to plugin version 0.3.1")
     schemas = sorted((PLUGIN_ROOT / "schemas").glob("*.json"))
     if len(schemas) != 5:
         raise AssertionError("schema-v1 count must remain exactly five")
@@ -201,6 +201,37 @@ def main() -> int:
             raise AssertionError(f"workflow is missing: {fragment}")
     validate_workflow_action_pins(workflow)
     validate_workflow_action_pin_regressions(workflow)
+
+    catalog_validator = read_text(
+        "scripts/validate_codex_app_server_catalog.py"
+    )
+    for fragment in (
+        '"selectedCapabilityRoots"',
+        '"id": "hyperv-clean-room@personal"',
+        '"method": "mcpServerStatus/list"',
+        '"CODEX_HOME"',
+        '"unselectedServerCount"',
+        '"promptTextSelectionAccepted": False',
+        '"toolCallCount": 0',
+        '"startupStatus": "ready"',
+    ):
+        if fragment not in catalog_validator:
+            raise AssertionError(
+                f"selected-plugin catalog validator is missing: {fragment}"
+            )
+    for forbidden in (
+        '"method": "mcpServer/tool/call"',
+        '"method": "turn/start"',
+    ):
+        if forbidden in catalog_validator:
+            raise AssertionError(
+                f"catalog-only validator must not send: {forbidden}"
+            )
+    if catalog_validator.count('"inspect_host"') != 1:
+        raise AssertionError(
+            "catalog validator must name inspect_host only in the expected "
+            "20-tool set and must never call it"
+        )
 
     hygiene_source = read_text("tests/publication_hygiene_tests.py")
     for fragment in (

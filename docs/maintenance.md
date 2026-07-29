@@ -24,6 +24,13 @@ once and produces accepted personal build
 `0.3.0+codex.20260729122233`. Reinstall that exact build from the final clean
 closeout commit without invoking the helper again.
 
+G7/P3.3-R1 advances the compatible patch runtime to `0.3.1`. Its helper was
+invoked exactly once before the final release candidate was committed and
+produced `0.3.1+codex.20260729184240`. Do not invoke the helper again during or
+after merge, tagging, Release publication, or reinstall. The protected
+`master`, annotated `v0.3.1` tag, source-only Release, and installed
+`sourceCommit` must remain one commit.
+
 The historical `v0.1.1` release used the helper exactly once and produced
 `0.1.1+codex.20260715064728`. Release verification must preserve that value;
 do not run the helper again merely to reinstall the accepted source commit.

@@ -452,7 +452,7 @@ $runtimeInstallPluginPath = Join-Path $runtimeInstallPluginDirectory 'plugin.jso
 $runtimeInstallPayloadPath = Join-Path $runtimeInstallMcpDirectory 'runtime.ps1'
 Write-Gate7Json $runtimeInstallPluginPath ([ordered]@{
     name = 'hyperv-clean-room'
-    version = '0.3.0+codex.20260729090000'
+    version = '0.3.1+codex.20260729090000'
 })
 [IO.File]::WriteAllText(
     $runtimeInstallPayloadPath,
@@ -494,7 +494,7 @@ Write-Gate7Json (
     installationId = $runtimeInstallationId
     sourceRoot = $runtimeInstallRoot
     targetRoot = $runtimeInstallRoot
-    sourceVersion = '0.3.0+codex.20260729090000'
+    sourceVersion = '0.3.1+codex.20260729090000'
     sourceCommit = ('e' * 40)
     cachebuster = '20260729090000'
     installedAtUtc = [DateTime]::UtcNow.ToString('o')
@@ -572,11 +572,11 @@ finally {
 
 $pluginManifest = Get-Content -LiteralPath (Join-Path $pluginRoot '.codex-plugin\plugin.json') `
     -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
-Assert-Gate7 ([string]$pluginManifest.version -match '^0\.3\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') `
-    'The loaded Gate 7 runtime does not expose the frozen 0.3.0 version.'
+Assert-Gate7 ([string]$pluginManifest.version -match '^0\.3\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') `
+    'The loaded Gate 7 runtime does not expose the 0.3.1 patch version.'
 $runtimeCatalog = Get-Content -LiteralPath (Join-Path $repoRoot 'contracts\v2\tool-catalog.json') `
     -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
-Assert-Gate7Equal ([string]$runtimeCatalog.currentRuntimeVersion) '0.3.0' `
+Assert-Gate7Equal ([string]$runtimeCatalog.currentRuntimeVersion) '0.3.1' `
     'The tool catalog did not advance with the loaded runtime.'
 foreach ($schemaName in @(
         'evidence.schema.json', 'operation-envelope.schema.json',
@@ -587,7 +587,7 @@ foreach ($schemaName in @(
     $authoritative = [IO.File]::ReadAllBytes((Join-Path $repoRoot (Join-Path 'contracts\v2\schemas' $schemaName)))
     $installed = [IO.File]::ReadAllBytes((Join-Path $pluginRoot (Join-Path 'schemas\v2' $schemaName)))
     Assert-Gate7 ([Convert]::ToBase64String($authoritative) -eq [Convert]::ToBase64String($installed)) `
-        "The installed schema-v2 copy drifted from the 0.3.0 authority: $schemaName"
+        "The installed schema-v2 copy drifted from the authority: $schemaName"
 }
 
 $definitions = @(Get-HcrToolDefinitions)
@@ -1419,8 +1419,8 @@ $externalOperation = Get-HcrOperationRecord ([string]$externalRun.data.testOpera
 $externalEvidence = Read-HcrJsonFile ([string]$externalOperation.evidenceFile) 'EVIDENCE_NOT_READY'
 Assert-Gate7Equal ([string]$externalEvidence.evidenceKind) 'externalPortable' `
     'The external evidence structural discriminator is missing.'
-Assert-Gate7Equal ([string]$externalEvidence.runtime.pluginBaseVersion) '0.3.0' `
-    'External evidence did not bind the 0.3.0 runtime base.'
+Assert-Gate7Equal ([string]$externalEvidence.runtime.pluginBaseVersion) '0.3.1' `
+    'External evidence did not bind the 0.3.1 runtime base.'
 Assert-Gate7Equal ([string]$externalEvidence.candidate.packagingCommit) ('b' * 40) `
     'External evidence fabricated or lost the manifest packaging commit.'
 Assert-Gate7Equal ([string]$externalEvidence.candidate.portableZipSourceSha256) `

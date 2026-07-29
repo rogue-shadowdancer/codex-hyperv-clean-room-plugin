@@ -259,3 +259,31 @@ The local publication aggregate also invoked inherited Gate 2, whose bounded
 read-only smoke called `inspect_host` and rejected `plan_vm_create` on a missing
 ISO. That invocation was outside the declared P3.3 no-host boundary. It
 performed no Hyper-V/VM/checkpoint mutation and is not machine acceptance.
+
+## G7/P3.3-R1 `v0.3.1` selected-plugin recovery
+
+The immutable `v0.3.0` tag and Release are historical and must not be moved,
+deleted, or replaced. The compatible `v0.3.1` patch fixes only the
+MCP-standard `tools/list` parameter handshake and adds a real Codex
+selected-plugin catalog validator.
+
+Before commit, invoke the cachebuster helper exactly once and freeze
+`0.3.1+codex.20260729184240`. All status and release-process text belongs in
+the same candidate before review; no post-tag closeout commit is permitted.
+After the protected PR merges, create annotated tag `v0.3.1` at the exact
+protected `master` SHA and publish one non-draft, non-prerelease, source-only
+Release with zero uploaded assets. Install the already-frozen build from that
+same checkout without rerunning the helper.
+
+Acceptance requires:
+
+- protected `master` SHA = annotated tag peeled SHA = Release tag target =
+  install-manifest `sourceCommit`;
+- exact 31-file payload plus two installer records and one personal marketplace
+  entry;
+- a fresh app-server thread with
+  `selectedCapabilityRoots.id = hyperv-clean-room@personal`;
+- thread-scoped `mcpServerStatus/list` reports `hyperv-clean-room` / `0.3.1`
+  and exactly 20 unique tools;
+- no `turn/start`, `mcpServer/tool/call`, `inspect_host`, adapter operation, or
+  real host/VM/guest/package/UI/evidence/manual operation.

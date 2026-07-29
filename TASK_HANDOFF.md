@@ -1,180 +1,100 @@
-# Task handoff: G7/P3.3 Hyper-V Clean Room 0.3 publication and install
+# Task handoff: G7/P3.3-R1 v0.3.1 selected-plugin recovery
 
 `relayProtocolVersion: 1`
 
 `projectPath: E:\study\great_projects\codex-hyperv-clean-room-plugin`
 
-## Status
+## Objective
 
-G7/P3.3 publishes the reviewed P3.2 source runtime and closes the separately
-authorized personal-install lane. Catalog acceptance invokes no MCP tool or
-adapter operation. The local publication aggregate did invoke the inherited
-Gate 2 bounded read-only `inspect_host` and missing-ISO `plan_vm_create`
-rejection, contrary to the declared P3.3 no-host boundary. It did not execute a
-Hyper-V/VM/checkpoint mutation, package or portable application, guest
-operation, credential flow, WebDriver/UI step, network transition, evidence
-operation, or manual attestation.
+Publish the compatible Hyper-V Clean Room `v0.3.1` patch from one protected
+commit, install the precommitted personal build from that same commit, and
+prove the exact 20-tool catalog through a genuinely selected fresh Codex
+thread. This gate performs no real Hyper-V or package operation.
 
-The immutable source release is:
+## Why the recovery exists
 
-- protected source commit:
-  `47151fdbe99346ec87af09460c79d0864978eabd`;
-- source tree:
-  `97a1a194e4d4c31fe0e33bad00b98a45a3be705f`;
-- annotated tag: `v0.3.0`;
-- tag object: `c4046176e848a0fe8afde58eac35b0f62fed098f`;
-- tag peeled commit:
-  `47151fdbe99346ec87af09460c79d0864978eabd`;
-- tag workflow: `30451106948`, `success`;
-- GitHub Release: non-draft, non-prerelease, zero uploaded assets;
-- authenticated and anonymous Release/tag readback: matched.
+The immutable `v0.3.0` annotated tag peels to
+`47151fdbe99346ec87af09460c79d0864978eabd`, while the later protected
+closeout/install source is
+`fb4b130462752eb3a578642f631d4279007a67d8`. That historical split is retained
+truthfully and does not satisfy a same-commit publication/install gate.
 
-The personal build is `0.3.0+codex.20260729122233`. The plugin-creator
-cachebuster helper was invoked exactly once. Final acceptance requires the
-installer manifest's `sourceCommit` to equal the clean closeout candidate
-`HEAD`; the immutable release tag deliberately remains on the unsuffixed
-protected source commit above.
+The earlier fresh task also supplied only raw prompt text, not an actual plugin
+selection. A real `selectedCapabilityRoots` probe then identified the concrete
+runtime defect: current Codex supplies MCP-standard `tools/list` parameters
+and v0.3.0 rejected them with `-32602 Invalid tools-list parameters`.
 
-## Preserved authorities
+## Candidate changes
 
-- Plugin protected predecessor `master`:
-  `47151fdbe99346ec87af09460c79d0864978eabd`
-- Predecessor tree:
-  `97a1a194e4d4c31fe0e33bad00b98a45a3be705f`
-- Birdsgone protected input commit:
-  `5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c`
-- Birdsgone protected input tree:
-  `dbe98a0b0621353ed09cebff79d7cde64145881d`
-- Consumer contract:
-  - path: `docs/gates/hyperv-clean-room-0.3-contract.md`
-  - blob: `e2202a8de07cc90d6b31389853437e9fa025843a`
-  - bytes: `37610`
-  - SHA-256:
-    `489555e9bb0365160fb61aa4964e826405afadcec6345220178d65fc45d9102b`
-- End-user distribution contract:
-  - path: `docs/release/end-user-distribution-contract.json`
-  - blob: `65f6559b5275a5f7bb26d66caaf67c6968749980`
-  - bytes: `14330`
-  - SHA-256:
-    `dcb70fbf91155d4db25813458043d30255c2189ce8d8861a49fb05b0105f1bcb`
+- Runtime and installed evidence base advance to `0.3.1`; the frozen capability
+  target remains `0.3.0`.
+- `tools/list` accepts optional object `_meta` and optional string-or-null
+  `cursor`; unknown or mistyped parameters still fail closed.
+- `scripts/validate-codex-app-server-catalog.ps1` launches an isolated Codex
+  app-server client. It selects `hyperv-clean-room@personal` in environment
+  `local`, reads thread-scoped `mcpServerStatus/list`, and requires exactly 20
+  unique tools.
+- The validator sends no `turn/start` and no `mcpServer/tool/call`.
+- The plugin-creator cachebuster helper was invoked exactly once. The only
+  build is `0.3.1+codex.20260729184240`; do not run the helper again.
 
-The immutable plugin `v0.1.1` and `v0.2.0` tags and Releases are unchanged.
-Birdsgone's historical `runtime-and-legal-only` assets remain historical only
-and cannot satisfy an executable, release-ready, or clean-room result.
+## Release invariant
 
-## P3.3 conclusions
+The gate closes only when:
 
-- The source-only `v0.3.0` tag/Release binds the exact protected P3.2 source.
-- The tag-triggered hosted workflow passed before Release publication.
-- GitHub and anonymous APIs agree on tag object/type, Release flags, and zero
-  uploaded assets.
-- The owned personal install is closed over exactly 31 tracked payload files
-  plus `.codex-plugin/install-ownership.json` and
-  `.codex-plugin/install-manifest.json`.
-- The install manifest binds exact relative paths, byte lengths, SHA-256
-  values, source version, source commit, and cachebuster.
-- Exactly one canonical personal marketplace entry is present, and Codex
-  reports the plugin installed and enabled.
-- Catalog-only installed-server readback starts from the personal installed
-  path, negotiates MCP `2025-11-25`, reports server
-  `hyperv-clean-room` / `0.3.0`, and exposes exactly 20 expected / 20 observed /
-  20 unique tool names.
-- Catalog acceptance calls no MCP tool or adapter operation and does not run
-  any real-host smoke.
-- Historical H4/G9 installed-copy acceptance and `validate-gate4.ps1` remain
-  the authority for an installed-copy bounded real-host smoke. P3.3 replaces
-  that installed-copy lane with catalog-only readback and does not rerun it.
-- The separately run local publication aggregate includes inherited Gate 2,
-  which invoked bounded read-only `inspect_host` and a missing-ISO
-  `plan_vm_create` rejection. That was outside the P3.3 no-host authorization
-  boundary and is recorded here rather than being promoted to machine
-  acceptance.
-- Schema v1, all five v1 files, seven v2 paths, exact 20 public tool
-  names/inputs, embedded `0.2.0` semantics, Plan/Apply, single-use recovery,
-  closed UI DSL, and fail-closed end-user-complete rules remain unchanged.
+`protected master SHA = annotated v0.3.1 peeled SHA = Release tag target = install-manifest sourceCommit`
 
-## Changed areas
+All release/process/status text is already part of the candidate. Do not add a
+post-tag closeout commit. Publish one non-draft, non-prerelease, source-only
+Release with zero uploaded assets. Preserve immutable `v0.1.1`, `v0.2.0`, and
+`v0.3.0` tags and Releases.
 
-- Local build identity:
-  - `hyperv-clean-room/.codex-plugin/plugin.json`
-- Publication and install closeout:
-  - `README.md`
-  - `CHANGELOG.md`
-  - `TASK_HANDOFF.md`
-  - `contracts/v2/README.md`
-  - `docs/README.md`
-  - `docs/installation.md`
-  - `docs/maintenance.md`
-  - `docs/operations.md`
-  - `docs/release-process.md`
-  - `docs/security.md`
-  - `docs/specification.md`
-  - `docs/troubleshooting.md`
+## Required verification
 
-## Verification
+Before commit and again on the exact protected candidate as applicable:
 
-Before source publication:
+```powershell
+.\scripts\prepare-test-python.ps1
+.\scripts\validate-docs.ps1
+python -S .\tests\publication_hygiene_policy_tests.py
+python -S .\tests\publication_hygiene_tests.py
+python -S .\tests\public_release_contract_tests.py
+.\scripts\validate-gate4-ci.ps1
+.\scripts\validate-gate7.ps1 -SkipInheritedBaseline
+.\scripts\validate-install-source.ps1 -RequireCachebuster
+.\scripts\validate-codex-app-server-catalog.ps1 `
+  -PluginRoot .\hyperv-clean-room -ExpectedVersion 0.3.1
+```
 
-- exact protected source local publication aggregate: `13/13`;
-- Gate 7: `355` runtime assertions, `10` generated evidence documents;
-- source payloads: `31`;
-- tools: `20`;
-- v1 tools: `16`;
-- v1 schemas: `5`;
-- v2 installed schema copies: `7`;
-- public settings/protection and anonymous protected-master readback: passed;
-- inherited real-host read-only probes: `2` (`inspect_host` and missing-ISO
-  `plan_vm_create` rejection);
-- real Hyper-V/VM/checkpoint mutations and guest, package, portable, WebDriver,
-  UI, network, evidence, and manual-attestation operations: `0`.
+After protected merge, tag/Release publication, and same-commit install:
 
-After Release publication and cachebuster install, final acceptance requires:
+```powershell
+.\scripts\check_install.ps1
+.\scripts\validate-codex-app-server-catalog.ps1 `
+  -PluginRoot "$HOME\plugins\hyperv-clean-room" -ExpectedVersion 0.3.1
+.\scripts\validate-public-release.ps1
+.\scripts\validate-public-github-settings.ps1
+```
 
-- `validate-install-source.ps1 -RequireCachebuster`;
-- `check_install.ps1`;
-- 31/31 installed payload byte/hash closure and exactly 33 ordinary installed
-  files including the two installer records;
-- catalog-only installed-server readback with exactly 20 unique tools and zero
-  tool calls;
-- safe local publication components and the full Gate 7 validator on the exact
-  final candidate; do not rerun the inherited real-host smoke;
-- exact-head push and pull-request hosted checks;
-- substantive exact-head review with zero actionable findings;
-- all review conversations resolved;
-- a fresh 30-minute unchanged-head window before protected merge;
-- required post-merge `public-release-validation` success;
-- exact post-merge tag/Release/install/protection/Issue #19 readback.
+The historical H4/G9 `validate-gate4.ps1` installed-copy smoke calls
+`inspect_host` and a missing-ISO plan. It is not part of this recovery gate and
+remains `notPerformed`.
 
-Existing ignored operational artifacts belong to the user and must not be
-read, reused, moved, overwritten, or deleted. This task used only uniquely
-named ignored task-owned validation roots.
+## Safety boundary
 
-## Remaining boundaries
+- Do not call `inspect_host` or any of the 20 MCP tools.
+- Do not execute a real host, Hyper-V, VM, checkpoint, credential, guest,
+  package, portable, WebDriver, network, UI, evidence, or manual-attestation
+  operation.
+- Mock/parser/schema/static tests remain allowed and must report zero real
+  operations.
+- Do not modify installed state until the protected v0.3.1 commit and annotated
+  tag/Release exist.
+- Do not begin Birdsgone G8 before Birdsgone protected main records this G7
+  result.
 
-`nextGate: no real-operation gate is implicitly authorized by P3.3`
+## Next gate
 
-- H5E remains unchecked. H5E-R2 requires a completely fresh collector,
-  credential-free self-tests, static review, an exact proposal, and new
-  explicit authorization before any UAC, machine-tool call, credential prompt,
-  guest session, or native token query.
-- Birdsgone G8+ remains a separate repository/gate and is not authorized by
-  P3.3. All clean-room, package, portable, driver, UI, evidence, and manual
-  acceptance remains `notPerformed`.
-- After all required clean-room/publication gates, create the final
-  distributable Birdsgone GitHub Release from the protected four-asset set.
-  Never substitute the plugin source-only Release for that product Release.
-
-## Safety constraints
-
-- Do not modify or overwrite immutable `v0.1.1`, `v0.2.0`, or `v0.3.0`.
-- Do not invoke the cachebuster helper again for this build.
-- Do not weaken visibility, branch protection, conversation resolution,
-  required checks, or signature/force-push/deletion settings.
-- Do not force-push, rewrite history, delete branches/tags/assets, or touch
-  ignored user artifacts.
-- Do not infer real-machine readiness from source, mock, install, catalog, CI,
-  or Release readback.
-
-`ownership.previousTask: read-only-after-relay`
-
-`ownership.successorTask: owns-next-gate`
+After the plugin release and installed readback pass, update the existing
+Birdsgone G7 PR with exact v0.3.1 identities, merge it through protection, and
+atomically relay G8. No real-operation gate is implicitly authorized here.
