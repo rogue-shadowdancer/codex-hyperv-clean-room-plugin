@@ -4,8 +4,12 @@ This directory is the authoritative G7/P3.1 machine-readable target for plugin
 base version `0.3.0` and public schema version 2. G7/P3.2 implements that target
 in the source runtime without changing any MCP tool name or input. P3.2
 performs no package/release/install operation and invokes no real Hyper-V or
-guest operation; the immutable Release and personal installation remain
-`0.2.0` until P3.3.
+guest operation. G7/P3.3 publishes immutable, source-only `v0.3.0` and accepts
+one commit-bound personal cachebuster install while invoking no MCP tool or
+adapter operation during catalog readback. The local publication aggregate
+also invoked inherited Gate 2 bounded read-only `inspect_host` and missing-ISO
+`plan_vm_create` rejection outside the declared P3.3 no-host boundary; it did
+not mutate Hyper-V, a VM, or a checkpoint.
 
 `consumer-contract.json` binds this target to immutable Birdsgone protected
 `main` `5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c`, tree
@@ -48,8 +52,9 @@ and exact driver behavior.
 `compatibility.json` pins the five byte-identical schema-v1 files and records
 the seven installed/runtime schema-v2 hashes. P3.2 makes source target and
 runtime both `0.3.0`; every source-tree installed schema-v2 copy is therefore
-byte-identical to this authoritative directory. This is not a personal-install
-or Release source-match claim; that readback belongs to P3.3.
+byte-identical to this authoritative directory. P3.3 publishes and installs
+that exact source. Package, portable, guest, driver, UI, network, and
+clean-machine execution remain separate and `notPerformed`.
 
 `tool-catalog.json` continues to expose exactly 20 typed tools: the original 16
 schema-v1 tools are unchanged and the four power/network tools keep their

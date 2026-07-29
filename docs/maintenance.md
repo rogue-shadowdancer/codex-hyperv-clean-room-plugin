@@ -19,9 +19,10 @@ for this accepted build. Gate 7/H2 and Gate 8/H3 performed no cachebuster update
 or install.
 
 G7/P3.2 changes the repository source base to `0.3.0` but deliberately performs
-no installation or cachebuster update. Do not apply this loop to that candidate
-until P3.3 supplies the separately reviewed Release and exact source/install
-readback.
+no installation or cachebuster update. G7/P3.3 invokes the same helper exactly
+once and produces accepted personal build
+`0.3.0+codex.20260729122233`. Reinstall that exact build from the final clean
+closeout commit without invoking the helper again.
 
 The historical `v0.1.1` release used the helper exactly once and produced
 `0.1.1+codex.20260715064728`. Release verification must preserve that value;

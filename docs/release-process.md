@@ -237,3 +237,25 @@ rollback and never bypass protected `master`.
 
 Gate 6 clean-machine and real-guest validation remains `notPerformed` and is
 not authorized by this release process.
+
+## G7/P3.3 `v0.3.0` publication and installation record
+
+P3.3 preserves the historical release procedure and adds no binary
+distribution. Protected-master source commit
+`47151fdbe99346ec87af09460c79d0864978eabd` is published through annotated tag
+`v0.3.0`; tag object `c4046176e848a0fe8afde58eac35b0f62fed098f`
+peels to that exact commit. Tag-triggered workflow `30451106948` passes.
+Authenticated and anonymous readback agree that the GitHub Release is
+non-draft, non-prerelease, and has zero uploaded assets.
+
+The cachebuster helper is invoked exactly once to create personal build
+`0.3.0+codex.20260729122233`. Final install acceptance requires the clean
+closeout commit, 31/31 payload hashes, two installer state records, one
+canonical marketplace entry, Codex installed/enabled readback, and exactly 20
+unique installed tool names. Catalog readback uses only `initialize` and
+`tools/list`; no real machine or MCP tool operation is permitted.
+
+The local publication aggregate also invoked inherited Gate 2, whose bounded
+read-only smoke called `inspect_host` and rejected `plan_vm_create` on a missing
+ISO. That invocation was outside the declared P3.3 no-host boundary. It
+performed no Hyper-V/VM/checkpoint mutation and is not machine acceptance.

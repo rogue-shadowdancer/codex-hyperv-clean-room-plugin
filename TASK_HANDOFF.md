@@ -1,4 +1,4 @@
-# Task handoff: G7/P3.2 Hyper-V Clean Room 0.3 source runtime
+# Task handoff: G7/P3.3 Hyper-V Clean Room 0.3 publication and install
 
 `relayProtocolVersion: 1`
 
@@ -6,34 +6,44 @@
 
 ## Status
 
-G7/P3.2 implements the frozen P3.1 external portable contract in the Windows
-PowerShell 5.1 source runtime as plugin base version `0.3.0`. It preserves the
-exact 20 public tool names and inputs, all schema-v1 bytes, the seven public
-schema-v2 paths, and the complete embedded `0.2.0` behavior.
+G7/P3.3 publishes the reviewed P3.2 source runtime and closes the separately
+authorized personal-install lane. Catalog acceptance invokes no MCP tool or
+adapter operation. The local publication aggregate did invoke the inherited
+Gate 2 bounded read-only `inspect_host` and missing-ISO `plan_vm_create`
+rejection, contrary to the declared P3.3 no-host boundary. It did not execute a
+Hyper-V/VM/checkpoint mutation, package or portable application, guest
+operation, credential flow, WebDriver/UI step, network transition, evidence
+operation, or manual attestation.
 
-P3.2 changes source runtime and source-tree installed schema copies only. It
-does not build or install a package, create or modify a tag/Release, update a
-cachebuster or marketplace entry, or mutate a personal installed copy. The
-immutable plugin `v0.2.0` Release and its release-derived personal installation
-remain `0.2.0`. P3.3 publication/install/source-match is the only successor
-gate.
+The immutable source release is:
 
-The historical H4/G9 installed-copy acceptance remains the authority for that
-unchanged personal `0.2.0` installation; P3.2 neither reruns nor supersedes it.
+- protected source commit:
+  `47151fdbe99346ec87af09460c79d0864978eabd`;
+- source tree:
+  `97a1a194e4d4c31fe0e33bad00b98a45a3be705f`;
+- annotated tag: `v0.3.0`;
+- tag object: `c4046176e848a0fe8afde58eac35b0f62fed098f`;
+- tag peeled commit:
+  `47151fdbe99346ec87af09460c79d0864978eabd`;
+- tag workflow: `30451106948`, `success`;
+- GitHub Release: non-draft, non-prerelease, zero uploaded assets;
+- authenticated and anonymous Release/tag readback: matched.
 
-P3.2 validation is synthetic and mock/parser/schema/static only. It performs no
-real Hyper-V, VM, checkpoint, credential, guest, package, portable,
-WebDriver, UI, network, evidence, or manual-attestation operation.
+The personal build is `0.3.0+codex.20260729122233`. The plugin-creator
+cachebuster helper was invoked exactly once. Final acceptance requires the
+installer manifest's `sourceCommit` to equal the clean closeout candidate
+`HEAD`; the immutable release tag deliberately remains on the unsuffixed
+protected source commit above.
 
-## Protected input authority
+## Preserved authorities
 
 - Plugin protected predecessor `master`:
-  `e42dfd4784f0f07382a632190884341e5a3de178`
+  `47151fdbe99346ec87af09460c79d0864978eabd`
 - Predecessor tree:
-  `688645a48ba65f16c415d22a285d6b1d0462e307`
-- Birdsgone protected `main`:
+  `97a1a194e4d4c31fe0e33bad00b98a45a3be705f`
+- Birdsgone protected input commit:
   `5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c`
-- Birdsgone protected tree:
+- Birdsgone protected input tree:
   `dbe98a0b0621353ed09cebff79d7cde64145881d`
 - Consumer contract:
   - path: `docs/gates/hyperv-clean-room-0.3-contract.md`
@@ -48,190 +58,122 @@ WebDriver, UI, network, evidence, or manual-attestation operation.
   - SHA-256:
     `dcb70fbf91155d4db25813458043d30255c2189ce8d8861a49fb05b0105f1bcb`
 
-The earlier `runtime-and-legal-only` G6 result remains historical evidence
-only. It cannot satisfy an executable external profile, a release-ready
-candidate, or a clean-room pass.
+The immutable plugin `v0.1.1` and `v0.2.0` tags and Releases are unchanged.
+Birdsgone's historical `runtime-and-legal-only` assets remain historical only
+and cannot satisfy an executable, release-ready, or clean-room result.
 
-## P3.2 conclusions
+## P3.3 conclusions
 
-- Plugin manifest, server identity, compatibility metadata, and tool catalog
-  expose source runtime base `0.3.0`.
-- The exact public tool count remains `20`; every tool name and input is
-  unchanged.
-- The original 16 schema-v1 tools and all five public schema-v1 files remain
-  compatible and byte-identical.
-- All seven schema-v2 paths and `$id` values remain stable.
-- All seven source-tree installed schema-v2 copies are byte-identical to their
-  authorities under `contracts/v2/schemas`.
-- Exact integer `schemaVersion` dispatch remains fail closed; unknown versions
-  never fall back.
-- The embedded portable profile/manifest/evidence branch retains its `0.2.0`
-  semantics, fixed `--portable` argument, and fixed component/driver behavior.
-- The external branch:
-  - resolves one regular non-reparse manifest below the canonical profile
-    directory;
-  - independently binds profile/source/staged/guest path, size, and SHA-256;
-  - requires the five profile-root collections, external inventories, and
-    nested `webView2.files` to remain true JSON arrays, and requires
-    string-typed paths before any PowerShell collection wrapping or
-    normalization;
-  - parses strict UTF-8 and rejects BOM, NUL, malformed bytes, trailing data,
-    duplicate properties, and unknown root or nested provenance fields;
-  - applies NFC, ordinal, ordinal-ignore-case, reserved-device, traversal,
-    ADS, trailing-dot/space, collision, and reparse/link path controls;
-  - treats the manifest as a sidecar, never as a ZIP entry, fixture, or
-    mutable-data file;
-  - verifies manifest-to-ZIP and ZIP-to-manifest membership, size, and SHA-256;
-  - rejects undeclared, missing, colliding, linked, companion, and packaged
-    `data/` entries;
-  - derives complete portable and documentation inventory identities only from
-    validated bytes;
-  - atomically publishes a new operation-owned deployment slot only after full
-    validation while preserving independently inventoried prior data;
-  - binds every later portable launch to that operation's exact application,
-    deployment, active-record fingerprint, and slot identity, failing closed on
-    concurrent active-pointer replacement;
-  - binds the deployed entrypoint path, length, and SHA-256 and re-hashes it
-    immediately before process creation while denying write/delete sharing
-    through process creation, while no-follow directory handles deny
-    replacement of every path component from the local volume root;
-  - launches only the declared entrypoint with zero caller arguments;
-  - permits a generic non-UI package to omit MaaFramework, WebView2, driver,
-    and UI steps;
-  - requires the manifest WebView2 identity and fixed Microsoft x64
-    EdgeDriver/data-testid rules for the UI branch;
-  - emits structurally separate external evidence with exact candidate,
-    runtime, deployment, data, fixture, driver, standard-user, and elevated
-    orchestration bindings;
-  - closes installed provenance against the exact installer owner,
-    manifest/version, and re-hashes every current ordinary payload byte before
-    runtime identity.
-- Plan/Apply, atomic plan consumption, paired single-use recovery, cleanup
-  separation, and evidence status derivation remain unchanged.
+- The source-only `v0.3.0` tag/Release binds the exact protected P3.2 source.
+- The tag-triggered hosted workflow passed before Release publication.
+- GitHub and anonymous APIs agree on tag object/type, Release flags, and zero
+  uploaded assets.
+- The owned personal install is closed over exactly 31 tracked payload files
+  plus `.codex-plugin/install-ownership.json` and
+  `.codex-plugin/install-manifest.json`.
+- The install manifest binds exact relative paths, byte lengths, SHA-256
+  values, source version, source commit, and cachebuster.
+- Exactly one canonical personal marketplace entry is present, and Codex
+  reports the plugin installed and enabled.
+- Catalog-only installed-server readback starts from the personal installed
+  path, negotiates MCP `2025-11-25`, reports server
+  `hyperv-clean-room` / `0.3.0`, and exposes exactly 20 expected / 20 observed /
+  20 unique tool names.
+- Catalog acceptance calls no MCP tool or adapter operation and does not run
+  any real-host smoke.
+- Historical H4/G9 installed-copy acceptance and `validate-gate4.ps1` remain
+  the authority for an installed-copy bounded real-host smoke. P3.3 replaces
+  that installed-copy lane with catalog-only readback and does not rerun it.
+- The separately run local publication aggregate includes inherited Gate 2,
+  which invoked bounded read-only `inspect_host` and a missing-ISO
+  `plan_vm_create` rejection. That was outside the P3.3 no-host authorization
+  boundary and is recorded here rather than being promoted to machine
+  acceptance.
+- Schema v1, all five v1 files, seven v2 paths, exact 20 public tool
+  names/inputs, embedded `0.2.0` semantics, Plan/Apply, single-use recovery,
+  closed UI DSL, and fail-closed end-user-complete rules remain unchanged.
 
 ## Changed areas
 
-- Plugin/runtime identity:
+- Local build identity:
   - `hyperv-clean-room/.codex-plugin/plugin.json`
-  - `hyperv-clean-room/mcp/lib/Common.ps1`
-  - `contracts/v2/compatibility.json`
-  - `contracts/v2/tool-catalog.json`
-- External runtime and production seams:
-  - `hyperv-clean-room/mcp/lib/Validation.V2.ps1`
-  - `hyperv-clean-room/mcp/lib/Tools.Guest.V2.ps1`
-  - `hyperv-clean-room/mcp/lib/Adapters.ps1`
-  - `hyperv-clean-room/mcp/lib/GuestWorker.ps1`
-- Exact source-tree schema copies:
-  - `hyperv-clean-room/schemas/v2/evidence.schema.json`
-  - `hyperv-clean-room/schemas/v2/portable-manifest.schema.json`
-  - `hyperv-clean-room/schemas/v2/test-profile.schema.json`
-- Validation and test isolation:
-  - `scripts/install-common.ps1`
-  - `scripts/validate-gate1.ps1`
-  - `scripts/validate-gate4.ps1`
-  - `scripts/validate-gate6.ps1`
-  - `scripts/validate-gate7.ps1`
-  - `tests/gate1-contract.tests.ps1`
-  - `tests/gate4-installation.tests.ps1`
-  - `tests/gate4-installed-copy.tests.ps1`
-  - `tests/gate6_contract_tests.py`
-  - `tests/gate7-runtime.tests.ps1`
-  - `tests/gate7_implementation_tests.py`
-  - `tests/public_release_contract_tests.py`
-- Documentation:
+- Publication and install closeout:
   - `README.md`
   - `CHANGELOG.md`
+  - `TASK_HANDOFF.md`
   - `contracts/v2/README.md`
   - `docs/README.md`
-  - `docs/architecture.md`
   - `docs/installation.md`
   - `docs/maintenance.md`
   - `docs/operations.md`
-  - `docs/profile-authoring.md`
+  - `docs/release-process.md`
   - `docs/security.md`
   - `docs/specification.md`
   - `docs/troubleshooting.md`
-  - `TASK_HANDOFF.md`
 
 ## Verification
 
-The final exact candidate must retain:
+Before source publication:
 
-- strict UTF-8 documentation: `17` documents, `100` local links, zero mojibake
-- exact tool count: `20`
-- preserved schema-v1 tools: `16`
-- preserved schema-v1 files: `5`
-- exact source-tree installed schema-v2 copies: `7`
-- Gate 7 mock runtime assertions: `355`
-- generated mock evidence documents validated: `10`
-- P3.1 positive fixtures: `6`
-- P3.1 direct schema-invalid fixtures: `5`
-- P3.1 negative cases: `41`
-- `p3_1Closable: true`
-- inherited Gate 2 with isolated pinned dependencies and
-  `SkipRealHostSmoke`
-- Gate 6 contract validation with isolated pinned dependencies
-- `git diff --check`
-- substantive exact-candidate review with zero actionable findings
-- a fresh 30-minute unchanged-head review window before protected merge
-- required exact-head hosted checks and the required post-merge run
-- real host operations: `0`
-- real Hyper-V mutations: `0`
-- real guest operations: `0`
-- portable deployments: `0`
-- WebDriver launches: `0`
-- UI operations: `0`
+- exact protected source local publication aggregate: `13/13`;
+- Gate 7: `355` runtime assertions, `10` generated evidence documents;
+- source payloads: `31`;
+- tools: `20`;
+- v1 tools: `16`;
+- v1 schemas: `5`;
+- v2 installed schema copies: `7`;
+- public settings/protection and anonymous protected-master readback: passed;
+- inherited real-host read-only probes: `2` (`inspect_host` and missing-ISO
+  `plan_vm_create` rejection);
+- real Hyper-V/VM/checkpoint mutations and guest, package, portable, WebDriver,
+  UI, network, evidence, and manual-attestation operations: `0`.
+
+After Release publication and cachebuster install, final acceptance requires:
+
+- `validate-install-source.ps1 -RequireCachebuster`;
+- `check_install.ps1`;
+- 31/31 installed payload byte/hash closure and exactly 33 ordinary installed
+  files including the two installer records;
+- catalog-only installed-server readback with exactly 20 unique tools and zero
+  tool calls;
+- safe local publication components and the full Gate 7 validator on the exact
+  final candidate; do not rerun the inherited real-host smoke;
+- exact-head push and pull-request hosted checks;
+- substantive exact-head review with zero actionable findings;
+- all review conversations resolved;
+- a fresh 30-minute unchanged-head window before protected merge;
+- required post-merge `public-release-validation` success;
+- exact post-merge tag/Release/install/protection/Issue #19 readback.
 
 Existing ignored operational artifacts belong to the user and must not be
-read, reused, moved, overwritten, or deleted. P3.2 validation uses only
-uniquely named ignored task-owned roots. Mock test evidence is not real
-machine evidence.
+read, reused, moved, overwritten, or deleted. This task used only uniquely
+named ignored task-owned validation roots.
 
-## Blockers
+## Remaining boundaries
 
-`blockers: []`
+`nextGate: no real-operation gate is implicitly authorized by P3.3`
 
-## Next gate
-
-`nextGate: G7/P3.3 source publication, Release/install, and exact readback only`
-
-P3.3 must start in a separate task after P3.2 is protected-merged, its required
-post-merge run passes, repository protection is read back unchanged, and Issue
-#19 records P3.2 closure. P3.3 owns only the separately reviewed source
-publication, plugin Release/install/cachebuster work permitted by its
-authoritative gate, and exact installed/source readback. It must preserve the
-20-tool catalog, v1/embedded semantics, external branch, Plan/Apply, recovery,
-closed UI DSL, and the explicit distinction between mock evidence and real
-machine work.
-
-P3.3 does not authorize H5E-R2, Birdsgone G8+, or any real Hyper-V, VM,
-checkpoint, credential, guest, package lifecycle, portable execution,
-WebDriver, UI, network, or manual-attestation operation unless a later
-authority explicitly names and approves that exact operation.
-
-## Downstream publication requirement
-
-After all required Hyper-V clean-room and publication gates are genuinely
-complete, create a distributable Birdsgone GitHub Release from the final
-protected-main four-asset set. Carry this requirement in every subsequent
-TaskHandoff. Do not create a Birdsgone tag or Release during G7 or before its
-publication gate. The plugin P3.3 source-only `v0.3.0` Release is a separate
-plugin-repository gate and must not be confused with this downstream
-Birdsgone distribution Release.
+- H5E remains unchecked. H5E-R2 requires a completely fresh collector,
+  credential-free self-tests, static review, an exact proposal, and new
+  explicit authorization before any UAC, machine-tool call, credential prompt,
+  guest session, or native token query.
+- Birdsgone G8+ remains a separate repository/gate and is not authorized by
+  P3.3. All clean-room, package, portable, driver, UI, evidence, and manual
+  acceptance remains `notPerformed`.
+- After all required clean-room/publication gates, create the final
+  distributable Birdsgone GitHub Release from the protected four-asset set.
+  Never substitute the plugin source-only Release for that product Release.
 
 ## Safety constraints
 
-- One writable plugin gate owner at a time.
-- Do not begin P3.3 in P3.2.
-- Do not run H5E-R2 concurrently.
-- Do not access or mutate Birdsgone ignored artifact directories.
-- Do not run package, installation, Hyper-V, VM, checkpoint, credential,
-  guest, ADB, Win32, LAN, driver, UI, network, or real evidence operations.
-- Do not modify or overwrite the immutable plugin `v0.2.0` tag/Release.
-- Do not tag, publish a Release, change visibility, force-push, rewrite
-  history, delete a branch, or weaken protection.
-- Do not convert `notPerformed`, mock, parser, schema, or static results into
-  real machine evidence.
+- Do not modify or overwrite immutable `v0.1.1`, `v0.2.0`, or `v0.3.0`.
+- Do not invoke the cachebuster helper again for this build.
+- Do not weaken visibility, branch protection, conversation resolution,
+  required checks, or signature/force-push/deletion settings.
+- Do not force-push, rewrite history, delete branches/tags/assets, or touch
+  ignored user artifacts.
+- Do not infer real-machine readiness from source, mock, install, catalog, CI,
+  or Release readback.
 
 `ownership.previousTask: read-only-after-relay`
 

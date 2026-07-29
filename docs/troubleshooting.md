@@ -62,11 +62,11 @@ file decode.
 
 Run `scripts\validate-install-source.ps1` and use its bounded error. Do not
 install a payload with untracked files, reparse points, forbidden machine-state
-extensions, an unexpected folder/manifest name, or a version outside the
-installed release base `0.2.0` plus one optional Codex cachebuster. The P3.2
-repository source base is `0.3.0`, but P3.3 has not yet published or installed
-it. The immutable
-historical `v0.1.1` Release remains a separate accepted artifact.
+extensions, an unexpected folder/manifest name, or a version outside base
+`0.3.0` plus one optional Codex cachebuster. P3.3 publishes immutable
+source-only `v0.3.0` and accepts the single personal build
+`0.3.0+codex.20260729122233`. The immutable historical `v0.1.1` and `v0.2.0`
+Releases remain separate accepted artifacts.
 
 ### A portable launch reports `PORTABLE_DEPLOYMENT_DRIFT`
 
@@ -91,8 +91,9 @@ test operation from known source bytes.
 The installed manifest, ownership record, plugin version, declared file
 identity, or closed installed file set no longer matches the current ordinary
 bytes. Do not edit the installed manifest or suppress the check. Treat the
-installation as untrusted and use the later P3.3 source-validation/install
-workflow to replace it from a verified source candidate.
+installation as untrusted and use the P3.3 source-validation/install workflow
+to replace it from the exact verified source candidate without creating a new
+cachebuster.
 
 ### The target is not owned
 

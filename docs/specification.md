@@ -7,10 +7,16 @@ implements that target in the source runtime. The implementation exposes
 exactly 20 MCP tools, preserves the first 16 schema-v1 tools and five schema-v1
 files byte-for-byte, installs seven authoritative schema-v2 copies, and
 dispatches only by the exact integer `schemaVersion`. G7/P3.2 validation is
-mock/parser/schema/static only. The immutable Release and personal
-installation remain `0.2.0`; no real host, VM, checkpoint, credential, guest,
-package, portable, WebDriver, network, UI, installation, release, or
-clean-machine operation was executed or claimed.
+mock/parser/schema/static only. G7/P3.3 publishes immutable, source-only
+`v0.3.0` from protected commit
+`47151fdbe99346ec87af09460c79d0864978eabd` and accepts the one personal build
+`0.3.0+codex.20260729122233`, closing 31 payloads and exactly 20 catalog tools.
+Its catalog readback invokes no MCP tool or adapter operation. The local
+publication aggregate did invoke inherited Gate 2 bounded read-only
+`inspect_host` and missing-ISO `plan_vm_create` rejection outside the declared
+P3.3 no-host boundary; no Hyper-V/VM/checkpoint mutation, credential or guest
+operation, package or portable execution, WebDriver/UI or network operation,
+evidence collection, manual attestation, or clean-machine acceptance occurred.
 
 Gate H5A adds a backward-compatible repair for Hyper-V automatic checkpoints.
 Newly created managed VMs must disable automatic checkpoints before ownership
@@ -1335,6 +1341,37 @@ immutable `v0.2.0` Release and release-derived personal installation remain
 installed/source readback. P3.2 performs no real Hyper-V, VM, checkpoint,
 credential, guest, package, portable, WebDriver, UI, network,
 manual-attestation, or evidence operation.
+
+## G7/P3.3 plugin 0.3 publication and install boundary
+
+P3.3 publishes protected-master commit
+`47151fdbe99346ec87af09460c79d0864978eabd` through one annotated `v0.3.0` tag
+and one non-draft, non-prerelease, source-only GitHub Release. The tag object
+must peel to that exact commit, the tag-triggered
+`public-release-validation` workflow must pass, authenticated and anonymous
+readback must agree, and the Release must contain zero uploaded assets. The
+immutable `v0.1.1` and `v0.2.0` tags and Releases remain unchanged.
+
+The only personal build is `0.3.0+codex.20260729122233`, created through the
+documented plugin-creator cachebuster helper exactly once. The accepted source
+commit must be clean. The owned personal installation contains exactly the 31
+tracked plugin payloads plus its two installer records; relative paths, sizes,
+SHA-256 values, source commit, version, and cachebuster must match. Exactly one
+canonical personal marketplace entry is allowed, and Codex must report the
+plugin installed and enabled at that version.
+
+Installed-server acceptance is limited to `initialize` and `tools/list` from
+the personal plugin directory. It requires server identity/version
+`hyperv-clean-room` / `0.3.0`, MCP protocol `2025-11-25`, and exactly 20 unique
+tool names. It calls no tool and performs no real host, Hyper-V, VM,
+checkpoint, credential, guest, package, portable, WebDriver, UI, network,
+evidence, or manual-attestation operation. All such counters remain zero.
+
+The local publication aggregate is distinct from installed-server acceptance.
+It invoked inherited Gate 2 bounded read-only `inspect_host` and missing-ISO
+`plan_vm_create` rejection outside the declared P3.3 no-host boundary. This
+deviation performed no Hyper-V/VM/checkpoint mutation and must not be promoted
+to machine acceptance.
 
 ### Protected packaging amendment and G6.2 source result
 
