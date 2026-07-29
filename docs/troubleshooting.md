@@ -68,6 +68,13 @@ repository source base is `0.3.0`, but P3.3 has not yet published or installed
 it. The immutable
 historical `v0.1.1` Release remains a separate accepted artifact.
 
+### A portable launch reports `PORTABLE_DEPLOYMENT_DRIFT`
+
+The shared active deployment changed after this operation published its own
+slot. The runtime intentionally refuses to launch the replacement candidate
+under the older operation's evidence identity. Do not bypass the binding or
+edit `active.json`; start a new test operation from current state.
+
 ### The target is not owned
 
 `install_plugin.ps1` refuses an existing

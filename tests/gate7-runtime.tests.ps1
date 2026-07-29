@@ -1226,6 +1226,51 @@ $externalEvidenceValidation = Invoke-Gate7Tool 'validate_evidence' ([pscustomobj
 })
 Assert-Gate7 $externalEvidenceValidation.ok `
     'Generated external schema-v2 evidence failed native validation.'
+
+$deploymentDriftState = Read-HcrMockAdapterState
+$deploymentDriftState | Add-Member -NotePropertyName portableActiveDeploymentOverride `
+    -NotePropertyValue ([pscustomobject][ordered]@{
+        applicationId = 'contract-sample'
+        deploymentId = [Guid]::NewGuid().ToString()
+        deploymentFingerprint = ('f' * 64)
+        slotId = 'concurrent-replacement-slot'
+    }) -Force
+Write-HcrMockAdapterState $deploymentDriftState
+$deploymentDriftRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $externalProfilePath
+    artifactPath = $externalPortablePath
+})
+Assert-Gate7 $deploymentDriftRun.ok `
+    'Concurrent portable deployment drift did not produce auditable failure evidence.'
+Assert-Gate7Equal ([string]$deploymentDriftRun.data.machineStatus) 'failed' `
+    'Concurrent portable deployment drift did not fail the machine result.'
+$deploymentDriftAssertions = @($deploymentDriftRun.data.automaticAssertions | Where-Object {
+        [string]$_.id -eq 'launch'
+    })
+Assert-Gate7Equal $deploymentDriftAssertions.Count 1 `
+    'Concurrent portable deployment drift did not bind the launch assertion.'
+Assert-Gate7 (
+    [string]$deploymentDriftAssertions[0].status -eq 'failed' -and
+    @($deploymentDriftAssertions[0].observations | Where-Object {
+            [string]$_.name -eq 'errorcode' -and
+            [string]$_.value -eq 'PORTABLE_DEPLOYMENT_DRIFT'
+        }).Count -eq 1
+) 'The launch did not fail closed with PORTABLE_DEPLOYMENT_DRIFT.'
+$deploymentDriftOperation = Get-HcrOperationRecord `
+    ([string]$deploymentDriftRun.data.testOperationId)
+$deploymentDriftEvidence = Read-HcrJsonFile `
+    ([string]$deploymentDriftOperation.evidenceFile) 'EVIDENCE_NOT_READY'
+Assert-Gate7 (Test-HcrEvidenceDocumentV2 `
+        $deploymentDriftEvidence $deploymentDriftOperation).valid `
+    'The native validator rejected concurrent-deployment-drift evidence.'
+$restoredDeploymentDriftState = Read-HcrMockAdapterState
+$restoredDeploymentDriftState.PSObject.Properties.Remove(
+    'portableActiveDeploymentOverride'
+)
+Write-HcrMockAdapterState $restoredDeploymentDriftState
+
 $unknownRuntimeEvidence = Copy-HcrObject $externalEvidence
 $unknownRuntimeEvidence.runtime | Add-Member `
     -NotePropertyName unexpected `

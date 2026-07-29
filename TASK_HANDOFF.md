@@ -84,6 +84,9 @@ candidate, or a clean-room pass.
     validated bytes;
   - atomically publishes a new operation-owned deployment slot only after full
     validation while preserving independently inventoried prior data;
+  - binds every later portable launch to that operation's exact application,
+    deployment, active-record fingerprint, and slot identity, failing closed on
+    concurrent active-pointer replacement;
   - launches only the declared entrypoint with zero caller arguments;
   - permits a generic non-UI package to omit MaaFramework, WebView2, driver,
     and UI steps;
@@ -148,8 +151,8 @@ The final exact candidate must retain:
 - preserved schema-v1 tools: `16`
 - preserved schema-v1 files: `5`
 - exact source-tree installed schema-v2 copies: `7`
-- Gate 7 mock runtime assertions: `299`
-- generated mock evidence documents validated: `8`
+- Gate 7 mock runtime assertions: `306`
+- generated mock evidence documents validated: `9`
 - P3.1 positive fixtures: `6`
 - P3.1 direct schema-invalid fixtures: `5`
 - P3.1 negative cases: `41`

@@ -72,4 +72,7 @@ and derives inventory/documentation identities from validated bytes. The mock
 worker independently rebinds ZIP, sidecar, fixtures, deployment inventory,
 standard-user identity, elevated orchestration identity, and conditional UI
 facts before schema-v2 evidence validation. The embedded branch retains its
-fixed `--portable`, component, and evidence semantics.
+fixed `--portable`, component, and evidence semantics. After deployment, every
+portable launch also rebinds the operation-owned application, deployment,
+active-record fingerprint, and slot identities; concurrent active-pointer
+replacement fails closed rather than changing the candidate under test.

@@ -534,7 +534,7 @@ function Get-WorkerApplicationPath {
 
     if ($null -ne $Input -and [int](Get-WorkerProperty $Input 'schemaVersion' 1) -eq 2 -and
         (Get-WorkerProperty $Application 'packageKind') -eq 'portableZip') {
-        $active = Get-WorkerPortableActiveDeployment $Application
+        $active = Get-WorkerBoundPortableDeployment $Application $Input
         return Resolve-WorkerPath ([string](Get-WorkerProperty $active 'slotPath')) `
             ([string](Get-WorkerProperty $Application 'executableRelativePath'))
     }
@@ -969,6 +969,46 @@ function Get-WorkerPortableActiveDeployment {
         Throw-WorkerError 'PORTABLE_DEPLOYMENT_INVALID' 'The active portable deployment record failed rebinding.'
     }
     Assert-WorkerNoReparseEscape $slotPath $root
+    return $active
+}
+
+function Get-WorkerBoundPortableDeployment {
+    param(
+        [Parameter(Mandatory = $true)][object]$Application,
+        [Parameter(Mandatory = $true)][object]$Input
+    )
+
+    $deployment = Get-WorkerProperty $Input 'deployment'
+    $fields = @('applicationId', 'deploymentId', 'deploymentFingerprint', 'slotId')
+    if ($null -eq $deployment -or
+        @($deployment.PSObject.Properties | Where-Object {
+                $fields -notcontains $_.Name
+            }).Count -ne 0 -or
+        @($deployment.PSObject.Properties).Count -ne $fields.Count -or
+        [string](Get-WorkerProperty $deployment 'applicationId') -cne
+            [string](Get-WorkerProperty $Application 'id') -or
+        (Get-WorkerProperty $deployment 'deploymentId') -isnot [string] -or
+        [string](Get-WorkerProperty $deployment 'deploymentId') -notmatch
+            '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' -or
+        (Get-WorkerProperty $deployment 'deploymentFingerprint') -isnot [string] -or
+        [string](Get-WorkerProperty $deployment 'deploymentFingerprint') -notmatch '^[0-9a-f]{64}$' -or
+        (Get-WorkerProperty $deployment 'slotId') -isnot [string] -or
+        [string](Get-WorkerProperty $deployment 'slotId') -notmatch
+            '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
+        Throw-WorkerError 'PORTABLE_DEPLOYMENT_BINDING_INVALID' 'The portable launch lacks a valid operation-owned deployment binding.'
+    }
+    $active = Get-WorkerPortableActiveDeployment $Application
+    $activeFingerprint = Get-WorkerSha256Text ($active | ConvertTo-Json -Depth 20 -Compress)
+    if ([string](Get-WorkerProperty $active 'applicationId') -cne
+            [string](Get-WorkerProperty $deployment 'applicationId') -or
+        [string](Get-WorkerProperty $active 'deploymentId') -cne
+            [string](Get-WorkerProperty $deployment 'deploymentId') -or
+        [string](Get-WorkerProperty $active 'slotId') -cne
+            [string](Get-WorkerProperty $deployment 'slotId') -or
+        $activeFingerprint -cne
+            [string](Get-WorkerProperty $deployment 'deploymentFingerprint')) {
+        Throw-WorkerError 'PORTABLE_DEPLOYMENT_DRIFT' 'The active portable deployment no longer matches this operation.'
+    }
     return $active
 }
 

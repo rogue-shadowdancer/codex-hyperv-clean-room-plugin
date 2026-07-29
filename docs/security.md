@@ -42,6 +42,13 @@ closed `data-testid` DSL. No caller-supplied argument reaches the external
 entrypoint. These are source/mock/parser/static guarantees, not evidence of a
 real guest or clean machine.
 
+The portable launch path carries the owning operation's application,
+deployment, active-record fingerprint, and slot identities forward from the
+successful deployment step. The guest re-reads the shared active record and
+requires all four to match before resolving the executable. If another
+operation has changed the active pointer, the older launch fails closed with
+`PORTABLE_DEPLOYMENT_DRIFT`; it never silently launches the newer candidate.
+
 ## Threats and controls
 
 ### Accidental mutation or stale approval

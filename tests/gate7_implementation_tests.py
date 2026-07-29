@@ -431,6 +431,20 @@ def main() -> int:
             "throw $deploymentFailure",
         ),
     )
+    require_tokens(
+        guest_v2 + adapters + worker,
+        "operation-owned portable launch binding",
+        (
+            "deployment = Copy-HcrObject $Context.deployment",
+            "$context.deployment = [pscustomobject][ordered]@{",
+            "$input.deployment = Copy-HcrObject",
+            "function Get-WorkerBoundPortableDeployment",
+            "PORTABLE_DEPLOYMENT_BINDING_INVALID",
+            "PORTABLE_DEPLOYMENT_DRIFT",
+            "$activeFingerprint -cne",
+            "portableActiveDeploymentOverride",
+        ),
+    )
 
     fixture_root = ROOT / "tests" / "fixtures" / "v3"
     external_manifest = load_strict(
@@ -494,9 +508,9 @@ def main() -> int:
         raise AssertionError("isolated Gate 7 artifact root is invalid")
     evidence_paths = list(artifact_root.glob("state/evidence-staging/*/evidence.json"))
     v2_evidence_paths = [path for path in evidence_paths if load(path).get("schemaVersion") == 2]
-    if len(v2_evidence_paths) != 8:
+    if len(v2_evidence_paths) != 9:
         raise AssertionError(
-            "Gate 7 runtime must emit three passed and five failed schema-v2 evidence documents"
+            "Gate 7 runtime must emit three passed and six failed schema-v2 evidence documents"
         )
     schemas = {name: load(CONTRACT / "schemas" / name) for name in V2_NAMES}
     registry = Registry()
@@ -518,6 +532,7 @@ def main() -> int:
     if any(evidence["runtime"]["adapterMode"] != "mock" for evidence in evidence_documents):
         raise AssertionError("Gate 7 runtime evidence escaped its mock-only boundary")
     if sorted(evidence["machineStatus"] for evidence in evidence_documents) != [
+        "failed",
         "failed",
         "failed",
         "failed",

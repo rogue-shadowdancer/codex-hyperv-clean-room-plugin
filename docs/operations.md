@@ -17,7 +17,10 @@ source-tree installed v2 schemas exact copies of their authorities. It does not
 replace the release-derived personal installation: that installed runtime and
 the immutable Release remain `0.2.0` until P3.3. P3.2 acceptance exercises
 external sidecar parsing, mock ZIP/fixture staging, mock deployment/evidence,
-and static production seams only. It does not authorize an operator to run a
+concurrent active-pointer drift rejection, and static production seams only.
+The launch seam must remain bound to the deployment identity returned to the
+same operation; a mismatched active record fails with
+`PORTABLE_DEPLOYMENT_DRIFT`. P3.2 does not authorize an operator to run a
 profile or perform a host, guest, package, driver, or network operation.
 
 H5A repairs the automatic-checkpoint ownership deadlock without changing the

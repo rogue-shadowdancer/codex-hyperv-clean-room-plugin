@@ -260,6 +260,7 @@ function Invoke-HcrV2StepSafely {
             sourceCommit = $Context.sourceCommit
             fixtures = $Context.fixtures
             webDriver = $Context.webDriver
+            deployment = Copy-HcrObject $Context.deployment
             launchedProcesses = @($Context.launchedProcesses | ForEach-Object { $_ })
             launchedProcess = $launchedProcess
             expectedVmId = $Context.expectedVmId
@@ -454,6 +455,7 @@ function Invoke-HcrRunTestProfileV2 {
         applications=@((Get-HcrPropertyValue $profile 'applications')); artifact=$null; portableArtifact=$artifactDeclaration
         portableManifest=$null; externalPortable=$externalPortable; uiRequired=$(if($externalPortable){[bool]$externalManifest.uiRequired}else{$true})
         sourceCommit=$candidateSourceCommit; fixtures=@($fixtures | ForEach-Object { Copy-HcrObject $_.declaration }); webDriver=$webDriver
+        deployment=$null
         launchedProcesses=$launched; expectedVmId=$identityArguments.expectedVmId; expectedVmName=$identityArguments.expectedVmName
         expectedOwnershipId=$identityArguments.expectedOwnershipId; expectedVmPath=$identityArguments.expectedVmPath; expectedVhdxPath=$identityArguments.expectedVhdxPath
     }
@@ -678,6 +680,17 @@ function Invoke-HcrRunTestProfileV2 {
                 $status = 'failed'
                 $summary = 'The deployed external portable inventory did not rebind to the validated sidecar.'
             }
+            $candidateDeploymentId = Get-HcrPropertyValue $machineEvidence 'deploymentId'
+            $candidateDeploymentFingerprint = Get-HcrPropertyValue $machineEvidence 'deploymentFingerprint'
+            $candidateDeploymentSlotId = Get-HcrPropertyValue $machineEvidence 'deploymentSlotId'
+            if (-not (Test-HcrUuid $candidateDeploymentId) -or
+                $candidateDeploymentFingerprint -isnot [string] -or
+                [string]$candidateDeploymentFingerprint -notmatch '^[0-9a-f]{64}$' -or
+                $candidateDeploymentSlotId -isnot [string] -or
+                [string]$candidateDeploymentSlotId -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
+                $status = 'failed'
+                $summary = 'The deployed portable identity was incomplete or invalid.'
+            }
         }
         if ($status -eq 'passed' -and $type -eq 'acquireWebDriver') {
             $driverArchiveGuestHash = [string](Get-HcrPropertyValue $machineEvidence 'archiveSha256')
@@ -703,6 +716,12 @@ function Invoke-HcrRunTestProfileV2 {
             $dataPreserved = [bool](Get-HcrPropertyValue $machineEvidence 'dataPreserved' $false)
             $deploymentSlotId = Get-HcrPropertyValue $machineEvidence 'deploymentSlotId'
             $deployedEntrypoint = Get-HcrPropertyValue $machineEvidence 'entrypoint'
+            $context.deployment = [pscustomobject][ordered]@{
+                applicationId = [string](Get-HcrPropertyValue $step 'application')
+                deploymentId = $deploymentId
+                deploymentFingerprint = $deploymentFingerprint
+                slotId = [string]$deploymentSlotId
+            }
             if ($externalPortable) {
                 $deployedPayloadSha256 = [string](Get-HcrPropertyValue $machineEvidence 'portableInventorySha256')
                 $deployedPayloadSizeBytes = [int64](Get-HcrPropertyValue $machineEvidence 'portableInventorySizeBytes')

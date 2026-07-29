@@ -544,6 +544,38 @@ function Invoke-HcrMockAdapter {
                 Throw-HcrError 'MOCK_STEP_ADAPTER_FAILURE' 'The configured mock guest step adapter failed.'
             }
             $result = Get-HcrMockConfiguredResult $state 'stepResults' $id "Mock step '$id' passed."
+            if ((Get-HcrPropertyValue $result 'status') -eq 'passed' -and
+                (Get-HcrPropertyValue $step 'type') -eq 'launchApplication' -and
+                [int](Get-HcrPropertyValue $Arguments 'schemaVersion' 1) -eq 2) {
+                $applicationId = [string](Get-HcrPropertyValue $step 'application')
+                $application = @((Get-HcrPropertyValue $Arguments 'applications' @()) |
+                    Where-Object { [string](Get-HcrPropertyValue $_ 'id') -eq $applicationId } |
+                    Select-Object -First 1)
+                if ($application.Count -eq 1 -and
+                    (Get-HcrPropertyValue $application[0] 'packageKind') -eq 'portableZip') {
+                    $deployment = Get-HcrPropertyValue $Arguments 'deployment'
+                    if ($null -eq $deployment -or
+                        [string](Get-HcrPropertyValue $deployment 'applicationId') -cne $applicationId -or
+                        -not (Test-HcrUuid (Get-HcrPropertyValue $deployment 'deploymentId')) -or
+                        (Get-HcrPropertyValue $deployment 'deploymentFingerprint') -isnot [string] -or
+                        [string](Get-HcrPropertyValue $deployment 'deploymentFingerprint') -notmatch '^[0-9a-f]{64}$' -or
+                        (Get-HcrPropertyValue $deployment 'slotId') -isnot [string] -or
+                        [string](Get-HcrPropertyValue $deployment 'slotId') -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
+                        Throw-HcrError 'PORTABLE_DEPLOYMENT_BINDING_INVALID' 'The portable launch lacks a valid operation-owned deployment binding.'
+                    }
+                    $activeDeployment = Get-HcrPropertyValue $state 'portableActiveDeploymentOverride' $deployment
+                    if ([string](Get-HcrPropertyValue $activeDeployment 'applicationId') -cne
+                            [string](Get-HcrPropertyValue $deployment 'applicationId') -or
+                        [string](Get-HcrPropertyValue $activeDeployment 'deploymentId') -cne
+                            [string](Get-HcrPropertyValue $deployment 'deploymentId') -or
+                        [string](Get-HcrPropertyValue $activeDeployment 'deploymentFingerprint') -cne
+                            [string](Get-HcrPropertyValue $deployment 'deploymentFingerprint') -or
+                        [string](Get-HcrPropertyValue $activeDeployment 'slotId') -cne
+                            [string](Get-HcrPropertyValue $deployment 'slotId')) {
+                        Throw-HcrError 'PORTABLE_DEPLOYMENT_DRIFT' 'The active portable deployment no longer matches this operation.'
+                    }
+                }
+            }
             if ((Get-HcrPropertyValue $step 'type') -eq 'launchApplication' -and
                 -not (Test-HcrProperty $result 'process')) {
                 $result | Add-Member -NotePropertyName process -NotePropertyValue ([pscustomobject][ordered]@{
@@ -1180,6 +1212,30 @@ function Assert-HcrRealGuestStepContract {
         if ($schemaVersion -eq 2 -and
             @('nsis', 'msi', 'portableZip') -notcontains (Get-HcrPropertyValue $application 'packageKind')) {
             Throw-HcrError 'GUEST_PACKAGE_KIND_FORBIDDEN' 'The schema-v2 package kind is unsupported.'
+        }
+    }
+    if ($schemaVersion -eq 2 -and $type -eq 'launchApplication') {
+        $applicationId = [string](Get-HcrPropertyValue $step 'application')
+        $application = @((Get-HcrPropertyValue $Arguments 'applications' @()) |
+            Where-Object { [string](Get-HcrPropertyValue $_ 'id') -eq $applicationId } |
+            Select-Object -First 1)
+        if ($application.Count -eq 1 -and
+            (Get-HcrPropertyValue $application[0] 'packageKind') -eq 'portableZip') {
+            $deployment = Get-HcrPropertyValue $Arguments 'deployment'
+            $deploymentFields = @('applicationId', 'deploymentId', 'deploymentFingerprint', 'slotId')
+            if ($null -eq $deployment -or
+                @((Get-HcrPropertyNames $deployment) | Where-Object {
+                        $deploymentFields -notcontains $_
+                    }).Count -ne 0 -or
+                @((Get-HcrPropertyNames $deployment)).Count -ne $deploymentFields.Count -or
+                [string](Get-HcrPropertyValue $deployment 'applicationId') -cne $applicationId -or
+                -not (Test-HcrUuid (Get-HcrPropertyValue $deployment 'deploymentId')) -or
+                (Get-HcrPropertyValue $deployment 'deploymentFingerprint') -isnot [string] -or
+                [string](Get-HcrPropertyValue $deployment 'deploymentFingerprint') -notmatch '^[0-9a-f]{64}$' -or
+                (Get-HcrPropertyValue $deployment 'slotId') -isnot [string] -or
+                [string](Get-HcrPropertyValue $deployment 'slotId') -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
+                Throw-HcrError 'PORTABLE_DEPLOYMENT_BINDING_INVALID' 'The portable launch lacks a valid operation-owned deployment binding.'
+            }
         }
     }
 }
@@ -2511,6 +2567,7 @@ function Invoke-HcrRealGuestStep {
             $input.fixtures = @(@((Get-HcrPropertyValue $Arguments 'fixtures' @())) |
                 ForEach-Object { Copy-HcrObject $_ })
             $input.webDriver = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'webDriver')
+            $input.deployment = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'deployment')
             $input.portableArtifact = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'portableArtifact')
             $input.portableManifest = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'portableManifest')
             $input.externalPortable = [bool](Get-HcrPropertyValue $Arguments 'externalPortable' $false)

@@ -182,7 +182,13 @@ The portable manifest and ZIP must not declare a `data` entry or any `data/`
 descendant; that mutable directory is created empty for a first deployment or
 copied only from the revalidated prior active deployment.
 Failed deployment must not replace the active slot or delete prior data. No H1
-contract creates a general unzip, copy, delete, or command surface.
+contract creates a general unzip, copy, delete, or command surface. A successful
+deployment also binds its application ID, deployment ID, active-record
+fingerprint, and slot ID into the owning operation. Every later portable launch
+must re-read the active record, match all four identities, and then use that
+matched immutable slot path. A concurrent operation that replaces the shared
+active pointer therefore fails the older operation with
+`PORTABLE_DEPLOYMENT_DRIFT` instead of launching a different candidate.
 
 The WebDriver manifest fixes Microsoft EdgeDriver x64 to the exact fixed
 WebView2 four-part version. Its Microsoft HTTPS acquisition policy, archive
@@ -1299,7 +1305,7 @@ Microsoft x64 EdgeDriver/data-testid rules.
 P3.2 acceptance uses only synthetic ZIPs, fixtures, mock adapters, native
 parsers, schema validators, and static production seams. It validates all
 twenty tools, the preserved sixteen schema-v1 tools, seven exact installed
-schema-v2 copies, 299 mock runtime assertions, eight generated evidence
+schema-v2 copies, 306 mock runtime assertions, nine generated evidence
 documents, and the inherited Gate 2/Gate 6 contract suites. Every real host,
 Hyper-V, guest, portable, WebDriver, and UI operation counter remains zero.
 
