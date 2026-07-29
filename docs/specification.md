@@ -7,10 +7,16 @@ implements that target in the source runtime. The implementation exposes
 exactly 20 MCP tools, preserves the first 16 schema-v1 tools and five schema-v1
 files byte-for-byte, installs seven authoritative schema-v2 copies, and
 dispatches only by the exact integer `schemaVersion`. G7/P3.2 validation is
-mock/parser/schema/static only. The immutable Release and personal
-installation remain `0.2.0`; no real host, VM, checkpoint, credential, guest,
-package, portable, WebDriver, network, UI, installation, release, or
-clean-machine operation was executed or claimed.
+mock/parser/schema/static only. G7/P3.3 publishes immutable, source-only
+`v0.3.0` from protected commit
+`47151fdbe99346ec87af09460c79d0864978eabd` and accepts the one personal build
+`0.3.0+codex.20260729122233`, closing 31 payloads and exactly 20 catalog tools.
+Its catalog readback invokes no MCP tool or adapter operation. The local
+publication aggregate did invoke inherited Gate 2 bounded read-only
+`inspect_host` and missing-ISO `plan_vm_create` rejection outside the declared
+P3.3 no-host boundary; no Hyper-V/VM/checkpoint mutation, credential or guest
+operation, package or portable execution, WebDriver/UI or network operation,
+evidence collection, manual attestation, or clean-machine acceptance occurred.
 
 Gate H5A adds a backward-compatible repair for Hyper-V automatic checkpoints.
 Newly created managed VMs must disable automatic checkpoints before ownership
