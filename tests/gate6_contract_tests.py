@@ -284,8 +284,9 @@ def is_safe_relative_path(value: object) -> bool:
         return False
     for part in parts:
         device = part.split(".", 1)[0].casefold()
-        if device in {"con", "prn", "aux", "nul"} or re.fullmatch(
-            r"(?:com|lpt)(?:[1-9]|[¹²³])", device
+        if (
+            device in {"con", "prn", "aux", "nul", "conin$", "conout$"}
+            or re.fullmatch(r"(?:com|lpt)(?:[1-9]|[¹²³])", device)
         ):
             return False
     return True
@@ -309,6 +310,13 @@ def validate_portable_manifest_semantics(manifest: dict[str, Any]) -> list[str]:
         errors.append(f"case-insensitive duplicate portable paths: {duplicates}")
     boundary = manifest.get("distributionBoundary")
     external = boundary in {"runtime-and-legal-only", "end-user-complete"}
+    portable_zip_name = manifest.get("fileName")
+    if external and (
+        not is_safe_relative_path(portable_zip_name)
+        or "\\" in portable_zip_name
+        or "/" in portable_zip_name
+    ):
+        errors.append("external manifest requires one exact safe ZIP file name")
     entry_point = (
         manifest.get("entrypoint")
         if external
@@ -772,6 +780,14 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
         errors.append("portable evidence is missing required artifact roles")
         machine_facts_passed = False
     if external:
+        portable_zip_name = candidate.get("portableZipFileName")
+        if (
+            not is_safe_relative_path(portable_zip_name)
+            or "\\" in portable_zip_name
+            or "/" in portable_zip_name
+        ):
+            errors.append("external evidence requires one exact safe ZIP file name")
+            machine_facts_passed = False
         fixture_identity_ids = [
             fixture.get("id") for fixture in fixture_identities
         ]
@@ -1619,6 +1635,18 @@ def assert_p3_1_contract(
         )
     ):
         raise AssertionError("neutral external fixture is not component-portable")
+    for console_device_path in ("CONIN$", "CONOUT$/payload.dll"):
+        console_device_manifest = deepcopy(neutral_manifest)
+        console_device_manifest["files"][1]["path"] = console_device_path
+        if not list(
+            validator_for(
+                "portable-manifest.schema.json", schemas, registry
+            ).iter_errors(console_device_manifest)
+        ) or not validate_portable_manifest_semantics(console_device_manifest):
+            raise AssertionError(
+                "external inventory accepted a Windows console device path: "
+                f"{console_device_path!r}"
+            )
     signed_external_probe = deepcopy(neutral_manifest)
     signed_external_probe["unsigned"] = False
     if not list(
@@ -1664,6 +1692,24 @@ def assert_p3_1_contract(
         ).iter_errors(uppercase_zip_evidence)
     ):
         raise AssertionError("safe uppercase ZIP leaf was rejected")
+    decomposed_zip_leaf = "Cafe\u0301.zip"
+    decomposed_zip_manifest = deepcopy(neutral_manifest)
+    decomposed_zip_profile = deepcopy(neutral_profile)
+    decomposed_zip_evidence = deepcopy(neutral_evidence)
+    decomposed_zip_manifest["fileName"] = decomposed_zip_leaf
+    decomposed_zip_profile["artifact"]["fileNamePattern"] = decomposed_zip_leaf
+    decomposed_zip_evidence["candidate"]["portableZipFileName"] = decomposed_zip_leaf
+    next(
+        artifact
+        for artifact in decomposed_zip_evidence["artifacts"]
+        if artifact["role"] == "portableZip"
+    )["fileName"] = decomposed_zip_leaf
+    if (
+        not validate_portable_manifest_semantics(decomposed_zip_manifest)
+        or not validate_profile_semantics(decomposed_zip_profile)
+        or not validate_evidence_semantics(decomposed_zip_evidence)
+    ):
+        raise AssertionError("non-NFC external ZIP leaf passed semantic validation")
     for unsafe_zip_leaf in (
         "CON.zip",
         "com1.ZIP",
