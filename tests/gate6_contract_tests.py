@@ -402,6 +402,14 @@ def normalized_archive_path(value: str) -> str:
     return unicodedata.normalize("NFC", value.replace("\\", "/")).casefold()
 
 
+def windows_ordinal_key(value: str) -> tuple[int, ...]:
+    encoded = value.encode("utf-16-le", errors="surrogatepass")
+    return tuple(
+        encoded[index] | (encoded[index + 1] << 8)
+        for index in range(0, len(encoded), 2)
+    )
+
+
 def validate_portable_manifest_semantics(manifest: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     unsafe_bound_paths = [
@@ -834,6 +842,14 @@ def validate_external_portable_bindings(
         or artifact.get("sha256") != manifest.get("newZipSha256")
     ):
         errors.append("PORTABLE_ARTIFACT_IDENTITY_MISMATCH")
+    manifest_path = artifact.get("portableManifestRelativePath")
+    if isinstance(manifest_path, str) and any(
+        normalized_archive_path(str(fixture.get("sourceRelativePath", "")))
+        == normalized_archive_path(manifest_path)
+        for fixture in profile.get("fixtures", [])
+        if isinstance(fixture, dict)
+    ):
+        errors.append("PORTABLE_MANIFEST_FIXTURE_PATH_COLLISION")
 
     launch_steps = [
         step
@@ -865,14 +881,15 @@ def validate_external_portable_bindings(
 def external_manifest_inventory_identity(
     manifest: dict[str, Any],
 ) -> tuple[int, int, str]:
-    entries = sorted(
+    entries = [
         (
             unicodedata.normalize("NFC", item["path"].replace("\\", "/")),
             item["size"],
             item["sha256"].lower(),
         )
         for item in manifest.get("files", [])
-    )
+    ]
+    entries.sort(key=lambda item: windows_ordinal_key(item[0]))
     canonical = "\n".join(
         f"{path}\t{size}\t{sha256}" for path, size, sha256 in entries
     )
@@ -2014,6 +2031,27 @@ def assert_p3_1_contract(
         raise AssertionError(
             "external portable manifest rejected bounded build metadata"
         )
+    ordinal_inventory_probe = {
+        "files": [
+            {"path": "\ue000.txt", "size": 1, "sha256": "1" * 64},
+            {"path": "\U00010000.txt", "size": 2, "sha256": "2" * 64},
+        ]
+    }
+    if external_manifest_inventory_identity(ordinal_inventory_probe) != (
+        2,
+        3,
+        "46608303bc9106c730e7b35e65aa99a35b387894724cc5fd940d9c60b1aeb603",
+    ):
+        raise AssertionError("external inventory did not use Windows ordinal order")
+    manifest_fixture_collision = deepcopy(ui_profile)
+    manifest_fixture_collision["artifact"][
+        "portableManifestRelativePath"
+    ] = "FIXTURES\\SYNTHETIC-INPUT.JSON"
+    collision_errors = validate_external_portable_bindings(
+        manifest_fixture_collision, ui_manifest
+    )
+    if "PORTABLE_MANIFEST_FIXTURE_PATH_COLLISION" not in collision_errors:
+        raise AssertionError("external manifest sidecar was accepted as a fixture")
     for schema_name in (
         "portable-manifest.schema.json",
         "test-profile.schema.json",
