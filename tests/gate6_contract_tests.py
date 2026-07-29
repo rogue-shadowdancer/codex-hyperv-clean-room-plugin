@@ -1641,16 +1641,42 @@ def assert_p3_1_contract(
                 "executable external manifest omitted required provenance: "
                 f"{provenance_field}"
             )
-    for unsafe_zip_leaf in ("CON.zip", "com1.ZIP", "bad\u0001.zip"):
+    uppercase_zip_manifest = deepcopy(neutral_manifest)
+    uppercase_zip_profile = deepcopy(neutral_profile)
+    uppercase_zip_manifest["fileName"] = "Package.ZIP"
+    uppercase_zip_profile["artifact"]["fileNamePattern"] = "Package.ZIP"
+    if list(
+        validator_for(
+            "portable-manifest.schema.json", schemas, registry
+        ).iter_errors(uppercase_zip_manifest)
+    ) or list(
+        validator_for(
+            "test-profile.schema.json", schemas, registry
+        ).iter_errors(uppercase_zip_profile)
+    ):
+        raise AssertionError("safe uppercase ZIP leaf was rejected")
+    for unsafe_zip_leaf in (
+        "CON.zip",
+        "com1.ZIP",
+        "COM¹.zip",
+        "LPT².ZIP",
+        "bad\u0001.zip",
+    ):
         unsafe_zip_probe = deepcopy(neutral_manifest)
+        unsafe_profile_probe = deepcopy(neutral_profile)
         unsafe_zip_probe["fileName"] = unsafe_zip_leaf
+        unsafe_profile_probe["artifact"]["fileNamePattern"] = unsafe_zip_leaf
         if not list(
             validator_for(
                 "portable-manifest.schema.json", schemas, registry
             ).iter_errors(unsafe_zip_probe)
+        ) or not list(
+            validator_for(
+                "test-profile.schema.json", schemas, registry
+            ).iter_errors(unsafe_profile_probe)
         ):
             raise AssertionError(
-                f"executable external manifest accepted unsafe ZIP leaf: "
+                f"executable external manifest/profile accepted unsafe ZIP leaf: "
                 f"{unsafe_zip_leaf!r}"
             )
 

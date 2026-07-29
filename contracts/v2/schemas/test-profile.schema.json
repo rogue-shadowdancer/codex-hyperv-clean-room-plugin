@@ -295,9 +295,9 @@
         "packageKind": { "const": "portableZip" },
         "fileNamePattern": {
           "type": "string",
-          "minLength": 1,
+          "minLength": 5,
           "maxLength": 260,
-          "pattern": "^(?!.*[<>:\"|?*%])[^\\\\/]+\\.zip$"
+          "pattern": "^(?!(?:[cC][oO][nN]|[pP][rR][nN]|[aA][uU][xX]|[nN][uU][lL]|[cC][oO][mM](?:[1-9]|[¹²³])|[lL][pP][tT](?:[1-9]|[¹²³])|[cC][oO][nN](?:[iI][nN]|[oO][uU][tT])\\$)(?:\\.|$))(?!.*[\\u0000-\\u001F<>:\"|?*%])[^\\\\/]+\\.[zZ][iI][pP]$"
         },
         "architecture": { "const": "x64" },
         "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
