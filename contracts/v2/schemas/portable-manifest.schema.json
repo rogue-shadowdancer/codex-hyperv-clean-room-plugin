@@ -31,7 +31,7 @@
       "type": "string",
       "minLength": 5,
       "maxLength": 260,
-      "pattern": "^(?!(?:[cC][oO][nN]|[pP][rR][nN]|[aA][uU][xX]|[nN][uU][lL]|[cC][oO][mM][1-9]|[lL][pP][tT][1-9]|[cC][oO][nN](?:[iI][nN]|[oO][uU][tT])\\$)(?:\\.|$))(?!.*[\\u0000-\\u001F<>:\"|?*%])[^\\\\/]+\\.[zZ][iI][pP]$"
+      "pattern": "^(?!(?:[cC][oO][nN]|[pP][rR][nN]|[aA][uU][xX]|[nN][uU][lL]|[cC][oO][mM](?:[1-9]|[¹²³])|[lL][pP][tT](?:[1-9]|[¹²³])|[cC][oO][nN](?:[iI][nN]|[oO][uU][tT])\\$)(?:\\.|$))(?!.*[\\u0000-\\u001F<>:\"|?*%])[^\\\\/]+\\.[zZ][iI][pP]$"
     },
     "embeddedComponentIdentity": {
       "type": "object",
