@@ -78,7 +78,10 @@
           "type": "string",
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
         },
-        "productVersion": { "$ref": "#/$defs/boundedSemver" },
+        "productVersion": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+        },
         "architecture": { "const": "x64" },
         "sourceCommit": { "$ref": "#/$defs/gitObject" },
         "sourceDirty": { "const": false },
