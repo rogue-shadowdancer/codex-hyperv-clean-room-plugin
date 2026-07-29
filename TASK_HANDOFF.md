@@ -74,7 +74,14 @@ After protected merge, tag/Release publication, and same-commit install:
   -PluginRoot "$HOME\plugins\hyperv-clean-room" -ExpectedVersion 0.3.1
 .\scripts\validate-public-release.ps1
 .\scripts\validate-public-github-settings.ps1
+.\scripts\validate-v031-release-readback.ps1 `
+  -ExpectedMasterCommit <protected-master-sha>
 ```
+
+The final readback fails closed unless protected `master`, the annotated
+`v0.3.1` peeled commit, the Release target, and installed `sourceCommit` are
+identical. It also rechecks the immutable v0.1.1, v0.2.0, and v0.3.0 tag
+objects, peeled commits, Release identities, flags, and zero-asset state.
 
 The historical H4/G9 `validate-gate4.ps1` installed-copy smoke calls
 `inspect_host` and a missing-ISO plan. It is not part of this recovery gate and

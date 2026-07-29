@@ -1440,6 +1440,26 @@ $externalEvidenceValidation = Invoke-Gate7Tool 'validate_evidence' ([pscustomobj
 Assert-Gate7 $externalEvidenceValidation.ok `
     'Generated external schema-v2 evidence failed native validation.'
 
+$historicalExternalEvidence = Copy-HcrObject $externalEvidence
+$historicalExternalEvidence.runtime.pluginBaseVersion = '0.3.0'
+$historicalExternalEvidence.runtime.pluginBuildVersion = '0.3.0+codex.20260729122233'
+$historicalExternalOperation = Copy-HcrObject $externalOperation
+$historicalExternalOperation.evidenceSha256 = Get-HcrEvidenceDocumentDigest `
+    $historicalExternalEvidence
+$historicalExternalValidation = Test-HcrEvidenceDocumentV2 `
+    $historicalExternalEvidence $historicalExternalOperation
+Assert-Gate7 $historicalExternalValidation.valid `
+    ('The compatible patch rejected immutable v0.3.0 external evidence: ' +
+        (@($historicalExternalValidation.errors) -join '; '))
+$mismatchedExternalEvidence = Copy-HcrObject $historicalExternalEvidence
+$mismatchedExternalEvidence.runtime.pluginBuildVersion = '0.3.1+codex.20260729184240'
+$mismatchedExternalOperation = Copy-HcrObject $historicalExternalOperation
+$mismatchedExternalOperation.evidenceSha256 = Get-HcrEvidenceDocumentDigest `
+    $mismatchedExternalEvidence
+Assert-Gate7 (-not (Test-HcrEvidenceDocumentV2 `
+        $mismatchedExternalEvidence $mismatchedExternalOperation).valid) `
+    'External evidence accepted mismatched plugin base and build versions.'
+
 $deploymentDriftState = Read-HcrMockAdapterState
 $deploymentDriftState | Add-Member -NotePropertyName portableActiveDeploymentOverride `
     -NotePropertyValue ([pscustomobject][ordered]@{

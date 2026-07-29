@@ -1712,9 +1712,15 @@ function Test-HcrEvidenceDocumentV2 {
                 Add-HcrValidationError $errors "$.candidate.$($bound.name) is invalid."
             }
         }
-        if ([string](Get-HcrPropertyValue $runtime 'pluginBaseVersion') -ne '0.3.1' -or
-            [string](Get-HcrPropertyValue $runtime 'pluginBuildVersion') -notmatch
-                '^0\.3\.1\+codex\.[0-9]{14}$' -or
+        $pluginBaseVersion = [string](Get-HcrPropertyValue $runtime 'pluginBaseVersion')
+        $pluginBuildVersion = [string](Get-HcrPropertyValue $runtime 'pluginBuildVersion')
+        $compatibleExternalVersion = (
+            ($pluginBaseVersion -eq '0.3.0' -and
+                $pluginBuildVersion -match '^0\.3\.0\+codex\.[0-9]{14}$') -or
+            ($pluginBaseVersion -eq '0.3.1' -and
+                $pluginBuildVersion -match '^0\.3\.1\+codex\.[0-9]{14}$')
+        )
+        if (-not $compatibleExternalVersion -or
             [string](Get-HcrPropertyValue $runtime 'sourceCommit') -notmatch
                 '^[a-f0-9]{40}$' -or
             -not (Test-HcrV2Sha256 (Get-HcrPropertyValue $runtime 'installedInventorySha256')) -or

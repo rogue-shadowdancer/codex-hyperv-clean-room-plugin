@@ -17,6 +17,11 @@ the local plugin cache.
   exactly 20 unique tools, and zero tool calls.
 - Distinguish an actual plugin selection from raw prompt text. A task that only
   mentions the plugin name is not valid installed-plugin acceptance evidence.
+- Preserve validation of immutable v0.3.0 external evidence while generating
+  v0.3.1 provenance; mismatched base/build version pairs remain invalid.
+- Add one fail-closed post-publication readback for protected `master`,
+  annotated tag, Release target/flags/assets, installed source identity,
+  personal marketplace/Codex state, and all three historical release baselines.
 
 ### Safety and release boundary
 

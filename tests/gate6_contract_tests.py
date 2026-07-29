@@ -3021,6 +3021,21 @@ def main() -> int:
     external_evidence_validator = validator_for(
         "evidence.schema.json", schemas, registry
     )
+    historical_external_probe = deepcopy(external_evidence_probe)
+    historical_external_probe["runtime"]["pluginBaseVersion"] = "0.3.0"
+    historical_external_probe["runtime"][
+        "pluginBuildVersion"
+    ] = "0.3.0+codex.20260729122233"
+    if list(external_evidence_validator.iter_errors(historical_external_probe)):
+        raise AssertionError("schema rejected immutable v0.3.0 external evidence")
+    mismatched_external_probe = deepcopy(historical_external_probe)
+    mismatched_external_probe["runtime"][
+        "pluginBuildVersion"
+    ] = "0.3.1+codex.20260729184240"
+    if not list(external_evidence_validator.iter_errors(mismatched_external_probe)):
+        raise AssertionError(
+            "schema accepted mismatched external plugin base/build versions"
+        )
     zip_name_drift_probe = deepcopy(external_evidence_probe)
     zip_name_drift_probe["candidate"][
         "portableZipFileName"

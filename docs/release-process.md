@@ -279,6 +279,9 @@ Acceptance requires:
 
 - protected `master` SHA = annotated tag peeled SHA = Release tag target =
   install-manifest `sourceCommit`;
+- `validate-v031-release-readback.ps1` passes against the exact protected
+  commit and also proves the v0.1.1, v0.2.0, and v0.3.0 tag/Release baselines
+  did not move or get reissued;
 - exact 31-file payload plus two installer records and one personal marketplace
   entry;
 - a fresh app-server thread with
@@ -287,3 +290,8 @@ Acceptance requires:
   and exactly 20 unique tools;
 - no `turn/start`, `mcpServer/tool/call`, `inspect_host`, adapter operation, or
   real host/VM/guest/package/UI/evidence/manual operation.
+
+The compatible validator continues to accept externally produced v0.3.0
+evidence when `pluginBaseVersion` and `pluginBuildVersion` agree, while the
+v0.3.1 runtime generates only v0.3.1 provenance. Cross-version base/build
+pairs fail closed.

@@ -233,6 +233,38 @@ def main() -> int:
             "20-tool set and must never call it"
         )
 
+    release_readback = read_text("scripts/validate-v031-release-readback.ps1")
+    for fragment in (
+        "repos/$Repository/branches/master",
+        "repos/$Repository/git/ref/tags/$Tag",
+        "repos/$Repository/releases/tags/v0.3.1",
+        "Annotated v0.3.1 does not peel to protected master",
+        "Release target does not equal protected master",
+        "Installed sourceCommit does not equal protected master",
+        "'v0.1.1'",
+        "'v0.2.0'",
+        "'v0.3.0'",
+        "payload count is not 31",
+        "inventory count is not 33",
+        "hyperv-clean-room@personal",
+    ):
+        if fragment not in release_readback:
+            raise AssertionError(
+                f"v0.3.1 release readback is missing: {fragment}"
+            )
+    for forbidden in (
+        "release create",
+        "git tag",
+        "plugin add",
+        "plugin install",
+        "inspect_host",
+        "mcpServer/tool/call",
+    ):
+        if forbidden in release_readback:
+            raise AssertionError(
+                f"release readback must remain non-mutating: {forbidden}"
+            )
+
     hygiene_source = read_text("tests/publication_hygiene_tests.py")
     for fragment in (
         'os.environ.get("GITHUB_EVENT_NAME"',
