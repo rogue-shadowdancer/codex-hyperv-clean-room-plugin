@@ -1992,6 +1992,28 @@ def assert_p3_1_contract(
     ui_profile_sha256 = sha256_file(
         P3_1_FIXTURE_ROOT / "test-profile.external-ui.valid.json"
     )
+    portable_validator = validator_for(
+        "portable-manifest.schema.json", schemas, registry
+    )
+    embedded_manifest = load_json(FIXTURE_ROOT / "portable-manifest.valid.json")
+    embedded_build_metadata = deepcopy(embedded_manifest)
+    embedded_build_metadata["productVersion"] = "1.2.3+build"
+    if not list(portable_validator.iter_errors(embedded_build_metadata)):
+        raise AssertionError(
+            "embedded portable manifest accepted newly introduced build metadata"
+        )
+    embedded_long_prerelease = deepcopy(embedded_manifest)
+    embedded_long_prerelease["productVersion"] = f"1.2.3-{'a' * 200}"
+    if list(portable_validator.iter_errors(embedded_long_prerelease)):
+        raise AssertionError(
+            "embedded portable manifest rejected a legacy-valid long prerelease"
+        )
+    external_build_metadata = deepcopy(neutral_manifest)
+    external_build_metadata["version"] = "1.2.3+build"
+    if list(portable_validator.iter_errors(external_build_metadata)):
+        raise AssertionError(
+            "external portable manifest rejected bounded build metadata"
+        )
     for schema_name in (
         "portable-manifest.schema.json",
         "test-profile.schema.json",
