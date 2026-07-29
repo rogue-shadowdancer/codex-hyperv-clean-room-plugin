@@ -1217,6 +1217,8 @@ function Invoke-WorkerDeployPortable {
     $slotPath=$null
     $deploymentPublished=$false
     $deploymentFailure=$null
+    $cleanupFailureCode=$null
+    $cleanupFailureMessage=$null
     try {
         $archive=New-Object IO.Compression.ZipArchive($stream,[IO.Compression.ZipArchiveMode]::Read,$false)
         if ($archive.Entries.Count -gt 4096) { Throw-WorkerError 'PORTABLE_ARCHIVE_TOO_MANY_ENTRIES' 'The portable archive exceeds 4096 entries.' }
@@ -1354,18 +1356,30 @@ function Invoke-WorkerDeployPortable {
                     continue
                 }
                 if(-not(Test-WorkerPathWithin $cleanupPath $slotsRoot)){
-                    Throw-WorkerError 'PORTABLE_STAGING_CLEANUP_FAILED' 'The failed portable deployment path escaped the owned slots root.'
+                    $cleanupFailureCode='PORTABLE_STAGING_CLEANUP_FAILED'
+                    $cleanupFailureMessage='The failed portable deployment path escaped the owned slots root.'
+                    continue
                 }
                 try{
                     Remove-Item -LiteralPath $cleanupPath -Recurse -Force -ErrorAction Stop
                 }
                 catch{
-                    Throw-WorkerError 'PORTABLE_STAGING_CLEANUP_FAILED' 'The failed portable deployment staging directory could not be removed.'
+                    $cleanupFailureCode='PORTABLE_STAGING_CLEANUP_FAILED'
+                    $cleanupFailureMessage='The failed portable deployment staging directory could not be removed.'
                 }
             }
         }
     }
-    if($null-ne$deploymentFailure){throw $deploymentFailure}
+    if($null-ne$deploymentFailure){
+        if($null-ne$cleanupFailureCode){
+            $deploymentFailure.Exception.Data['GuestWorkerCleanupCode']=$cleanupFailureCode
+            $deploymentFailure.Exception.Data['GuestWorkerCleanupMessage']=$cleanupFailureMessage
+        }
+        throw $deploymentFailure
+    }
+    if($null-ne$cleanupFailureCode){
+        Throw-WorkerError $cleanupFailureCode $cleanupFailureMessage
+    }
 }
 
 function Get-WorkerLoopbackEphemeralPort {

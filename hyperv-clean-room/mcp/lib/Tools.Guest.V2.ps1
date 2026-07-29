@@ -427,17 +427,13 @@ function Invoke-HcrRunTestProfileV2 {
         portableManifestSha256 = [string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSha256')
         portableManifestSizeBytes = if ($externalPortable) { [int64]$externalManifest.sizeBytes } else { $null }
         portableZipSourceSizeBytes = if ($externalPortable) { [int64]$artifactItem.Length } else { $null }
-        portableZipGuestSizeBytes = if ($externalPortable) { [int64]$artifactItem.Length } else { $null }
+        portableZipGuestSizeBytes = $null
         portableZipSourceSha256 = if ($externalPortable) { $artifactHash } else { $null }
-        portableZipGuestSha256 = if ($externalPortable) { $artifactHash } else { $null }
+        portableZipGuestSha256 = $null
         portableManifestSourceSizeBytes = if ($externalPortable) { [int64]$externalManifest.sizeBytes } else { $null }
-        portableManifestGuestSizeBytes = if ($externalPortable) {
-            [int64]$externalManifest.sizeBytes
-        } else { $null }
+        portableManifestGuestSizeBytes = $null
         portableManifestSourceSha256 = if ($externalPortable) { [string]$externalManifest.sha256 } else { $null }
-        portableManifestGuestSha256 = if ($externalPortable) {
-            [string]$externalManifest.sha256
-        } else { $null }
+        portableManifestGuestSha256 = $null
         portableInventorySha256 = if ($externalPortable) {
             [string](Get-HcrPropertyValue $externalManifest.inventory 'sha256')
         } else { $null }
@@ -463,6 +459,8 @@ function Invoke-HcrRunTestProfileV2 {
     }
     $steps = @((Get-HcrPropertyValue $profile 'steps'))
     $artifactGuestHash = $null
+    $preEvidenceError = $null
+    $preEvidenceFailureCode = $null
     $stageStatus = 'passed'
     $stageSummary = 'Portable ZIP and fixture staging completed with exact hash verification.'
     $stageMachineEvidence = [pscustomobject]@{ sourceSha256=$artifactHash; guestSha256=$null }
@@ -472,16 +470,22 @@ function Invoke-HcrRunTestProfileV2 {
             guestDestination=$artifactItem.Name; timeoutSeconds=[int](Get-HcrPropertyValue $steps[0] 'timeoutSeconds')
         }))
         $artifactGuestHash = [string](Get-HcrPropertyValue $staged 'guestSha256')
-        if ($externalPortable) { $operation.portableZipGuestSha256 = $artifactGuestHash }
+        if ($externalPortable) {
+            $operation.portableZipGuestSizeBytes = [int64](Get-HcrPropertyValue $staged 'bytesCopied')
+            $operation.portableZipGuestSha256 = $artifactGuestHash
+        }
         $context.artifact = [pscustomobject]@{ guestDestination=[string](Get-HcrPropertyValue $staged 'guestDestination'); sourceSha256=$artifactHash; guestSha256=$artifactGuestHash }
         $stageMachineEvidence = [pscustomobject]@{ sourceSha256=$artifactHash; guestSha256=$artifactGuestHash }
         if ($artifactGuestHash -ne $artifactHash) {
             $stageStatus = 'failed'
             $stageSummary = 'Portable ZIP staging did not preserve the exact source hash.'
+            $preEvidenceFailureCode = 'ARTIFACT_PROFILE_MISMATCH'
         }
     }
     catch {
+        $preEvidenceError = $_
         $stageFailure = Get-HcrExceptionData $_.Exception
+        $preEvidenceFailureCode = [string]$stageFailure.code
         $stageStatus = 'failed'
         $stageSummary = "Portable ZIP staging failed through the fixed adapter: $($stageFailure.code)."
         $stageMachineEvidence = [pscustomobject]@{ sourceSha256=$artifactHash; guestSha256=$null; errorCode=$stageFailure.code }
@@ -518,13 +522,16 @@ function Invoke-HcrRunTestProfileV2 {
                     $portableManifestGuestSize -ne [int64]$externalManifest.sizeBytes) {
                     $manifestStatus = 'failed'
                     $stageStatus = 'failed'
+                    $preEvidenceFailureCode = 'PORTABLE_MANIFEST_HASH_MISMATCH'
                     $stageSummary = 'External portable manifest staging did not preserve independent size and hash identity.'
                 }
             }
             catch {
+                $preEvidenceError = $_
                 $manifestStatus = 'failed'
                 $stageStatus = 'failed'
                 $manifestFailure = Get-HcrExceptionData $_.Exception
+                $preEvidenceFailureCode = [string]$manifestFailure.code
                 $stageSummary = "External portable manifest staging failed through the fixed adapter: $($manifestFailure.code)."
             }
         }
@@ -540,6 +547,7 @@ function Invoke-HcrRunTestProfileV2 {
         $declaration = $fixture.declaration
         $fixtureId = [string](Get-HcrPropertyValue $declaration 'id')
         $fixtureGuestHash = $null
+        $fixtureGuestSize = $null
         $fixtureStatus = if ($stageStatus -eq 'passed') { 'passed' } else { 'notPerformed' }
         if ($stageStatus -eq 'passed') {
             try {
@@ -548,6 +556,7 @@ function Invoke-HcrRunTestProfileV2 {
                     guestDestination=('fixtures\' + $fixtureId + '-' + $fixture.item.Name); timeoutSeconds=120
                 }))
                 $fixtureGuestHash = [string](Get-HcrPropertyValue $fixtureStage 'guestSha256')
+                $fixtureGuestSize = [int64](Get-HcrPropertyValue $fixtureStage 'bytesCopied')
                 $fixtureContext = @($context.fixtures | Where-Object {
                     [string](Get-HcrPropertyValue $_ 'id') -eq $fixtureId
                 })
@@ -557,14 +566,17 @@ function Invoke-HcrRunTestProfileV2 {
                 if ($fixtureGuestHash -ne $fixture.sha256) {
                     $fixtureStatus = 'failed'
                     $stageStatus = 'failed'
+                    $preEvidenceFailureCode = 'FIXTURE_HASH_MISMATCH'
                     $stageSummary = "Fixture '$fixtureId' staging did not preserve the exact source hash."
                     $stageMachineEvidence = [pscustomobject]@{ sourceSha256=$artifactHash; guestSha256=$artifactGuestHash; failedFixtureId=$fixtureId; errorCode='FIXTURE_HASH_MISMATCH' }
                 }
             }
             catch {
+                $preEvidenceError = $_
                 $fixtureFailure = Get-HcrExceptionData $_.Exception
                 $fixtureStatus = 'failed'
                 $stageStatus = 'failed'
+                $preEvidenceFailureCode = [string]$fixtureFailure.code
                 $stageSummary = "Fixture '$fixtureId' staging failed through the fixed adapter: $($fixtureFailure.code)."
                 $stageMachineEvidence = [pscustomobject]@{ sourceSha256=$artifactHash; guestSha256=$artifactGuestHash; failedFixtureId=$fixtureId; errorCode=$fixtureFailure.code }
             }
@@ -576,17 +588,35 @@ function Invoke-HcrRunTestProfileV2 {
                 sourceRelativePath=[string](Get-HcrPropertyValue $declaration 'sourceRelativePath')
                 profileSizeBytes=[int64](Get-HcrPropertyValue $declaration 'sizeBytes')
                 sourceSizeBytes=[int64]$fixture.item.Length
-                guestSizeBytes=[int64]$fixture.item.Length
+                guestSizeBytes=$fixtureGuestSize
                 profileSha256=[string](Get-HcrPropertyValue $declaration 'sha256')
                 sourceSha256=[string]$fixture.sha256
-                guestSha256=$(if($null -eq $fixtureGuestHash){
-                    [string]$fixture.sha256
-                }else{$fixtureGuestHash})
+                guestSha256=$fixtureGuestHash
                 status=$fixtureStatus
             })
         }
     }
     $automatic.Add((New-HcrV2AutomaticAssertion ([string](Get-HcrPropertyValue $steps[0] 'id')) $true $stageStatus $stageSummary $stageMachineEvidence))
+    if ($externalPortable -and $stageStatus -ne 'passed') {
+        if ([string]::IsNullOrWhiteSpace($preEvidenceFailureCode)) {
+            $preEvidenceFailureCode = 'GUEST_IDENTITY_INVALID'
+        }
+        $operation.automaticAssertions = @($automatic | ForEach-Object { $_ })
+        $operation | Add-Member -NotePropertyName preEvidenceFailure `
+            -NotePropertyValue ([pscustomobject][ordered]@{
+                code = $preEvidenceFailureCode
+                message = $stageSummary
+                portableZipGuestSha256 = $artifactGuestHash
+                portableManifestGuestSizeBytes = $portableManifestGuestSize
+                portableManifestGuestSha256 = $portableManifestGuestHash
+                fixtureIdentities = @($fixtureIdentities | ForEach-Object { $_ })
+            }) -Force
+        Save-HcrOperationRecord $operation
+        if ($null -ne $preEvidenceError) {
+            throw $preEvidenceError
+        }
+        Throw-HcrError $preEvidenceFailureCode $stageSummary
+    }
     $tokenOk = -not $guest.isAdministrator -and -not $guest.isElevated -and $guest.tokenIntegrity -eq 'medium'
     $automatic.Add((New-HcrV2AutomaticAssertion 'runtime-ordinary-user-token' $true $(if($tokenOk){'passed'}else{'failed'}) 'Ordinary test-user token invariants were evaluated.' ([pscustomobject]@{ userSid=$guest.userSid; tokenIntegrity=$guest.tokenIntegrity })))
     $cleanupTriggered = $stageStatus -ne 'passed' -or -not $tokenOk -or @($artifactEvidence | Where-Object { $_.status -ne 'passed' }).Count -gt 0
@@ -766,9 +796,7 @@ function Invoke-HcrRunTestProfileV2 {
             portableZipSizeBytes=[int64]$artifactItem.Length
             portableZipSha256=$artifactHash
             portableZipSourceSha256=$artifactHash
-            portableZipGuestSha256=$(if($null -eq $artifactGuestHash){
-                $artifactHash
-            }else{$artifactGuestHash})
+            portableZipGuestSha256=$artifactGuestHash
             profileSha256=$profileSha
             requiredDistributionBoundary=[string](Get-HcrPropertyValue $artifactDeclaration 'requiredDistributionBoundary')
             portableManifestDistributionBoundary=[string](Get-HcrPropertyValue $manifestDocument 'distributionBoundary')
@@ -776,14 +804,10 @@ function Invoke-HcrRunTestProfileV2 {
             portableManifestRelativePath=[string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestRelativePath')
             portableManifestSizeBytes=[int64](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSizeBytes')
             portableManifestSourceSizeBytes=[int64]$externalManifest.sizeBytes
-            portableManifestGuestSizeBytes=$(if($null -eq $portableManifestGuestSize){
-                [int64]$externalManifest.sizeBytes
-            }else{$portableManifestGuestSize})
+            portableManifestGuestSizeBytes=$portableManifestGuestSize
             portableManifestSha256=$manifestHash
             portableManifestSourceSha256=[string]$externalManifest.sha256
-            portableManifestGuestSha256=$(if($null -eq $portableManifestGuestHash){
-                [string]$externalManifest.sha256
-            }else{$portableManifestGuestHash})
+            portableManifestGuestSha256=$portableManifestGuestHash
             portableInventoryFileCount=[int](Get-HcrPropertyValue $externalManifest.inventory 'fileCount')
             portableInventorySizeBytes=[int64](Get-HcrPropertyValue $externalManifest.inventory 'payloadSizeBytes')
             portableInventorySha256=[string](Get-HcrPropertyValue $externalManifest.inventory 'sha256')

@@ -207,11 +207,14 @@ compact JSON array, in profile order, containing each fixture's fields in this
 exact order: `id`, slash-normalized `sourceRelativePath`, `sizeBytes`,
 lowercase `sha256`, and `mediaType`. The evidence fixture identity for every
 declared ID repeats that normalized path, declared size, and declared hash as
-its required profile/source/guest identity. When staging fails before a guest
-observation exists, the required identity tuple remains declaration-bound while
-the artifact's nullable `guestSha256`, fixture status, automatic assertion, and
-machine status record the failure; such failure evidence remains valid and
-exportable without inventing an observed guest hash.
+its required profile/source/guest identity. The frozen external evidence branch
+therefore becomes evidence-ready only after the ZIP, sidecar, and every fixture
+have independent guest size/hash observations. A staging failure before that
+boundary returns a failed tool envelope and leaves an immutable operation
+record whose `preEvidenceFailure` and nullable guest identity fields state what
+was unavailable; it does not fabricate a guest hash or publish a schema-v2
+evidence document. Failures after the complete staging boundary remain valid,
+exportable failure evidence.
 When a profile contains a WebDriver object, its manifest digest is computed
 over that object's compact UTF-8 JSON in declaration order; the non-UI branch
 uses `null`.
@@ -1294,7 +1297,7 @@ Microsoft x64 EdgeDriver/data-testid rules.
 P3.2 acceptance uses only synthetic ZIPs, fixtures, mock adapters, native
 parsers, schema validators, and static production seams. It validates all
 twenty tools, the preserved sixteen schema-v1 tools, seven exact installed
-schema-v2 copies, 286 mock runtime assertions, eight generated evidence
+schema-v2 copies, 291 mock runtime assertions, eight generated evidence
 documents, and the inherited Gate 2/Gate 6 contract suites. Every real host,
 Hyper-V, guest, portable, WebDriver, and UI operation counter remains zero.
 

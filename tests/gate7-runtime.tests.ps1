@@ -1214,45 +1214,75 @@ $externalStageFailureRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]
     profilePath = $externalProfilePath
     artifactPath = $externalPortablePath
 })
-Assert-Gate7 $externalStageFailureRun.ok `
-    'An external staging failure escaped without auditable evidence.'
-Assert-Gate7Equal ([string]$externalStageFailureRun.data.machineStatus) 'failed' `
-    'An external staging failure did not derive machineStatus=failed.'
+Assert-Gate7 (-not [bool]$externalStageFailureRun.ok) `
+    'An external staging failure fabricated an evidence-ready result.'
+Assert-Gate7Equal ([string]$externalStageFailureRun.error.code) 'MOCK_STAGE_FAILURE' `
+    'An external staging failure did not preserve the adapter failure code.'
 $externalStageFailureOperation = Get-HcrOperationRecord `
-    ([string]$externalStageFailureRun.data.testOperationId)
-$externalStageFailureEvidence = Read-HcrJsonFile `
-    ([string]$externalStageFailureOperation.evidenceFile) `
-    'EVIDENCE_NOT_READY'
-$externalStageFailureValidation = Test-HcrEvidenceDocumentV2 `
-    $externalStageFailureEvidence `
-    $externalStageFailureOperation
-Assert-Gate7 $externalStageFailureValidation.valid `
-    ('Native validation rejected external staging-failure evidence: ' +
-        ($externalStageFailureValidation.errors -join '; '))
+    ([string]$externalStageFailureRun.operationId)
 Assert-Gate7 (
-    [string]$externalStageFailureEvidence.candidate.portableZipGuestSha256 -eq
-        [string]$externalStageFailureEvidence.candidate.portableZipSourceSha256 -and
-    @($externalStageFailureEvidence.artifacts | Where-Object {
-            [string]$_.role -eq 'portableZip' -and
-            [string]$_.status -eq 'failed' -and
-            $null -eq $_.guestSha256
-        }).Count -eq 1
-) 'External failure evidence did not separate required identity from absent guest observation.'
-$externalStageFailureValidationTool = Invoke-Gate7Tool 'validate_evidence' ([pscustomobject]@{
-    evidencePath = [string]$externalStageFailureOperation.evidenceFile
-})
-Assert-Gate7 $externalStageFailureValidationTool.ok `
-    'validate_evidence rejected external staging-failure evidence.'
+    $null -eq $externalStageFailureOperation.evidenceFile -and
+    $null -eq $externalStageFailureOperation.portableZipGuestSha256 -and
+    $null -eq $externalStageFailureOperation.portableManifestGuestSha256 -and
+    $null -eq $externalStageFailureOperation.portableManifestGuestSizeBytes -and
+    [string]$externalStageFailureOperation.preEvidenceFailure.code -eq
+        'MOCK_STAGE_FAILURE'
+) 'External staging failure state did not explicitly retain unavailable guest identities.'
 [void](New-Item -ItemType Directory -Path $externalFailureExportRoot)
 $externalStageFailureExport = Invoke-Gate7Tool 'collect_evidence' ([pscustomobject]@{
-    operationId = [string]$externalStageFailureRun.data.testOperationId
+    operationId = [string]$externalStageFailureRun.operationId
     outputDirectory = $externalFailureExportRoot
 })
-Assert-Gate7 $externalStageFailureExport.ok `
-    'collect_evidence rejected external staging-failure evidence.'
+Assert-Gate7 (
+    -not [bool]$externalStageFailureExport.ok -and
+    [string]$externalStageFailureExport.error.code -eq 'EVIDENCE_NOT_READY'
+) 'collect_evidence exported a pre-evidence external staging failure.'
 $restoredExternalStageState = Read-HcrMockAdapterState
 $restoredExternalStageState.stageAdapterFailure = $false
 Write-HcrMockAdapterState $restoredExternalStageState
+
+$externalPostStageFailureState = Read-HcrMockAdapterState
+$externalPostStageFailureState | Add-Member -NotePropertyName stepAdapterFailureId `
+    -NotePropertyValue 'deploy' -Force
+Write-HcrMockAdapterState $externalPostStageFailureState
+$externalPostStageFailureRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $externalProfilePath
+    artifactPath = $externalPortablePath
+})
+Assert-Gate7 $externalPostStageFailureRun.ok `
+    'A post-staging external failure did not produce auditable failure evidence.'
+Assert-Gate7Equal ([string]$externalPostStageFailureRun.data.machineStatus) 'failed' `
+    'A post-staging external failure did not derive machineStatus=failed.'
+$externalPostStageFailureOperation = Get-HcrOperationRecord `
+    ([string]$externalPostStageFailureRun.data.testOperationId)
+$externalPostStageFailureEvidence = Read-HcrJsonFile `
+    ([string]$externalPostStageFailureOperation.evidenceFile) `
+    'EVIDENCE_NOT_READY'
+$externalPostStageFailureValidation = Test-HcrEvidenceDocumentV2 `
+    $externalPostStageFailureEvidence `
+    $externalPostStageFailureOperation
+Assert-Gate7 $externalPostStageFailureValidation.valid `
+    ('Native validation rejected post-staging external failure evidence: ' +
+        ($externalPostStageFailureValidation.errors -join '; '))
+Assert-Gate7 (
+    [string]$externalPostStageFailureEvidence.candidate.portableZipGuestSha256 -eq
+        [string]$externalPostStageFailureEvidence.candidate.portableZipSourceSha256 -and
+    [string]$externalPostStageFailureEvidence.candidate.portableManifestGuestSha256 -eq
+        [string]$externalPostStageFailureEvidence.candidate.portableManifestSourceSha256 -and
+    [int64]$externalPostStageFailureEvidence.candidate.portableManifestGuestSizeBytes -eq
+        [int64]$externalPostStageFailureEvidence.candidate.portableManifestSourceSizeBytes
+) 'Post-staging external failure evidence lost independently observed guest identities.'
+$externalPostStageFailureExport = Invoke-Gate7Tool 'collect_evidence' ([pscustomobject]@{
+    operationId = [string]$externalPostStageFailureRun.data.testOperationId
+    outputDirectory = $externalFailureExportRoot
+})
+Assert-Gate7 $externalPostStageFailureExport.ok `
+    'collect_evidence rejected post-staging external failure evidence.'
+$restoredExternalPostStageState = Read-HcrMockAdapterState
+$restoredExternalPostStageState.stepAdapterFailureId = $null
+Write-HcrMockAdapterState $restoredExternalPostStageState
 
 $externalUiValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
     profilePath = $externalUiProfilePath

@@ -321,9 +321,13 @@ def main() -> int:
         (
             "$artifactItem.Name -ceq",
             "Get-HcrPropertyValue $externalManifest.document 'fileName'",
-            "portableZipGuestSha256 = if ($externalPortable) { $artifactHash }",
-            "guestSizeBytes=[int64]$fixture.item.Length",
-            "[string]$externalManifest.sha256",
+            "portableZipGuestSha256 = $null",
+            "portableManifestGuestSizeBytes = $null",
+            "if ($externalPortable -and $stageStatus -ne 'passed')",
+            "preEvidenceFailure",
+            "portableZipGuestSha256=$artifactGuestHash",
+            "portableManifestGuestSha256=$portableManifestGuestHash",
+            "guestSizeBytes=$fixtureGuestSize",
         ),
     )
     require_tokens(
@@ -411,6 +415,8 @@ def main() -> int:
             "Test-WorkerPathWithin $cleanupPath $slotsRoot",
             "Remove-Item -LiteralPath $cleanupPath -Recurse -Force",
             "PORTABLE_STAGING_CLEANUP_FAILED",
+            "$deploymentFailure.Exception.Data['GuestWorkerCleanupCode']",
+            "throw $deploymentFailure",
         ),
     )
 
