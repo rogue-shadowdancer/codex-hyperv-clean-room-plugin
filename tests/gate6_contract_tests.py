@@ -297,7 +297,7 @@ def is_safe_relative_path(value: object) -> bool:
     normalized = value.replace("/", "\\")
     if normalized.startswith("\\") or re.match(r"^[A-Za-z]:", normalized):
         return False
-    if any(ord(character) < 32 for character in normalized):
+    if any(ord(character) < 32 or ord(character) == 127 for character in normalized):
         return False
     if any(character in '<>:"|?*%' for character in normalized):
         return False
@@ -339,15 +339,36 @@ def schema_bound_relative_path_fields(
     scalar_fields: set[str] = set()
     array_fields: set[str] = set()
 
-    def directly_references_safe_path(node: object) -> bool:
+    def resolve_local_ref(reference: str) -> object:
+        if not reference.startswith("#/"):
+            return {}
+        current: object = schema
+        for raw_token in reference[2:].split("/"):
+            token = raw_token.replace("~1", "/").replace("~0", "~")
+            if not isinstance(current, dict) or token not in current:
+                return {}
+            current = current[token]
+        return current
+
+    def directly_references_safe_path(
+        node: object,
+        followed_refs: frozenset[str] = frozenset(),
+    ) -> bool:
         if not isinstance(node, dict):
             return False
-        if node.get("$ref") == "#/$defs/safeRelativePath":
-            return True
+        reference = node.get("$ref")
+        if isinstance(reference, str):
+            if reference == "#/$defs/safeRelativePath":
+                return True
+            if reference not in followed_refs:
+                return directly_references_safe_path(
+                    resolve_local_ref(reference),
+                    followed_refs | {reference},
+                )
         return any(
-            isinstance(item, dict)
-            and item.get("$ref") == "#/$defs/safeRelativePath"
-            for item in node.get("allOf", [])
+            directly_references_safe_path(item, followed_refs)
+            for keyword in ("allOf", "anyOf", "oneOf")
+            for item in node.get(keyword, [])
         )
 
     def walk(node: object) -> None:
@@ -1742,6 +1763,45 @@ def assert_p3_1_contract(
             raise AssertionError(
                 f"{schema_name} has safeRelativePath bindings outside semantic coverage"
             )
+    composed_guard_probe = {
+        "$defs": {
+            "safeRelativePath": {"type": "string"},
+            "safePathAlias": {
+                "anyOf": [
+                    {"$ref": "#/$defs/safeRelativePath"},
+                    {"type": "null"},
+                ]
+            },
+        },
+        "properties": {
+            "composedScalar": {
+                "oneOf": [
+                    {
+                        "allOf": [
+                            {"$ref": "#/$defs/safePathAlias"},
+                        ]
+                    },
+                    {"type": "null"},
+                ]
+            },
+            "composedArray": {
+                "type": "array",
+                "items": {
+                    "anyOf": [
+                        {"$ref": "#/$defs/safePathAlias"},
+                        {"type": "null"},
+                    ]
+                },
+            },
+        },
+    }
+    guard_scalar_fields, guard_array_fields = schema_bound_relative_path_fields(
+        composed_guard_probe
+    )
+    if guard_scalar_fields != {"composedScalar"} or guard_array_fields != {
+        "composedArray"
+    }:
+        raise AssertionError("safeRelativePath coverage guard missed a composition")
     if (
         any(name in neutral_manifest for name in ("maa", "webView2"))
         or "webDriver" in neutral_profile
@@ -1764,7 +1824,7 @@ def assert_p3_1_contract(
                 f"{console_device_path!r}"
             )
     control_path_manifest = deepcopy(neutral_manifest)
-    control_path_manifest["sbom"]["path"] = "bad\u0001.cdx.json"
+    control_path_manifest["sbom"]["path"] = "bad\u007f.cdx.json"
     if not list(
         validator_for(
             "portable-manifest.schema.json", schemas, registry
@@ -1844,6 +1904,7 @@ def assert_p3_1_contract(
         "COM¹.zip",
         "LPT².ZIP",
         "bad\u0001.zip",
+        "bad\u007f.zip",
     ):
         unsafe_zip_probe = deepcopy(neutral_manifest)
         unsafe_profile_probe = deepcopy(neutral_profile)
