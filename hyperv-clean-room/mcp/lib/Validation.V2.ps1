@@ -1107,7 +1107,10 @@ function Test-HcrWebDriverManifestV2 {
     else {
         $browserVersion -ceq $driverVersion
     }
-    if ((Get-HcrPropertyValue $Manifest 'schemaVersion') -ne 2 -or
+    if (-not (Test-HcrInteger (
+                Get-HcrPropertyValue $Manifest 'schemaVersion'
+            )) -or
+        (Get-HcrPropertyValue $Manifest 'schemaVersion') -ne 2 -or
         -not (Test-HcrIdentifier (Get-HcrPropertyValue $Manifest 'id')) -or
         (Get-HcrPropertyValue $Manifest 'provider') -ne 'microsoftEdgeDriver' -or
         (Get-HcrPropertyValue $Manifest 'browserKind') -ne 'fixedVersionWebView2' -or
@@ -1188,7 +1191,10 @@ function Test-HcrExternalPortableManifestV2 {
     $fileName = [string](Get-HcrPropertyValue $Manifest 'fileName')
     $entrypoint = [string](Get-HcrPropertyValue $Manifest 'entrypoint')
     $zipSize = Get-HcrPropertyValue $Manifest 'newZipSize'
-    if ((Get-HcrPropertyValue $Manifest 'schemaVersion') -ne 2 -or
+    if (-not (Test-HcrInteger (
+                Get-HcrPropertyValue $Manifest 'schemaVersion'
+            )) -or
+        (Get-HcrPropertyValue $Manifest 'schemaVersion') -ne 2 -or
         (Get-HcrPropertyValue $Manifest 'packageKind') -ne
             'windows-x64-portable' -or
         (Get-HcrPropertyValue $Manifest 'distributionBoundary') -ne
@@ -1197,6 +1203,9 @@ function Test-HcrExternalPortableManifestV2 {
         (Get-HcrPropertyValue $Manifest 'distributionMode') -ne
             'fixed-portable' -or
         (Get-HcrPropertyValue $Manifest 'dataRoot') -ne 'data/' -or
+        -not (Test-HcrBoolean (
+                Get-HcrPropertyValue $Manifest 'unsigned'
+            )) -or
         (Get-HcrPropertyValue $Manifest 'unsigned') -ne $true -or
         -not (Test-HcrV2WindowsSafeRelativePath $fileName) -or
         $fileName.Contains('\') -or $fileName.Contains('/') -or

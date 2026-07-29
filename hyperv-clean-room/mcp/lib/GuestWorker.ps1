@@ -1082,12 +1082,14 @@ function Read-WorkerPortableManifest {
             @($manifest.PSObject.Properties | Where-Object {
                     $allowed -notcontains $_.Name
                 }).Count -ne 0 -or
+            -not(Test-WorkerInteger (Get-WorkerProperty $manifest 'schemaVersion')) -or
             [int](Get-WorkerProperty $manifest 'schemaVersion' 0) -ne 2 -or
             [string](Get-WorkerProperty $manifest 'packageKind') -cne 'windows-x64-portable' -or
             [string](Get-WorkerProperty $manifest 'distributionBoundary') -cne 'end-user-complete' -or
             [string](Get-WorkerProperty $manifest 'architecture') -cne 'x86_64' -or
             [string](Get-WorkerProperty $manifest 'distributionMode') -cne 'fixed-portable' -or
             [string](Get-WorkerProperty $manifest 'dataRoot') -cne 'data/' -or
+            -not(Test-WorkerBoolean (Get-WorkerProperty $manifest 'unsigned')) -or
             -not [bool](Get-WorkerProperty $manifest 'unsigned' $false) -or
             [string](Get-WorkerProperty $manifest 'packagingCommit') -cne
                 [string](Get-WorkerProperty $Input 'sourceCommit') -or

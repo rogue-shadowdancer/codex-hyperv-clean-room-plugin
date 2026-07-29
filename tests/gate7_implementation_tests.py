@@ -257,6 +257,16 @@ def main() -> int:
         ),
     )
     require_tokens(
+        validation + worker,
+        "external sidecar scalar types",
+        (
+            "Test-HcrInteger (\n                Get-HcrPropertyValue $Manifest 'schemaVersion'",
+            "Test-HcrBoolean (\n                Get-HcrPropertyValue $Manifest 'unsigned'",
+            "Test-WorkerInteger (Get-WorkerProperty $manifest 'schemaVersion')",
+            "Test-WorkerBoolean (Get-WorkerProperty $manifest 'unsigned')",
+        ),
+    )
+    require_tokens(
         common + validation,
         "single-read external sidecar identity",
         (

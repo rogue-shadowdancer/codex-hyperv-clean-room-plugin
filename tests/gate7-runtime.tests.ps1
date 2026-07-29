@@ -1128,6 +1128,43 @@ $duplicateValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject
 Assert-Gate7Error $duplicateValidation 'PROFILE_INVALID' `
     'The external sidecar parser accepted a duplicate JSON property.'
 
+foreach ($scalarCase in @(
+        [pscustomobject]@{
+            name = 'schemaVersion'
+            value = '2'
+        },
+        [pscustomobject]@{
+            name = 'unsigned'
+            value = 'true'
+        }
+    )) {
+    $scalarManifest = Copy-HcrObject ([pscustomobject]$externalManifest)
+    $scalarManifest.($scalarCase.name) = $scalarCase.value
+    $scalarManifestPath = Join-Path `
+        $testRoot `
+        "external-portable-manifest-$($scalarCase.name)-string.json"
+    Write-Gate7Json $scalarManifestPath $scalarManifest
+    $scalarManifestItem = Get-Item -LiteralPath $scalarManifestPath
+    $scalarManifestSha = (Get-FileHash `
+        -LiteralPath $scalarManifestPath `
+        -Algorithm SHA256).Hash.ToLowerInvariant()
+    $scalarProfile = Copy-HcrObject ([pscustomobject]$externalProfile)
+    $scalarProfile.artifact.portableManifestRelativePath =
+        $scalarManifestItem.Name
+    $scalarProfile.artifact.portableManifestSizeBytes =
+        [int64]$scalarManifestItem.Length
+    $scalarProfile.artifact.portableManifestSha256 = $scalarManifestSha
+    $scalarProfilePath = Join-Path `
+        $testRoot `
+        "external-portable-profile-$($scalarCase.name)-string.json"
+    Write-Gate7Json $scalarProfilePath $scalarProfile
+    $scalarValidation = Invoke-Gate7Tool `
+        'validate_test_profile' `
+        ([pscustomobject]@{ profilePath = $scalarProfilePath })
+    Assert-Gate7Error $scalarValidation 'PROFILE_INVALID' `
+        "Native validation accepted string-typed $($scalarCase.name)."
+}
+
 $unknownNestedManifest = Copy-HcrObject ([pscustomobject]$externalManifest)
 $unknownNestedManifest.sbom | Add-Member `
     -NotePropertyName unexpected `
