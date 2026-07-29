@@ -256,14 +256,24 @@ def main() -> int:
             "duplicate",
         ),
     )
-    require_tokens(
-        validation + worker,
-        "external sidecar scalar types",
+    for label, pattern in (
         (
-            "Test-HcrInteger (",
-            "Get-HcrPropertyValue $Manifest 'schemaVersion'",
-            "Test-HcrBoolean (",
-            "Get-HcrPropertyValue $Manifest 'unsigned'",
+            "external sidecar schemaVersion scalar binding",
+            r"Test-HcrInteger \(\s*"
+            r"Get-HcrPropertyValue \$Manifest 'schemaVersion'\s*\)",
+        ),
+        (
+            "external sidecar unsigned scalar binding",
+            r"Test-HcrBoolean \(\s*"
+            r"Get-HcrPropertyValue \$Manifest 'unsigned'\s*\)",
+        ),
+    ):
+        if not re.search(pattern, validation):
+            raise AssertionError(f"{label} is missing")
+    require_tokens(
+        worker,
+        "worker external sidecar scalar bindings",
+        (
             "Test-WorkerInteger (Get-WorkerProperty $manifest 'schemaVersion')",
             "Test-WorkerBoolean (Get-WorkerProperty $manifest 'unsigned')",
         ),
