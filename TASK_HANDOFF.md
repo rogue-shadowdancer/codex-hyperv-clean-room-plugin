@@ -89,6 +89,10 @@ candidate, or a clean-room pass.
   - binds every later portable launch to that operation's exact application,
     deployment, active-record fingerprint, and slot identity, failing closed on
     concurrent active-pointer replacement;
+  - binds the deployed entrypoint path, length, and SHA-256 and re-hashes it
+    immediately before process creation while denying write/delete sharing
+    through process creation, while no-follow directory handles deny
+    replacement of every path component from the local volume root;
   - launches only the declared entrypoint with zero caller arguments;
   - permits a generic non-UI package to omit MaaFramework, WebView2, driver,
     and UI steps;
@@ -97,8 +101,9 @@ candidate, or a clean-room pass.
   - emits structurally separate external evidence with exact candidate,
     runtime, deployment, data, fixture, driver, standard-user, and elevated
     orchestration bindings;
-  - closes installed provenance against ownership/manifest/version and
-    re-hashes every current ordinary payload byte before runtime identity.
+  - closes installed provenance against the exact installer owner,
+    manifest/version, and re-hashes every current ordinary payload byte before
+    runtime identity.
 - Plan/Apply, atomic plan consumption, paired single-use recovery, cleanup
   separation, and evidence status derivation remain unchanged.
 
@@ -155,8 +160,8 @@ The final exact candidate must retain:
 - preserved schema-v1 tools: `16`
 - preserved schema-v1 files: `5`
 - exact source-tree installed schema-v2 copies: `7`
-- Gate 7 mock runtime assertions: `338`
-- generated mock evidence documents validated: `9`
+- Gate 7 mock runtime assertions: `350`
+- generated mock evidence documents validated: `10`
 - P3.1 positive fixtures: `6`
 - P3.1 direct schema-invalid fixtures: `5`
 - P3.1 negative cases: `41`

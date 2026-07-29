@@ -55,6 +55,8 @@ function Get-HcrV2VerifiedInstalledInventory {
         @((Get-HcrPropertyNames $ownership)).Count -ne $ownershipFields.Count -or
         [string](Get-HcrPropertyValue $ownership 'installationId') -cne
             [string](Get-HcrPropertyValue $manifest 'installationId') -or
+        [string](Get-HcrPropertyValue $ownership 'owner') -cne
+            'hyperv-clean-room-installer/v1' -or
         [string](Get-HcrPropertyValue $ownership 'pluginName') -cne 'hyperv-clean-room' -or
         -not (Test-HcrInteger (Get-HcrPropertyValue $ownership 'schemaVersion')) -or
         [int](Get-HcrPropertyValue $ownership 'schemaVersion') -ne 1 -or
@@ -824,11 +826,20 @@ function Invoke-HcrRunTestProfileV2 {
             $candidateDeploymentId = Get-HcrPropertyValue $machineEvidence 'deploymentId'
             $candidateDeploymentFingerprint = Get-HcrPropertyValue $machineEvidence 'deploymentFingerprint'
             $candidateDeploymentSlotId = Get-HcrPropertyValue $machineEvidence 'deploymentSlotId'
+            $candidateEntrypoint = Get-HcrPropertyValue $machineEvidence 'entrypoint'
+            $candidateEntrypointSize = Get-HcrPropertyValue $machineEvidence 'entrypointSizeBytes'
+            $candidateEntrypointSha = Get-HcrPropertyValue $machineEvidence 'entrypointSha256'
             if (-not (Test-HcrUuid $candidateDeploymentId) -or
                 $candidateDeploymentFingerprint -isnot [string] -or
                 [string]$candidateDeploymentFingerprint -notmatch '^[0-9a-f]{64}$' -or
                 $candidateDeploymentSlotId -isnot [string] -or
-                [string]$candidateDeploymentSlotId -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
+                [string]$candidateDeploymentSlotId -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' -or
+                $candidateEntrypoint -isnot [string] -or
+                -not (Test-HcrV2WindowsSafeRelativePath $candidateEntrypoint) -or
+                -not (Test-HcrInteger $candidateEntrypointSize) -or
+                [int64]$candidateEntrypointSize -lt 1 -or
+                $candidateEntrypointSha -isnot [string] -or
+                [string]$candidateEntrypointSha -notmatch '^[0-9a-f]{64}$') {
                 $status = 'failed'
                 $summary = 'The deployed portable identity was incomplete or invalid.'
             }
@@ -862,6 +873,9 @@ function Invoke-HcrRunTestProfileV2 {
                 deploymentId = $deploymentId
                 deploymentFingerprint = $deploymentFingerprint
                 slotId = [string]$deploymentSlotId
+                entrypointRelativePath = [string](Get-HcrPropertyValue $machineEvidence 'entrypoint')
+                entrypointSizeBytes = [int64](Get-HcrPropertyValue $machineEvidence 'entrypointSizeBytes')
+                entrypointSha256 = [string](Get-HcrPropertyValue $machineEvidence 'entrypointSha256')
             }
             if ($externalPortable) {
                 $deployedPayloadSha256 = [string](Get-HcrPropertyValue $machineEvidence 'portableInventorySha256')

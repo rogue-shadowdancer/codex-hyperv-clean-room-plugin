@@ -560,7 +560,18 @@ function Invoke-HcrMockAdapter {
                         (Get-HcrPropertyValue $deployment 'deploymentFingerprint') -isnot [string] -or
                         [string](Get-HcrPropertyValue $deployment 'deploymentFingerprint') -notmatch '^[0-9a-f]{64}$' -or
                         (Get-HcrPropertyValue $deployment 'slotId') -isnot [string] -or
-                        [string](Get-HcrPropertyValue $deployment 'slotId') -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
+                        [string](Get-HcrPropertyValue $deployment 'slotId') -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' -or
+                        (Get-HcrPropertyValue $deployment 'entrypointRelativePath') -isnot [string] -or
+                        -not (Test-HcrV2WindowsSafeRelativePath (
+                                Get-HcrPropertyValue $deployment 'entrypointRelativePath'
+                            )) -or
+                        -not (Test-HcrInteger (
+                                Get-HcrPropertyValue $deployment 'entrypointSizeBytes'
+                            )) -or
+                        [int64](Get-HcrPropertyValue $deployment 'entrypointSizeBytes') -lt 1 -or
+                        (Get-HcrPropertyValue $deployment 'entrypointSha256') -isnot [string] -or
+                        [string](Get-HcrPropertyValue $deployment 'entrypointSha256') -notmatch
+                            '^[0-9a-f]{64}$') {
                         Throw-HcrError 'PORTABLE_DEPLOYMENT_BINDING_INVALID' 'The portable launch lacks a valid operation-owned deployment binding.'
                     }
                     $activeDeployment = Get-HcrPropertyValue $state 'portableActiveDeploymentOverride' $deployment
@@ -573,6 +584,9 @@ function Invoke-HcrMockAdapter {
                         [string](Get-HcrPropertyValue $activeDeployment 'slotId') -cne
                             [string](Get-HcrPropertyValue $deployment 'slotId')) {
                         Throw-HcrError 'PORTABLE_DEPLOYMENT_DRIFT' 'The active portable deployment no longer matches this operation.'
+                    }
+                    if ([bool](Get-HcrPropertyValue $state 'portableEntrypointDriftOnLaunch' $false)) {
+                        Throw-HcrError 'PORTABLE_ENTRYPOINT_DRIFT' 'The portable entrypoint bytes changed after deployment.'
                     }
                 }
             }
@@ -592,15 +606,34 @@ function Invoke-HcrMockAdapter {
                 $externalPortable = [bool](Get-HcrPropertyValue $Arguments 'externalPortable' $false)
                 $manifestDocument = Get-HcrPropertyValue $portableManifest 'document'
                 $inventory = Get-HcrPropertyValue $portableManifest 'inventory'
+                $entrypoint = if ($externalPortable) {
+                    [string](Get-HcrPropertyValue $manifestDocument 'entrypoint')
+                } else {
+                    [string](Get-HcrPropertyValue @((Get-HcrPropertyValue $Arguments 'applications'))[0] 'executableRelativePath')
+                }
+                $entrypointIdentity = @((Get-HcrPropertyValue $manifestDocument 'files' @()) |
+                    Where-Object {
+                        [StringComparer]::OrdinalIgnoreCase.Equals(
+                            ([string](Get-HcrPropertyValue $_ 'path')).Replace('\', '/'),
+                            $entrypoint.Replace('\', '/')
+                        )
+                    } |
+                    Select-Object -First 1)
+                $entrypointSize = if ($entrypointIdentity.Count -eq 1) {
+                    Get-HcrPropertyValue $entrypointIdentity[0] $(if ($externalPortable) { 'size' } else { 'sizeBytes' })
+                } else { 1 }
+                $entrypointSha = if ($entrypointIdentity.Count -eq 1) {
+                    [string](Get-HcrPropertyValue $entrypointIdentity[0] 'sha256')
+                } else {
+                    [string](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'artifact') 'guestSha256')
+                }
                 $result | Add-Member -NotePropertyName evidence -NotePropertyValue ([pscustomobject][ordered]@{
                     deploymentId = [Guid]::NewGuid().ToString()
                     deploymentFingerprint = Get-HcrSha256Text "$([string](Get-HcrPropertyValue $Arguments 'operationId'))|mock-portable-deployment"
                     deploymentSlotId = 'operation-' + ([string](Get-HcrPropertyValue $Arguments 'operationId')).Substring(0, 8)
-                    entrypoint = if ($externalPortable) {
-                        [string](Get-HcrPropertyValue $manifestDocument 'entrypoint')
-                    } else {
-                        [string](Get-HcrPropertyValue @((Get-HcrPropertyValue $Arguments 'applications'))[0] 'executableRelativePath')
-                    }
+                    entrypoint = $entrypoint
+                    entrypointSizeBytes = [int64]$entrypointSize
+                    entrypointSha256 = $entrypointSha
                     dataPreserved = $true
                     previousDataInventorySha256 = Get-HcrSha256Text 'mock-portable-data-inventory'
                     deployedDataInventorySha256 = Get-HcrSha256Text 'mock-portable-data-inventory'
@@ -1222,7 +1255,11 @@ function Assert-HcrRealGuestStepContract {
         if ($application.Count -eq 1 -and
             (Get-HcrPropertyValue $application[0] 'packageKind') -eq 'portableZip') {
             $deployment = Get-HcrPropertyValue $Arguments 'deployment'
-            $deploymentFields = @('applicationId', 'deploymentId', 'deploymentFingerprint', 'slotId')
+            $deploymentFields = @(
+                'applicationId', 'deploymentId', 'deploymentFingerprint',
+                'slotId', 'entrypointRelativePath', 'entrypointSizeBytes',
+                'entrypointSha256'
+            )
             if ($null -eq $deployment -or
                 @((Get-HcrPropertyNames $deployment) | Where-Object {
                         $deploymentFields -notcontains $_
@@ -1233,7 +1270,17 @@ function Assert-HcrRealGuestStepContract {
                 (Get-HcrPropertyValue $deployment 'deploymentFingerprint') -isnot [string] -or
                 [string](Get-HcrPropertyValue $deployment 'deploymentFingerprint') -notmatch '^[0-9a-f]{64}$' -or
                 (Get-HcrPropertyValue $deployment 'slotId') -isnot [string] -or
-                [string](Get-HcrPropertyValue $deployment 'slotId') -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
+                [string](Get-HcrPropertyValue $deployment 'slotId') -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' -or
+                (Get-HcrPropertyValue $deployment 'entrypointRelativePath') -isnot [string] -or
+                -not (Test-HcrV2WindowsSafeRelativePath (
+                        Get-HcrPropertyValue $deployment 'entrypointRelativePath'
+                    )) -or
+                -not (Test-HcrInteger (
+                        Get-HcrPropertyValue $deployment 'entrypointSizeBytes'
+                    )) -or
+                [int64](Get-HcrPropertyValue $deployment 'entrypointSizeBytes') -lt 1 -or
+                (Get-HcrPropertyValue $deployment 'entrypointSha256') -isnot [string] -or
+                [string](Get-HcrPropertyValue $deployment 'entrypointSha256') -notmatch '^[0-9a-f]{64}$') {
                 Throw-HcrError 'PORTABLE_DEPLOYMENT_BINDING_INVALID' 'The portable launch lacks a valid operation-owned deployment binding.'
             }
         }

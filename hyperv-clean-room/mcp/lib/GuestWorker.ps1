@@ -92,13 +92,41 @@ if (-not ('Hcr.WorkerProcessHandle' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 namespace Hcr {
     public static class WorkerProcessHandle {
+        private const uint FileReadAttributes = 0x00000080;
+        private const uint FileShareRead = 0x00000001;
+        private const uint FileShareWrite = 0x00000002;
+        private const uint OpenExisting = 3;
+        private const uint FileFlagBackupSemantics = 0x02000000;
+        private const uint FileFlagOpenReparsePoint = 0x00200000;
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern SafeFileHandle CreateFile(
+            string fileName,
+            uint desiredAccess,
+            uint shareMode,
+            IntPtr securityAttributes,
+            uint creationDisposition,
+            uint flagsAndAttributes,
+            IntPtr templateFile
+        );
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool TerminateProcess(IntPtr process, uint exitCode);
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+        public static SafeFileHandle OpenDirectoryForLaunch(string path) {
+            return CreateFile(
+                path,
+                FileReadAttributes,
+                FileShareRead | FileShareWrite,
+                IntPtr.Zero,
+                OpenExisting,
+                FileFlagBackupSemantics | FileFlagOpenReparsePoint,
+                IntPtr.Zero
+            );
+        }
         public static bool TerminateAndWait(IntPtr process, uint exitCode, int milliseconds) {
             if (WaitForSingleObject(process, 0) == 0) { return true; }
             if (!TerminateProcess(process, exitCode)) {
@@ -979,7 +1007,10 @@ function Get-WorkerBoundPortableDeployment {
     )
 
     $deployment = Get-WorkerProperty $Input 'deployment'
-    $fields = @('applicationId', 'deploymentId', 'deploymentFingerprint', 'slotId')
+    $fields = @(
+        'applicationId', 'deploymentId', 'deploymentFingerprint', 'slotId',
+        'entrypointRelativePath', 'entrypointSizeBytes', 'entrypointSha256'
+    )
     if ($null -eq $deployment -or
         @($deployment.PSObject.Properties | Where-Object {
                 $fields -notcontains $_.Name
@@ -994,7 +1025,18 @@ function Get-WorkerBoundPortableDeployment {
         [string](Get-WorkerProperty $deployment 'deploymentFingerprint') -notmatch '^[0-9a-f]{64}$' -or
         (Get-WorkerProperty $deployment 'slotId') -isnot [string] -or
         [string](Get-WorkerProperty $deployment 'slotId') -notmatch
-            '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
+            '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' -or
+        (Get-WorkerProperty $deployment 'entrypointRelativePath') -isnot [string] -or
+        -not (Test-WorkerPortableRelativePath (
+                Get-WorkerProperty $deployment 'entrypointRelativePath'
+            )) -or
+        -not (Test-WorkerInteger (
+                Get-WorkerProperty $deployment 'entrypointSizeBytes'
+            )) -or
+        [int64](Get-WorkerProperty $deployment 'entrypointSizeBytes') -lt 1 -or
+        (Get-WorkerProperty $deployment 'entrypointSha256') -isnot [string] -or
+        [string](Get-WorkerProperty $deployment 'entrypointSha256') -notmatch
+            '^[0-9a-f]{64}$') {
         Throw-WorkerError 'PORTABLE_DEPLOYMENT_BINDING_INVALID' 'The portable launch lacks a valid operation-owned deployment binding.'
     }
     $active = Get-WorkerPortableActiveDeployment $Application
@@ -1010,6 +1052,145 @@ function Get-WorkerBoundPortableDeployment {
         Throw-WorkerError 'PORTABLE_DEPLOYMENT_DRIFT' 'The active portable deployment no longer matches this operation.'
     }
     return $active
+}
+
+function Open-WorkerPortableLaunchPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Executable,
+        [Parameter(Mandatory = $true)][object]$Application
+    )
+
+    $productRoot = [IO.Path]::GetFullPath(
+        (Get-WorkerPortableProductRoot $Application)
+    ).TrimEnd('\', '/')
+    $root = [IO.Path]::GetFullPath(
+        [string]$env:LOCALAPPDATA
+    ).TrimEnd('\', '/')
+    $volumeRoot = [IO.Path]::GetPathRoot($root)
+    $parent = [IO.Path]::GetFullPath(
+        (Split-Path -Parent $Executable)
+    ).TrimEnd('\', '/')
+    if ([string]::IsNullOrWhiteSpace($volumeRoot) -or
+        -not (Test-WorkerPathWithin $root $volumeRoot) -or
+        -not (Test-WorkerPathWithin $productRoot $root) -or
+        -not (Test-WorkerPathWithin $parent $productRoot)) {
+        Throw-WorkerError 'PORTABLE_ENTRYPOINT_DRIFT' 'The portable entrypoint parent escaped its deployment root.'
+    }
+    $paths = New-Object System.Collections.Generic.List[string]
+    $paths.Add($volumeRoot)
+    $relativeParent = $parent.Substring($volumeRoot.Length).TrimStart('\', '/')
+    $current = $volumeRoot
+    foreach ($segment in ($relativeParent -split '[\\/]')) {
+        if ([string]::IsNullOrWhiteSpace($segment)) { continue }
+        $current = Join-Path $current $segment
+        $paths.Add($current)
+    }
+    $handles = New-Object System.Collections.Generic.List[IDisposable]
+    try {
+        foreach ($path in $paths) {
+            $item = Get-Item -LiteralPath $path -Force -ErrorAction Stop
+            if (-not $item.PSIsContainer -or
+                ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                Throw-WorkerError 'PORTABLE_ENTRYPOINT_DRIFT' 'A portable launch path component is not an ordinary directory.'
+            }
+            $handle = [Hcr.WorkerProcessHandle]::OpenDirectoryForLaunch($path)
+            if ($null -eq $handle -or $handle.IsInvalid) {
+                if ($null -ne $handle) { $handle.Dispose() }
+                Throw-WorkerError 'PORTABLE_ENTRYPOINT_DRIFT' 'A portable launch path component could not be locked.'
+            }
+            $handles.Add($handle)
+            $lockedItem = Get-Item -LiteralPath $path -Force -ErrorAction Stop
+            if (-not $lockedItem.PSIsContainer -or
+                ($lockedItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                Throw-WorkerError 'PORTABLE_ENTRYPOINT_DRIFT' 'A portable launch path component changed while being locked.'
+            }
+        }
+        return @($handles.ToArray())
+    }
+    catch {
+        foreach ($handle in $handles) { $handle.Dispose() }
+        if ((Get-WorkerErrorCode $_.Exception) -eq 'PORTABLE_ENTRYPOINT_DRIFT') {
+            throw
+        }
+        Throw-WorkerError 'PORTABLE_ENTRYPOINT_DRIFT' 'The portable launch path could not be rebound before launch.'
+    }
+}
+
+function Open-WorkerVerifiedPortableEntrypoint {
+    param(
+        [Parameter(Mandatory = $true)][string]$Executable,
+        [Parameter(Mandatory = $true)][object]$Application,
+        [Parameter(Mandatory = $true)][object]$Input
+    )
+
+    $deployment = Get-WorkerProperty $Input 'deployment'
+    $expectedRelative = (
+        [string](Get-WorkerProperty $deployment 'entrypointRelativePath')
+    ).Replace('/', '\')
+    $applicationRelative = (
+        [string](Get-WorkerProperty $Application 'executableRelativePath')
+    ).Replace('/', '\')
+    if (-not [StringComparer]::OrdinalIgnoreCase.Equals(
+            $expectedRelative,
+            $applicationRelative
+        )) {
+        Throw-WorkerError 'PORTABLE_ENTRYPOINT_DRIFT' 'The portable entrypoint binding differs from the application contract.'
+    }
+
+    $pathHandles = @()
+    $stream = $null
+    try {
+        $pathHandles = @(
+            Open-WorkerPortableLaunchPath $Executable $Application
+        )
+        if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
+            Throw-WorkerError 'PORTABLE_ENTRYPOINT_DRIFT' 'The portable entrypoint is no longer an ordinary file.'
+        }
+        $item = Get-Item -LiteralPath $Executable -Force -ErrorAction Stop
+        if ($item.PSIsContainer -or
+            ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            Throw-WorkerError 'PORTABLE_ENTRYPOINT_DRIFT' 'The portable entrypoint is no longer an ordinary file.'
+        }
+        $stream = [IO.File]::Open(
+            $Executable,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read
+        )
+        $lockedItem = Get-Item -LiteralPath $Executable -Force -ErrorAction Stop
+        if ($lockedItem.PSIsContainer -or
+            ($lockedItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+            [int64]$lockedItem.Length -ne [int64]$stream.Length -or
+            [int64]$stream.Length -ne
+                [int64](Get-WorkerProperty $deployment 'entrypointSizeBytes')) {
+            Throw-WorkerError 'PORTABLE_ENTRYPOINT_DRIFT' 'The portable entrypoint identity changed after deployment.'
+        }
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try {
+            $actualSha = (
+                [BitConverter]::ToString($sha.ComputeHash($stream))
+            ).Replace('-', '').ToLowerInvariant()
+        }
+        finally {
+            $sha.Dispose()
+        }
+        if ($actualSha -cne
+            [string](Get-WorkerProperty $deployment 'entrypointSha256')) {
+            Throw-WorkerError 'PORTABLE_ENTRYPOINT_DRIFT' 'The portable entrypoint bytes changed after deployment.'
+        }
+        return [pscustomobject][ordered]@{
+            stream = $stream
+            pathHandles = @($pathHandles)
+        }
+    }
+    catch {
+        if ($null -ne $stream) { $stream.Dispose() }
+        foreach ($handle in $pathHandles) { $handle.Dispose() }
+        if ((Get-WorkerErrorCode $_.Exception) -eq 'PORTABLE_ENTRYPOINT_DRIFT') {
+            throw
+        }
+        Throw-WorkerError 'PORTABLE_ENTRYPOINT_DRIFT' 'The portable entrypoint could not be rebound before launch.'
+    }
 }
 
 function Get-WorkerPortableInventory {
@@ -1397,6 +1578,10 @@ function Invoke-WorkerDeployPortable {
         foreach($declaredPath in @($declared.Keys)){if(-not$seen.Contains($declaredPath)){Throw-WorkerError 'PORTABLE_ARCHIVE_MISSING_ENTRY' 'The portable archive is missing a declared file.'}}
         $previousHash=$null
         try{$active=Get-WorkerPortableActiveDeployment $application;$sourceData=Resolve-WorkerPath ([string]$active.slotPath) 'data';$sourceInventory=Get-WorkerPortableInventory $sourceData;$previousHash=$sourceInventory.sha256;Copy-WorkerPortableData $sourceInventory $sourceData (Join-Path $staging 'data');$deployedInventory=Get-WorkerPortableInventory (Join-Path $staging 'data');if($deployedInventory.sha256 -ne $previousHash){Throw-WorkerError 'PORTABLE_DATA_HASH_MISMATCH' 'Portable data preservation inventory changed.'}}catch{if((Get-WorkerErrorCode $_.Exception)-ne'PORTABLE_DEPLOYMENT_MISSING'){throw};[void](New-Item -ItemType Directory -Path (Join-Path $staging 'data') -Force);$deployedInventory=Get-WorkerPortableInventory (Join-Path $staging 'data')}
+        $entrypointRelative=$(if($externalPortable){[string]$manifest.entrypoint}else{[string]$manifest.entryPointRelativePath})
+        $entrypointInventoryPath=$entrypointRelative.Replace('\','/')
+        $entrypointIdentity=$declared[$entrypointInventoryPath]
+        if($null-eq$entrypointIdentity){Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The portable entrypoint is absent from the exact inventory.'}
         $slotPath=Join-Path $slotsRoot $slotId;Move-Item -LiteralPath $staging -Destination $slotPath
         $record=[ordered]@{
             schemaVersion=2;applicationId=[string]$application.id
@@ -1415,7 +1600,9 @@ function Invoke-WorkerDeployPortable {
             deploymentId=$record.deploymentId
             deploymentFingerprint=Get-WorkerSha256Text ($record|ConvertTo-Json -Depth 20 -Compress)
             deploymentSlotId=$slotId
-            entrypoint=$(if($externalPortable){[string]$manifest.entrypoint}else{[string]$manifest.entryPointRelativePath})
+            entrypoint=$entrypointRelative
+            entrypointSizeBytes=[int64](Get-WorkerProperty $entrypointIdentity $manifestSizeField)
+            entrypointSha256=[string](Get-WorkerProperty $entrypointIdentity 'sha256')
             dataPreserved=$true;previousDataInventorySha256=$previousHash
             deployedDataInventorySha256=$deployedInventory.sha256
             portableManifestSha256=$manifestBound.sha256
@@ -1777,17 +1964,30 @@ function Invoke-WorkerStep {
     if ($type -eq 'launchApplication') {
         $applicationId = [string](Get-WorkerProperty $Step 'application')
         $application = Get-WorkerApplication $Input $applicationId
-        $executable = Get-WorkerApplicationPath $application $Input
-        if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
+        $portableApplication = $schemaVersion -eq 2 -and
+            (Get-WorkerProperty $application 'packageKind') -eq 'portableZip'
+        try {
+            $executable = Get-WorkerApplicationPath $application $Input
+        }
+        catch {
+            if ($portableApplication -and
+                @('GUEST_PATH_INVALID', 'GUEST_REPARSE_FORBIDDEN') -contains
+                    (Get-WorkerErrorCode $_.Exception)) {
+                Throw-WorkerError 'PORTABLE_ENTRYPOINT_DRIFT' 'The portable entrypoint path changed after deployment.'
+            }
+            throw
+        }
+        if (-not $portableApplication -and
+            -not (Test-Path -LiteralPath $executable -PathType Leaf)) {
             return New-WorkerStepResult 'failed' 'The declared application executable does not exist.' `
                 ([pscustomobject]@{ application = $applicationId; token = Get-WorkerTokenProjection $Token })
         }
-        $item = Get-Item -LiteralPath $executable -Force
-        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-            Throw-WorkerError 'GUEST_EXECUTABLE_REPARSE_FORBIDDEN' 'The declared executable is a reparse point.'
+        if (-not $portableApplication) {
+            $item = Get-Item -LiteralPath $executable -Force
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                Throw-WorkerError 'GUEST_EXECUTABLE_REPARSE_FORBIDDEN' 'The declared executable is a reparse point.'
+            }
         }
-        $portableApplication = $schemaVersion -eq 2 -and
-            (Get-WorkerProperty $application 'packageKind') -eq 'portableZip'
         $externalPortableLaunch = $portableApplication -and
             [bool](Get-WorkerProperty $Input 'externalPortable' $false)
         $arguments = if ($portableApplication -and -not $externalPortableLaunch) {
@@ -1797,9 +1997,16 @@ function Invoke-WorkerStep {
             [bool](Get-WorkerProperty $Input 'uiRequired' $true)
         $uiDebugPort = if ($uiPortableLaunch) { Get-WorkerLoopbackEphemeralPort } else { $null }
         $priorWebView2Arguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+        $portableEntrypointBinding = $null
         try {
             if ($uiPortableLaunch) {
                 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$uiDebugPort"
+            }
+            if ($portableApplication) {
+                $portableEntrypointBinding = Open-WorkerVerifiedPortableEntrypoint `
+                    $executable `
+                    $application `
+                    $Input
             }
             $process = if ($arguments.Count -gt 0) {
                 Start-Process -FilePath $executable -ArgumentList $arguments -PassThru -WindowStyle Hidden -ErrorAction Stop
@@ -1809,6 +2016,12 @@ function Invoke-WorkerStep {
             }
         }
         finally {
+            if ($null -ne $portableEntrypointBinding) {
+                $portableEntrypointBinding.stream.Dispose()
+                foreach ($handle in @($portableEntrypointBinding.pathHandles)) {
+                    $handle.Dispose()
+                }
+            }
             $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $priorWebView2Arguments
         }
         Start-Sleep -Milliseconds 250

@@ -75,6 +75,17 @@ slot. The runtime intentionally refuses to launch the replacement candidate
 under the older operation's evidence identity. Do not bypass the binding or
 edit `active.json`; start a new test operation from current state.
 
+### A portable launch reports `PORTABLE_ENTRYPOINT_DRIFT`
+
+The deployed entrypoint path, size, SHA-256, or ordinary-file identity changed
+between validated deployment and the final pre-launch readback. The runtime
+intentionally refuses to start those bytes under the older deployment
+identity. The verified handle denies write/delete sharing until process
+creation returns, while no-follow directory handles deny replacement of every
+path component from the local volume root. Do not edit the slot or
+suppress the check; discard the candidate state and begin a new authorized
+test operation from known source bytes.
+
 ### Evidence reports `RUNTIME_PROVENANCE_INVALID`
 
 The installed manifest, ownership record, plugin version, declared file

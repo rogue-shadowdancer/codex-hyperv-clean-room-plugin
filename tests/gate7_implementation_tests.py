@@ -456,6 +456,43 @@ def main() -> int:
         ),
     )
     require_tokens(
+        guest_v2 + adapters + worker,
+        "portable entrypoint byte rebinding immediately before launch",
+        (
+            "entrypointSizeBytes",
+            "entrypointSha256",
+            "Open-WorkerVerifiedPortableEntrypoint",
+            "PORTABLE_ENTRYPOINT_DRIFT",
+            "portableEntrypointDriftOnLaunch",
+            "[IO.FileShare]::Read",
+            "OpenDirectoryForLaunch",
+            "FileFlagOpenReparsePoint",
+            "FileShareRead | FileShareWrite",
+            "function Open-WorkerPortableLaunchPath",
+            "Get-WorkerPortableProductRoot $Application",
+            "[string]$env:LOCALAPPDATA",
+            "@('GUEST_PATH_INVALID', 'GUEST_REPARSE_FORBIDDEN')",
+            "$portableEntrypointBinding.stream.Dispose()",
+        ),
+    )
+    launch_scope = worker[worker.index("if ($type -eq 'launchApplication')"):]
+    portable_index = launch_scope.index("$portableApplication = $schemaVersion -eq 2")
+    generic_guard_index = launch_scope.index("if (-not $portableApplication -and")
+    verified_open_index = launch_scope.index(
+        "$portableEntrypointBinding = Open-WorkerVerifiedPortableEntrypoint"
+    )
+    process_start_index = launch_scope.index("Start-Process -FilePath $executable")
+    stream_dispose_index = launch_scope.index(
+        "$portableEntrypointBinding.stream.Dispose()"
+    )
+    if not (
+        portable_index < generic_guard_index < verified_open_index <
+        process_start_index < stream_dispose_index
+    ):
+        raise AssertionError(
+            "portable entrypoint verification is not held across process creation"
+        )
+    require_tokens(
         guest_v2,
         "installed runtime byte rebinding",
         (
@@ -464,6 +501,7 @@ def main() -> int:
             "Get-HcrSha256File $item.FullName",
             "$actualPaths.SetEquals($expectedPaths)",
             "The installed plugin version differs from its provenance manifest.",
+            "hyperv-clean-room-installer/v1",
         ),
     )
     require_tokens(
@@ -477,6 +515,9 @@ def main() -> int:
             "$pathValue -isnot [string]",
             "$sourcePathValue -isnot [string]",
             "$archivePathValue -isnot [string]",
+            "$webViewFilesValue = Get-HcrPropertyValue",
+            "Test-HcrV2ExternalFileInventory",
+            "$webViewFilesValue -is [Array]",
         ),
     )
     require_tokens(
@@ -556,9 +597,9 @@ def main() -> int:
         raise AssertionError("isolated Gate 7 artifact root is invalid")
     evidence_paths = list(artifact_root.glob("state/evidence-staging/*/evidence.json"))
     v2_evidence_paths = [path for path in evidence_paths if load(path).get("schemaVersion") == 2]
-    if len(v2_evidence_paths) != 9:
+    if len(v2_evidence_paths) != 10:
         raise AssertionError(
-            "Gate 7 runtime must emit three passed and six failed schema-v2 evidence documents"
+            "Gate 7 runtime must emit three passed and seven failed schema-v2 evidence documents"
         )
     schemas = {name: load(CONTRACT / "schemas" / name) for name in V2_NAMES}
     registry = Registry()
@@ -580,6 +621,7 @@ def main() -> int:
     if any(evidence["runtime"]["adapterMode"] != "mock" for evidence in evidence_documents):
         raise AssertionError("Gate 7 runtime evidence escaped its mock-only boundary")
     if sorted(evidence["machineStatus"] for evidence in evidence_documents) != [
+        "failed",
         "failed",
         "failed",
         "failed",

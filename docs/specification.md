@@ -1292,13 +1292,23 @@ operation-owned deployment slot while preserving independently inventoried
 prior data. The sidecar and fixtures never enter that slot. External launch
 uses the manifest entrypoint and supplies no caller or fixed portable argument;
 the embedded branch continues to use its exact fixed `--portable` argument.
+Deployment evidence binds the entrypoint relative path, length, and SHA-256.
+Immediately before process creation, the worker re-reads the entrypoint as an
+ordinary non-reparse file and re-hashes it while retaining a handle that denies
+write/delete sharing until process creation returns. It also retains no-follow
+directory handles without delete sharing for every path component from the
+local volume root, preventing directory or junction replacement
+before `Start-Process` resolves the path again. Any missing path, reparse or
+ordinary-file identity change, open failure, or byte drift fails closed with
+`PORTABLE_ENTRYPOINT_DRIFT`.
 
 External evidence is structurally selected by
 `evidenceKind: externalPortable`. Candidate identity copies the validated
 runtime/packaging/documentation/ZIP/manifest/fixture identities. Runtime
 identity binds base/build version, source commit, installed inventory, and
 adapter mode. Before emitting that identity, the runtime closes the installed
-file set against `install-manifest.json`, revalidates ownership/target/version,
+file set against `install-manifest.json`, requires the exact
+`hyperv-clean-room-installer/v1` owner, revalidates target/version,
 and re-reads every declared ordinary file's current size and SHA-256. Missing,
 extra, redirected, or byte-drifted installed files fail with
 `RUNTIME_PROVENANCE_INVALID`. Guest identity separately records the exact-medium
@@ -1311,7 +1321,7 @@ Microsoft x64 EdgeDriver/data-testid rules.
 P3.2 acceptance uses only synthetic ZIPs, fixtures, mock adapters, native
 parsers, schema validators, and static production seams. It validates all
 twenty tools, the preserved sixteen schema-v1 tools, seven exact installed
-schema-v2 copies, 338 mock runtime assertions, nine generated evidence
+schema-v2 copies, 350 mock runtime assertions, ten generated evidence
 documents, and the inherited Gate 2/Gate 6 contract suites. Every real host,
 Hyper-V, guest, portable, WebDriver, and UI operation counter remains zero.
 

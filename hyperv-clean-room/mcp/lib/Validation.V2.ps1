@@ -347,9 +347,7 @@ function Test-HcrV2ExternalFileInventory {
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Errors
     )
 
-    if ($null -eq $Value -or $Value -is [string] -or
-        -not ($Value -is [Collections.IEnumerable]) -or
-        (Test-HcrObjectLike $Value)) {
+    if ($Value -isnot [Array]) {
         Add-HcrValidationError $Errors "$Path must be an array."
         return
     }
@@ -479,25 +477,28 @@ function Test-HcrV2ExternalManifestProvenance {
                 }
             }
             if (Test-HcrProperty $webView2 'files') {
-                $webViewFiles = @((Get-HcrPropertyValue $webView2 'files'))
+                $webViewFilesValue = Get-HcrPropertyValue $webView2 'files'
                 Test-HcrV2ExternalFileInventory `
-                    $webViewFiles `
+                    $webViewFilesValue `
                     '$manifest.webView2.files' `
                     $Errors
-                try {
-                    $webViewInventory = Get-HcrV2PortableInventoryIdentity $webViewFiles
-                    if ([int](Get-HcrPropertyValue $webView2 'fileCount') -ne
-                            [int]$webViewInventory.fileCount -or
-                        [int64](Get-HcrPropertyValue $webView2 'totalSize') -ne
-                            [int64]$webViewInventory.payloadSizeBytes -or
-                        (Test-HcrProperty $webView2 'inventorySha256') -and
-                            [string](Get-HcrPropertyValue $webView2 'inventorySha256') -cne
-                                [string]$webViewInventory.sha256) {
-                        Add-HcrValidationError $Errors '$manifest.webView2 inventory summary is inconsistent.'
+                if ($webViewFilesValue -is [Array]) {
+                    $webViewFiles = @($webViewFilesValue)
+                    try {
+                        $webViewInventory = Get-HcrV2PortableInventoryIdentity $webViewFiles
+                        if ([int](Get-HcrPropertyValue $webView2 'fileCount') -ne
+                                [int]$webViewInventory.fileCount -or
+                            [int64](Get-HcrPropertyValue $webView2 'totalSize') -ne
+                                [int64]$webViewInventory.payloadSizeBytes -or
+                            (Test-HcrProperty $webView2 'inventorySha256') -and
+                                [string](Get-HcrPropertyValue $webView2 'inventorySha256') -cne
+                                    [string]$webViewInventory.sha256) {
+                            Add-HcrValidationError $Errors '$manifest.webView2 inventory summary is inconsistent.'
+                        }
                     }
-                }
-                catch {
-                    Add-HcrValidationError $Errors '$manifest.webView2 inventory could not be derived.'
+                    catch {
+                        Add-HcrValidationError $Errors '$manifest.webView2 inventory could not be derived.'
+                    }
                 }
             }
         }

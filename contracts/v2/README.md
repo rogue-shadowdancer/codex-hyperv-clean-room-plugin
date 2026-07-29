@@ -75,8 +75,13 @@ facts before schema-v2 evidence validation. The embedded branch retains its
 fixed `--portable`, component, and evidence semantics. After deployment, every
 portable launch also rebinds the operation-owned application, deployment,
 active-record fingerprint, and slot identities; concurrent active-pointer
-replacement fails closed rather than changing the candidate under test.
-Runtime identity separately closes and re-hashes the installed payload before
-using manifest provenance. External portable/documentation inventories remain
-true JSON arrays, and their paths remain typed strings through both host and
-worker validation.
+replacement fails closed rather than changing the candidate under test. It
+also re-hashes the deployed entrypoint path, length, and SHA-256 immediately
+before launch and holds that verified file open without write/delete sharing
+through process creation. No-follow directory handles without delete sharing
+bind every component from the local volume root against junction or directory
+replacement. Runtime identity separately requires the exact
+installer owner, then closes and re-hashes the installed payload before using
+manifest provenance. External portable/documentation inventories and nested
+`webView2.files` remain true JSON arrays, and their paths remain typed strings
+through both host and worker validation.

@@ -474,11 +474,14 @@ $runtimeInstallRows = @(
     }
 }
 $runtimeInstallationId = [Guid]::NewGuid().ToString()
+$runtimeOwnershipPath = Join-Path `
+    $runtimeInstallPluginDirectory `
+    'install-ownership.json'
 Write-Gate7Json (
-    Join-Path $runtimeInstallPluginDirectory 'install-ownership.json'
+    $runtimeOwnershipPath
 ) ([ordered]@{
     installationId = $runtimeInstallationId
-    owner = 'Codex'
+    owner = 'hyperv-clean-room-installer/v1'
     pluginName = 'hyperv-clean-room'
     schemaVersion = 1
     targetRoot = $runtimeInstallRoot
@@ -507,6 +510,21 @@ try {
     Assert-Gate7Equal ([string]$verifiedRuntimeIdentity.installedInventorySha256) `
         (Get-HcrSha256Text ($expectedRuntimeRows -join "`n")) `
         'Runtime identity did not rebind the exact installed bytes.'
+
+    $wrongRuntimeOwnership = Read-HcrJsonFile `
+        $runtimeOwnershipPath `
+        'RUNTIME_PROVENANCE_INVALID'
+    $wrongRuntimeOwnership.owner = 'wrong-owner/v1'
+    Write-Gate7Json $runtimeOwnershipPath $wrongRuntimeOwnership
+    $wrongRuntimeOwnerCode = $null
+    try { [void](Get-HcrV2RuntimeIdentity) }
+    catch {
+        $wrongRuntimeOwnerCode = [string](Get-HcrExceptionData $_.Exception).code
+    }
+    Assert-Gate7Equal $wrongRuntimeOwnerCode 'RUNTIME_PROVENANCE_INVALID' `
+        'Runtime identity accepted a non-installer ownership marker.'
+    $wrongRuntimeOwnership.owner = 'hyperv-clean-room-installer/v1'
+    Write-Gate7Json $runtimeOwnershipPath $wrongRuntimeOwnership
 
     [IO.File]::WriteAllText(
         $runtimeInstallPayloadPath,
@@ -1277,6 +1295,7 @@ foreach ($scalarCase in @(
 foreach ($shapeCase in @(
         'files-object',
         'documentationFiles-object',
+        'webView-files-object',
         'fileName-number',
         'entrypoint-number',
         'file-path-number',
@@ -1290,6 +1309,12 @@ foreach ($shapeCase in @(
         }
         'documentationFiles-object' {
             $shapeManifest.documentationFiles = $shapeManifest.documentationFiles[0]
+        }
+        'webView-files-object' {
+            $shapeManifest.webView2 | Add-Member `
+                -NotePropertyName files `
+                -NotePropertyValue $shapeManifest.files[0] `
+                -Force
         }
         'fileName-number' {
             $shapeManifest.fileName = 123
@@ -1437,6 +1462,49 @@ $restoredDeploymentDriftState.PSObject.Properties.Remove(
     'portableActiveDeploymentOverride'
 )
 Write-HcrMockAdapterState $restoredDeploymentDriftState
+
+$entrypointDriftState = Read-HcrMockAdapterState
+$entrypointDriftState | Add-Member `
+    -NotePropertyName portableEntrypointDriftOnLaunch `
+    -NotePropertyValue $true `
+    -Force
+Write-HcrMockAdapterState $entrypointDriftState
+$entrypointDriftRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $externalProfilePath
+    artifactPath = $externalPortablePath
+})
+Assert-Gate7 $entrypointDriftRun.ok `
+    'Portable entrypoint drift did not produce auditable failure evidence.'
+Assert-Gate7Equal ([string]$entrypointDriftRun.data.machineStatus) 'failed' `
+    'Portable entrypoint drift did not fail the machine result.'
+$entrypointDriftAssertions = @(
+    $entrypointDriftRun.data.automaticAssertions |
+        Where-Object { [string]$_.id -eq 'launch' }
+)
+Assert-Gate7Equal $entrypointDriftAssertions.Count 1 `
+    'Portable entrypoint drift did not bind the launch assertion.'
+Assert-Gate7 (
+    [string]$entrypointDriftAssertions[0].status -eq 'failed' -and
+    @($entrypointDriftAssertions[0].observations | Where-Object {
+            [string]$_.name -eq 'errorcode' -and
+            [string]$_.value -eq 'PORTABLE_ENTRYPOINT_DRIFT'
+        }).Count -eq 1
+) 'The launch did not fail closed with PORTABLE_ENTRYPOINT_DRIFT.'
+$entrypointDriftOperation = Get-HcrOperationRecord `
+    ([string]$entrypointDriftRun.data.testOperationId)
+$entrypointDriftEvidence = Read-HcrJsonFile `
+    ([string]$entrypointDriftOperation.evidenceFile) `
+    'EVIDENCE_NOT_READY'
+Assert-Gate7 (Test-HcrEvidenceDocumentV2 `
+        $entrypointDriftEvidence $entrypointDriftOperation).valid `
+    'The native validator rejected portable-entrypoint-drift evidence.'
+$restoredEntrypointDriftState = Read-HcrMockAdapterState
+$restoredEntrypointDriftState.PSObject.Properties.Remove(
+    'portableEntrypointDriftOnLaunch'
+)
+Write-HcrMockAdapterState $restoredEntrypointDriftState
 
 $unknownRuntimeEvidence = Copy-HcrObject $externalEvidence
 $unknownRuntimeEvidence.runtime | Add-Member `

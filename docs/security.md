@@ -48,13 +48,21 @@ successful deployment step. The guest re-reads the shared active record and
 requires all four to match before resolving the executable. If another
 operation has changed the active pointer, the older launch fails closed with
 `PORTABLE_DEPLOYMENT_DRIFT`; it never silently launches the newer candidate.
+The deployment evidence additionally binds the entrypoint relative path,
+length, and SHA-256. The worker re-reads those bytes immediately before
+`Start-Process`, retains a handle that denies write/delete sharing until
+process creation returns, and retains no-follow directory handles without
+delete sharing for every component from the local volume root. It
+fails with `PORTABLE_ENTRYPOINT_DRIFT` if a component, reparse identity,
+ordinary-file identity, or byte changes after deployment.
 
 Runtime provenance is not copied blindly from the installed manifest. The
-runtime rejects a redirected or malformed installation, closes the current
-ordinary file set against the declared payload plus the two installed-state
-records, and re-hashes every declared byte before emitting
-`installedInventorySha256`. External manifest inventories must be true arrays,
-and all archive/documentation path values must be strings before path
+runtime requires the exact `hyperv-clean-room-installer/v1` owner, rejects a
+redirected or malformed installation, closes the current ordinary file set
+against the declared payload plus the two installed-state records, and
+re-hashes every declared byte before emitting `installedInventorySha256`.
+External manifest inventories, including nested `webView2.files`, must be true
+arrays, and all archive/documentation path values must be strings before path
 normalization. These checks prevent PowerShell collection wrapping or scalar
 coercion from weakening the published schema.
 
