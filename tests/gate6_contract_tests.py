@@ -1607,6 +1607,9 @@ def assert_p3_1_contract(
     neutral_profile = load_json(
         P3_1_FIXTURE_ROOT / "test-profile.external-neutral.valid.json"
     )
+    neutral_evidence = load_json(
+        P3_1_FIXTURE_ROOT / "evidence.external-neutral.valid.json"
+    )
     if (
         any(name in neutral_manifest for name in ("maa", "webView2"))
         or "webDriver" in neutral_profile
@@ -1643,8 +1646,10 @@ def assert_p3_1_contract(
             )
     uppercase_zip_manifest = deepcopy(neutral_manifest)
     uppercase_zip_profile = deepcopy(neutral_profile)
+    uppercase_zip_evidence = deepcopy(neutral_evidence)
     uppercase_zip_manifest["fileName"] = "Package.ZIP"
     uppercase_zip_profile["artifact"]["fileNamePattern"] = "Package.ZIP"
+    uppercase_zip_evidence["candidate"]["portableZipFileName"] = "Package.ZIP"
     if list(
         validator_for(
             "portable-manifest.schema.json", schemas, registry
@@ -1653,6 +1658,10 @@ def assert_p3_1_contract(
         validator_for(
             "test-profile.schema.json", schemas, registry
         ).iter_errors(uppercase_zip_profile)
+    ) or list(
+        validator_for(
+            "evidence.schema.json", schemas, registry
+        ).iter_errors(uppercase_zip_evidence)
     ):
         raise AssertionError("safe uppercase ZIP leaf was rejected")
     for unsafe_zip_leaf in (
@@ -1664,8 +1673,10 @@ def assert_p3_1_contract(
     ):
         unsafe_zip_probe = deepcopy(neutral_manifest)
         unsafe_profile_probe = deepcopy(neutral_profile)
+        unsafe_evidence_probe = deepcopy(neutral_evidence)
         unsafe_zip_probe["fileName"] = unsafe_zip_leaf
         unsafe_profile_probe["artifact"]["fileNamePattern"] = unsafe_zip_leaf
+        unsafe_evidence_probe["candidate"]["portableZipFileName"] = unsafe_zip_leaf
         if not list(
             validator_for(
                 "portable-manifest.schema.json", schemas, registry
@@ -1674,9 +1685,14 @@ def assert_p3_1_contract(
             validator_for(
                 "test-profile.schema.json", schemas, registry
             ).iter_errors(unsafe_profile_probe)
+        ) or not list(
+            validator_for(
+                "evidence.schema.json", schemas, registry
+            ).iter_errors(unsafe_evidence_probe)
         ):
             raise AssertionError(
-                f"executable external manifest/profile accepted unsafe ZIP leaf: "
+                "executable external manifest/profile/evidence accepted unsafe ZIP "
+                "leaf: "
                 f"{unsafe_zip_leaf!r}"
             )
 
