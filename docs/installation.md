@@ -10,6 +10,12 @@ payload to
 in the default personal marketplace through the `plugin-creator` helper, and
 runs:
 
+The repository source advances to `0.3.0` in G7/P3.2, but this guide must not
+be used to install that candidate yet. P3.2 performs no package, Release,
+cachebuster, marketplace, or personal-copy mutation. P3.3 owns publication,
+installation, and exact installed/source readback; until then the accepted
+personal installation remains release-derived `0.2.0`.
+
 ```powershell
 codex plugin add hyperv-clean-room@personal
 ```

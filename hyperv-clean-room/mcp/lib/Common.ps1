@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 
-$script:HcrPluginVersion = '0.2.0'
+$script:HcrPluginVersion = '0.3.0'
 $script:HcrSchemaVersion = 1
 $script:HcrSchemaVersionV2 = 2
 $script:HcrPlanLifetimeMinutes = 15

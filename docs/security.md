@@ -30,6 +30,18 @@ mock execution, parser checks, and static validation are not evidence that a
 real portable deployment, WebDriver session, network transition, UI workflow,
 or clean-machine run is safe or has been performed.
 
+G7/P3.2 advances only the source runtime to `0.3.0`. Its external portable
+branch treats the manifest as an untrusted profile-relative sidecar: strict
+UTF-8 rejects BOM, NUL, duplicate properties, trailing data, unsafe/non-NFC
+Windows paths, case collisions, reparse traversal, and closed-object drift.
+The fixed worker rebinds the ZIP, sidecar, fixtures, complete archive
+inventory, deployment slot, mutable-data preservation, standard-user token,
+and elevated orchestration token. No-UI evidence must contain null driver
+identity; UI evidence remains restricted to the fixed Microsoft x64 driver and
+closed `data-testid` DSL. No caller-supplied argument reaches the external
+entrypoint. These are source/mock/parser/static guarantees, not evidence of a
+real guest or clean machine.
+
 ## Threats and controls
 
 ### Accidental mutation or stale approval

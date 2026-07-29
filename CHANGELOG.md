@@ -4,6 +4,33 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
+## Unreleased - 0.3 external portable source runtime
+
+### Added
+
+- Implement the frozen G7/P3.1 external profile-relative manifest branch in
+  the Windows PowerShell 5.1 source runtime with strict JSON/path validation,
+  closed provenance, bidirectional ZIP inventory, atomic data-preserving
+  deployment, zero-argument entrypoint launch, conditional fixed-driver UI,
+  and structurally separate external evidence.
+- Bind exact source/staged/guest ZIP, sidecar, fixture, deployment inventory,
+  standard-user, elevated orchestration, runtime-build, and documentation
+  identities without changing the exact 20 public tool names or inputs.
+- Copy all seven authoritative schema-v2 documents exactly into the source-tree
+  runtime schema directory and validate the external branch using only
+  mocks, parsers, schemas, and static production seams.
+
+### Safety and release boundary
+
+- Plugin source base version is `0.3.0`; schema v1, embedded `0.2.0` semantics,
+  Plan/Apply, recovery, and the public 20-tool catalog remain compatible.
+- The immutable `v0.2.0` tag/Release and its personal installation remain
+  unchanged. P3.3 publication, installation, and source-match readback are not
+  performed.
+- No real Hyper-V, VM, checkpoint, credential, guest, package, portable,
+  WebDriver, UI, network, evidence, or manual-attestation operation is
+  performed.
+
 ## Unreleased - Automatic-checkpoint ownership repair
 
 ### Changed

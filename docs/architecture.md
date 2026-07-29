@@ -3,9 +3,10 @@
 ## Status and assurance boundary
 
 Hyper-V Clean Room is a Windows-only Codex plugin whose product surface is a
-PowerShell 5.1 MCP server. Version `0.2.0` preserves the exact 16 schema-v1
-tools and five public schema-v1 documents and adds four schema-v2 power/network
-tools plus seven schema-v2 documents. Gate 2 implements both the mock adapter and the
+PowerShell 5.1 MCP server. Source version `0.3.0` preserves the exact 16
+schema-v1 tools, five public schema-v1 documents, four schema-v2 power/network
+tools, and seven schema-v2 paths. It adds an external portable branch while
+preserving the embedded `0.2.0` branch. Gate 2 implements both the mock adapter and the
 production Hyper-V/PowerShell Direct adapter, but validates guest execution
 only through mock behavior, parser checks, and closed-dispatch static seams.
 No real guest credential, file transfer, package process, VM mutation, or
@@ -31,7 +32,7 @@ existing entries exactly. Profile and evidence routing reads the exact integer
 `schemaVersion` once. V1 and v2 have independent validators; there is no
 try-v2-then-v1 fallback.
 
-The future implementation has five new internal, non-public seams:
+The integrated runtime has five internal, non-public seams:
 
 | Seam | Fixed responsibility | Forbidden responsibility |
 | --- | --- | --- |
@@ -40,6 +41,17 @@ The future implementation has five new internal, non-public seams:
 | Portable deployment | Stream-validate one manifest-bound ZIP into a new atomic slot and preserve recorded data | General extraction, deletion, or arbitrary copy |
 | Fixed-driver manager | Verify exact Microsoft archive/executable provenance and own a loopback session | Caller URL, arguments, port, navigation, or script |
 | UI dispatcher | Map the closed `data-testid` DSL to fixed WebDriver operations | Raw WebDriver, CSS/XPath selectors, JavaScript, or file paths |
+
+P3.2 adds a mutually exclusive external portable path at the same seams. The
+profile resolves one regular profile-relative manifest sidecar and binds its
+declared size/SHA. Native validation closes the manifest and its provenance,
+while the fixed worker independently verifies that every regular ZIP entry and
+every declared inventory entry match. The sidecar, fixtures, and mutable
+`data/` bytes remain outside the deployment payload. Publication is atomic
+only after validation; launch uses the declared executable with no caller
+arguments. External evidence separates the elevated orchestration identity
+from the exact-medium standard user and records conditional driver identity.
+No branch probing or fallback is permitted.
 
 The target operation flow is:
 

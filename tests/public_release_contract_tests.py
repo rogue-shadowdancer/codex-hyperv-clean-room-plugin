@@ -157,17 +157,17 @@ def main() -> int:
             )
     version = str(manifest.get("version", ""))
     if not re.fullmatch(
-        r"0\.2\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?", version
+        r"0\.3\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?", version
     ):
         raise AssertionError(
-            "integrated source version must preserve base 0.2.0 with at most "
+            "integrated source version must expose base 0.3.0 with at most "
             f"one Codex cachebuster: {version}"
         )
 
     server = read_text("hyperv-clean-room/mcp/server.ps1")
     common = read_text("hyperv-clean-room/mcp/lib/Common.ps1")
-    if "$script:HcrPluginVersion" not in server or "$script:HcrPluginVersion = '0.2.0'" not in common:
-        raise AssertionError("MCP serverInfo is not bound to plugin version 0.2.0")
+    if "$script:HcrPluginVersion" not in server or "$script:HcrPluginVersion = '0.3.0'" not in common:
+        raise AssertionError("MCP serverInfo is not bound to plugin version 0.3.0")
     schemas = sorted((PLUGIN_ROOT / "schemas").glob("*.json"))
     if len(schemas) != 5:
         raise AssertionError("schema-v1 count must remain exactly five")

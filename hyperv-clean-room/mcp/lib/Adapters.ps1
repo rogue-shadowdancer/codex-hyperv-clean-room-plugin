@@ -556,14 +556,38 @@ function Invoke-HcrMockAdapter {
                 })
             }
             if ((Get-HcrPropertyValue $step 'type') -eq 'deployPortable') {
+                $portableManifest = Get-HcrPropertyValue $Arguments 'portableManifest'
+                $externalPortable = [bool](Get-HcrPropertyValue $Arguments 'externalPortable' $false)
+                $manifestDocument = Get-HcrPropertyValue $portableManifest 'document'
+                $inventory = Get-HcrPropertyValue $portableManifest 'inventory'
                 $result | Add-Member -NotePropertyName evidence -NotePropertyValue ([pscustomobject][ordered]@{
                     deploymentId = [Guid]::NewGuid().ToString()
                     deploymentFingerprint = Get-HcrSha256Text "$([string](Get-HcrPropertyValue $Arguments 'operationId'))|mock-portable-deployment"
+                    deploymentSlotId = 'operation-' + ([string](Get-HcrPropertyValue $Arguments 'operationId')).Substring(0, 8)
+                    entrypoint = if ($externalPortable) {
+                        [string](Get-HcrPropertyValue $manifestDocument 'entrypoint')
+                    } else {
+                        [string](Get-HcrPropertyValue @((Get-HcrPropertyValue $Arguments 'applications'))[0] 'executableRelativePath')
+                    }
                     dataPreserved = $true
                     previousDataInventorySha256 = Get-HcrSha256Text 'mock-portable-data-inventory'
                     deployedDataInventorySha256 = Get-HcrSha256Text 'mock-portable-data-inventory'
                     portableManifestSha256 = [string](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'portableArtifact') 'portableManifestSha256')
-                    fixedWebView2Version = [string](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'webDriver') 'browserVersion')
+                    portableManifestGuestSizeBytes = if ($externalPortable) {
+                        [int64](Get-HcrPropertyValue $portableManifest 'guestSizeBytes')
+                    } else { 0 }
+                    portableInventorySha256 = if ($externalPortable) {
+                        [string](Get-HcrPropertyValue $inventory 'sha256')
+                    } else { [string](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'artifact') 'guestSha256') }
+                    portableInventoryFileCount = if ($externalPortable) {
+                        [int](Get-HcrPropertyValue $inventory 'fileCount')
+                    } else { 1 }
+                    portableInventorySizeBytes = if ($externalPortable) {
+                        [int64](Get-HcrPropertyValue $inventory 'payloadSizeBytes')
+                    } else { 1 }
+                    fixedWebView2Version = if ([bool](Get-HcrPropertyValue $Arguments 'uiRequired' $true)) {
+                        [string](Get-HcrPropertyValue (Get-HcrPropertyValue $Arguments 'webDriver') 'browserVersion')
+                    } else { $null }
                 }) -Force
             }
             if ((Get-HcrPropertyValue $step 'type') -eq 'acquireWebDriver') {
@@ -1263,6 +1287,12 @@ function New-HcrRealGuestContext {
         vmName = $vmName
         profileName = $profileName
         metadata = $metadata
+        orchestrationIdentity = [pscustomobject][ordered]@{
+            userSid = [string](Get-HcrPropertyValue $administratorProbe 'sid')
+            isAdministrator = $true
+            isElevated = $true
+            tokenIntegrity = [string](Get-HcrPropertyValue $administratorProbe 'tokenIntegrity')
+        }
         administrator = $bundle.administrator
         testUser = $bundle.testUser
         session = $session
@@ -2334,7 +2364,12 @@ function Invoke-HcrRealInspectGuest {
             operationId = $context.operationId
             expectedTestUserSid = [string](Get-HcrPropertyValue $context.metadata 'testUserSid')
         }
-        return Invoke-HcrFixedGuestWorker $context 'InspectGuest' $input 60
+        $guest = Invoke-HcrFixedGuestWorker $context 'InspectGuest' $input 60
+        $guest | Add-Member `
+            -NotePropertyName orchestration `
+            -NotePropertyValue (Copy-HcrObject $context.orchestrationIdentity) `
+            -Force
+        return $guest
     }
     finally {
         Close-HcrRealGuestContext $context
@@ -2477,6 +2512,9 @@ function Invoke-HcrRealGuestStep {
                 ForEach-Object { Copy-HcrObject $_ })
             $input.webDriver = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'webDriver')
             $input.portableArtifact = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'portableArtifact')
+            $input.portableManifest = Copy-HcrObject (Get-HcrPropertyValue $Arguments 'portableManifest')
+            $input.externalPortable = [bool](Get-HcrPropertyValue $Arguments 'externalPortable' $false)
+            $input.uiRequired = [bool](Get-HcrPropertyValue $Arguments 'uiRequired' $true)
             $input.sourceCommit = [string](Get-HcrPropertyValue $Arguments 'sourceCommit')
         }
         $mode = if ($Cleanup) { 'RunCleanupStep' } else { 'RunTestStep' }

@@ -1,21 +1,54 @@
 [CmdletBinding()]
-param([switch]$SkipInheritedBaseline)
+param(
+    [switch]$SkipInheritedBaseline,
+    [string]$PythonExecutable,
+    [string]$DependencyPath,
+    [string]$TestRoot
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$runtime = Get-Content -LiteralPath (Join-Path $repoRoot '.artifacts\test-python\runtime.json') -Raw -Encoding UTF8 |
-    ConvertFrom-Json -ErrorAction Stop
+$runtime = if ([string]::IsNullOrWhiteSpace($PythonExecutable) -and
+    [string]::IsNullOrWhiteSpace($DependencyPath)) {
+    Get-Content -LiteralPath (Join-Path $repoRoot '.artifacts\test-python\runtime.json') -Raw -Encoding UTF8 |
+        ConvertFrom-Json -ErrorAction Stop
+}
+elseif (-not [string]::IsNullOrWhiteSpace($PythonExecutable) -and
+    -not [string]::IsNullOrWhiteSpace($DependencyPath)) {
+    [pscustomobject]@{
+        pythonExecutable = [IO.Path]::GetFullPath($PythonExecutable)
+        dependencyPath = [IO.Path]::GetFullPath($DependencyPath)
+    }
+}
+else {
+    throw 'PythonExecutable and DependencyPath must be supplied together.'
+}
 
 if (-not $SkipInheritedBaseline) {
-    $null = & (Join-Path $PSScriptRoot 'validate-gate2.ps1') -SkipRealHostSmoke
+    $null = & (Join-Path $PSScriptRoot 'validate-gate2.ps1') `
+        -SkipRealHostSmoke `
+        -PythonCommand ([string]$runtime.pythonExecutable) `
+        -PythonDependencyPath ([string]$runtime.dependencyPath)
 }
-$null = & (Join-Path $PSScriptRoot 'validate-gate6.ps1') -SkipInheritedBaseline
+$null = & (Join-Path $PSScriptRoot 'validate-gate6.ps1') `
+    -SkipInheritedBaseline `
+    -PythonExecutable ([string]$runtime.pythonExecutable) `
+    -DependencyPath ([string]$runtime.dependencyPath)
 
-$runtimeOutput = @(& 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' `
-    -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass `
-    -File (Join-Path $repoRoot 'tests\gate7-runtime.tests.ps1'))
+$oldGate7TestRoot = $env:HCR_GATE7_TEST_ROOT
+try {
+    if (-not [string]::IsNullOrWhiteSpace($TestRoot)) {
+        $env:HCR_GATE7_TEST_ROOT = [IO.Path]::GetFullPath($TestRoot)
+    }
+    $runtimeOutput = @(& 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' `
+        -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+        -File (Join-Path $repoRoot 'tests\gate7-runtime.tests.ps1'))
+}
+finally {
+    $env:HCR_GATE7_TEST_ROOT = $oldGate7TestRoot
+}
 if ($LASTEXITCODE -ne 0 -or $runtimeOutput.Count -ne 1) {
     throw 'Gate 7 mock runtime validation failed.'
 }
@@ -26,6 +59,7 @@ $oldNoUserSite = $env:PYTHONNOUSERSITE
 try {
     $env:PYTHONPATH = [string]$runtime.dependencyPath
     $env:PYTHONNOUSERSITE = '1'
+    $env:HCR_GATE7_ARTIFACT_ROOT = [string]$runtimeResult.testRoot
     $implementationOutput = @(& ([string]$runtime.pythonExecutable) -S `
         (Join-Path $repoRoot 'tests\gate7_implementation_tests.py'))
     if ($LASTEXITCODE -ne 0 -or $implementationOutput.Count -ne 1) {
@@ -36,6 +70,7 @@ try {
 finally {
     $env:PYTHONPATH = $oldPythonPath
     $env:PYTHONNOUSERSITE = $oldNoUserSite
+    Remove-Item Env:HCR_GATE7_ARTIFACT_ROOT -ErrorAction SilentlyContinue
 }
 
 $previousErrorAction = $ErrorActionPreference

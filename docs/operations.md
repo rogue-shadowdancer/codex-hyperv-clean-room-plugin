@@ -12,6 +12,14 @@ only a missing-ISO rejection before mutation. It does not
 authorize or prove a real Hyper-V mutation, real credential enrollment, guest
 transfer, package lifecycle, or clean-machine result.
 
+G7/P3.2 advances the repository source runtime to `0.3.0` and makes the seven
+source-tree installed v2 schemas exact copies of their authorities. It does not
+replace the release-derived personal installation: that installed runtime and
+the immutable Release remain `0.2.0` until P3.3. P3.2 acceptance exercises
+external sidecar parsing, mock ZIP/fixture staging, mock deployment/evidence,
+and static production seams only. It does not authorize an operator to run a
+profile or perform a host, guest, package, driver, or network operation.
+
 H5A repairs the automatic-checkpoint ownership deadlock without changing the
 20-tool surface. Future VM creation disables automatic checkpoints before
 ownership publication and verifies the setting by readback. For a pre-fix

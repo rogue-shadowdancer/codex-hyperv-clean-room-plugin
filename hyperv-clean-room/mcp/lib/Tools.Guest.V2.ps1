@@ -12,6 +12,56 @@ function Get-HcrV2SourceCommit {
     Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The exact installed source commit is unavailable.'
 }
 
+function Get-HcrV2RuntimeIdentity {
+    $manifestPath = Join-Path $script:HcrPluginRoot '.codex-plugin\install-manifest.json'
+    $buildVersion = $null
+    $sourceCommit = $null
+    $inventorySha256 = $null
+    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+        $manifest = Read-HcrJsonFile $manifestPath 'RUNTIME_PROVENANCE_INVALID'
+        $buildVersion = [string](Get-HcrPropertyValue $manifest 'sourceVersion')
+        $sourceCommit = [string](Get-HcrPropertyValue $manifest 'sourceCommit')
+        [string[]]$rows = @(@((Get-HcrPropertyValue $manifest 'files' @())) |
+            ForEach-Object {
+                ([string](Get-HcrPropertyValue $_ 'path')).Replace('\', '/') +
+                    "`t$([int64](Get-HcrPropertyValue $_ 'size'))" +
+                    "`t$([string](Get-HcrPropertyValue $_ 'sha256'))"
+            })
+        [Array]::Sort($rows, [StringComparer]::Ordinal)
+        if ($rows.Count -lt 1) {
+            Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The installed runtime inventory is empty.'
+        }
+        $inventorySha256 = Get-HcrSha256Text ($rows -join "`n")
+    }
+    elseif ((Get-HcrAdapterMode) -eq 'mock' -and $env:HCR_TEST_MODE -eq '1') {
+        $buildVersion = if ($env:HCR_TEST_PLUGIN_BUILD_VERSION -match
+            '^0\.3\.0\+codex\.[0-9]{14}$') {
+            $env:HCR_TEST_PLUGIN_BUILD_VERSION
+        }
+        else { '0.3.0+codex.00000000000000' }
+        $sourceCommit = $env:HCR_TEST_SOURCE_COMMIT
+        $inventorySha256 = if ($env:HCR_TEST_INSTALLED_INVENTORY_SHA256 -match
+            '^[a-f0-9]{64}$') {
+            $env:HCR_TEST_INSTALLED_INVENTORY_SHA256
+        }
+        else {
+            Get-HcrSha256Text "mock-installed-runtime|$sourceCommit|$buildVersion"
+        }
+    }
+    if ($buildVersion -notmatch '^0\.3\.0\+codex\.[0-9]{14}$' -or
+        $sourceCommit -notmatch '^[a-f0-9]{40}$' -or
+        $inventorySha256 -notmatch '^[a-f0-9]{64}$') {
+        Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The exact installed runtime identity is unavailable.'
+    }
+    return [pscustomobject][ordered]@{
+        pluginBaseVersion = '0.3.0'
+        pluginBuildVersion = $buildVersion
+        sourceCommit = $sourceCommit
+        installedInventorySha256 = $inventorySha256
+        adapterMode = if ((Get-HcrAdapterMode) -eq 'mock') { 'mock' } else { 'production' }
+    }
+}
+
 function Get-HcrV2PortableCandidateSourceCommit {
     param(
         [Parameter(Mandatory = $true)][string]$ArtifactPath,
@@ -204,6 +254,9 @@ function Invoke-HcrV2StepSafely {
             applications = $Context.applications
             artifact = $Context.artifact
             portableArtifact = $Context.portableArtifact
+            portableManifest = $Context.portableManifest
+            externalPortable = [bool]$Context.externalPortable
+            uiRequired = [bool]$Context.uiRequired
             sourceCommit = $Context.sourceCommit
             fixtures = $Context.fixtures
             webDriver = $Context.webDriver
@@ -306,6 +359,16 @@ function Invoke-HcrRunTestProfileV2 {
         $artifactHash -ne [string](Get-HcrPropertyValue $artifactDeclaration 'sha256')) {
         Throw-HcrError 'ARTIFACT_PROFILE_MISMATCH' 'The portable artifact identity does not exactly match the profile.'
     }
+    $externalPortable = [string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSource') -eq
+        'externalProfileRelative'
+    $externalManifest = if ($externalPortable) {
+        Resolve-HcrExternalPortableManifestV2 $profile $profileValidation.path
+    }
+    else { $null }
+    if ($externalPortable -and
+        [string](Get-HcrPropertyValue $externalManifest.document 'newZipSha256') -cne $artifactHash) {
+        Throw-HcrError 'ARTIFACT_PROFILE_MISMATCH' 'The external portable manifest ZIP hash does not match the profile artifact.'
+    }
     $fixtures = @(Resolve-HcrV2FixtureFiles $profile $profileValidation.path)
     [void](Invoke-HcrAdapter 'ResolveCredentialProfile' ([pscustomobject]@{ vmName = $vmName; profileName = $profileName }))
     $identityArguments = [ordered]@{
@@ -321,11 +384,23 @@ function Invoke-HcrRunTestProfileV2 {
     $profileSha = Get-HcrSha256File $profileValidation.path
     $fixtureSetSha = Get-HcrV2FixtureSetSha256 @($fixtures | ForEach-Object { $_.declaration })
     $webDriver = Get-HcrPropertyValue $profile 'webDriver'
-    $webDriverSha = Get-HcrSha256Text (ConvertTo-HcrJson $webDriver 100)
-    $runtimeSourceCommit = Get-HcrV2SourceCommit
-    $candidateSourceCommit = Get-HcrV2PortableCandidateSourceCommit `
-        $artifactItem.FullName `
-        ([string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSha256'))
+    $webDriverSha = if ($null -eq $webDriver) {
+        $null
+    }
+    else { Get-HcrSha256Text (ConvertTo-HcrJson $webDriver 100) }
+    $runtimeIdentity = if ($externalPortable) { Get-HcrV2RuntimeIdentity } else { $null }
+    $runtimeSourceCommit = if ($externalPortable) {
+        [string]$runtimeIdentity.sourceCommit
+    }
+    else { Get-HcrV2SourceCommit }
+    $candidateSourceCommit = if ($externalPortable) {
+        [string](Get-HcrPropertyValue $externalManifest.document 'packagingCommit')
+    }
+    else {
+        Get-HcrV2PortableCandidateSourceCommit `
+            $artifactItem.FullName `
+            ([string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSha256'))
+    }
     $evidenceRoot = Get-HcrEvidenceStagingRoot $OperationId
     [void](New-Item -ItemType Directory -Path $evidenceRoot -Force)
     $operation = [pscustomobject][ordered]@{
@@ -334,6 +409,23 @@ function Invoke-HcrRunTestProfileV2 {
         baselineType = [string](Get-HcrPropertyValue $profile 'baselineType'); adapterMode = Get-HcrAdapterMode
         sourceCommit = $candidateSourceCommit; portableZipSha256 = $artifactHash; profileSha256 = $profileSha
         fixtureSetSha256 = $fixtureSetSha; webDriverManifestSha256 = $webDriverSha
+        evidenceKind = if ($externalPortable) { 'externalPortable' } else { $null }
+        portableManifestRelativePath = if ($externalPortable) {
+            [string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestRelativePath')
+        } else { $null }
+        portableManifestSha256 = [string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSha256')
+        portableManifestSizeBytes = if ($externalPortable) { [int64]$externalManifest.sizeBytes } else { $null }
+        portableZipSourceSizeBytes = if ($externalPortable) { [int64]$artifactItem.Length } else { $null }
+        portableZipGuestSizeBytes = if ($externalPortable) { [int64]$artifactItem.Length } else { $null }
+        portableZipSourceSha256 = if ($externalPortable) { $artifactHash } else { $null }
+        portableZipGuestSha256 = if ($externalPortable) { $null } else { $null }
+        portableManifestSourceSizeBytes = if ($externalPortable) { [int64]$externalManifest.sizeBytes } else { $null }
+        portableManifestGuestSizeBytes = if ($externalPortable) { $null } else { $null }
+        portableManifestSourceSha256 = if ($externalPortable) { [string]$externalManifest.sha256 } else { $null }
+        portableManifestGuestSha256 = if ($externalPortable) { $null } else { $null }
+        portableInventorySha256 = if ($externalPortable) {
+            [string](Get-HcrPropertyValue $externalManifest.inventory 'sha256')
+        } else { $null }
         cleanupTriggered = $false; cleanupSteps = @((Get-HcrPropertyValue $profile 'cleanupSteps' @()))
         automaticAssertions = @(); manualAssertions = @((Get-HcrPropertyValue $profile 'manualAssertions' @()))
         evidenceRoot = $evidenceRoot; evidenceFile = $null; evidenceSha256 = $null
@@ -342,12 +434,15 @@ function Invoke-HcrRunTestProfileV2 {
     Save-HcrOperationRecord $operation
 
     $artifactEvidence = New-Object System.Collections.Generic.List[object]
+    $fixtureIdentities = New-Object System.Collections.Generic.List[object]
     $automatic = New-Object System.Collections.Generic.List[object]
     $uiTrace = New-Object System.Collections.Generic.List[object]
     $launched = New-Object System.Collections.Generic.List[object]
     $context = [pscustomobject][ordered]@{
         operationId=$OperationId; vmName=$vmName; profileName=$profileName; workflowKind=[string](Get-HcrPropertyValue $profile 'workflowKind')
-        applications=@((Get-HcrPropertyValue $profile 'applications')); artifact=$null; portableArtifact=$artifactDeclaration; sourceCommit=$candidateSourceCommit; fixtures=@($fixtures | ForEach-Object { Copy-HcrObject $_.declaration }); webDriver=$webDriver
+        applications=@((Get-HcrPropertyValue $profile 'applications')); artifact=$null; portableArtifact=$artifactDeclaration
+        portableManifest=$null; externalPortable=$externalPortable; uiRequired=$(if($externalPortable){[bool]$externalManifest.uiRequired}else{$true})
+        sourceCommit=$candidateSourceCommit; fixtures=@($fixtures | ForEach-Object { Copy-HcrObject $_.declaration }); webDriver=$webDriver
         launchedProcesses=$launched; expectedVmId=$identityArguments.expectedVmId; expectedVmName=$identityArguments.expectedVmName
         expectedOwnershipId=$identityArguments.expectedOwnershipId; expectedVmPath=$identityArguments.expectedVmPath; expectedVhdxPath=$identityArguments.expectedVhdxPath
     }
@@ -362,6 +457,7 @@ function Invoke-HcrRunTestProfileV2 {
             guestDestination=$artifactItem.Name; timeoutSeconds=[int](Get-HcrPropertyValue $steps[0] 'timeoutSeconds')
         }))
         $artifactGuestHash = [string](Get-HcrPropertyValue $staged 'guestSha256')
+        if ($externalPortable) { $operation.portableZipGuestSha256 = $artifactGuestHash }
         $context.artifact = [pscustomobject]@{ guestDestination=[string](Get-HcrPropertyValue $staged 'guestDestination'); sourceSha256=$artifactHash; guestSha256=$artifactGuestHash }
         $stageMachineEvidence = [pscustomobject]@{ sourceSha256=$artifactHash; guestSha256=$artifactGuestHash }
         if ($artifactGuestHash -ne $artifactHash) {
@@ -377,6 +473,54 @@ function Invoke-HcrRunTestProfileV2 {
         $context.artifact = [pscustomobject]@{ guestDestination=$null; sourceSha256=$artifactHash; guestSha256=$null }
     }
     $artifactEvidence.Add([pscustomobject][ordered]@{ role='portableZip'; id='portable-zip'; fileName=$artifactItem.Name; sizeBytes=[int64]$artifactItem.Length; sourceSha256=$artifactHash; guestSha256=$artifactGuestHash; status=$stageStatus })
+    $portableManifestGuestHash = $null
+    $portableManifestGuestSize = $null
+    if ($externalPortable) {
+        $manifestStatus = if ($stageStatus -eq 'passed') { 'passed' } else { 'notPerformed' }
+        if ($stageStatus -eq 'passed') {
+            try {
+                $manifestStage = Invoke-HcrAdapter 'StageArtifact' ([pscustomobject]($identityArguments + @{
+                    sourcePath=$externalManifest.item.FullName
+                    sourceSha256=[string]$externalManifest.sha256
+                    size=[int64]$externalManifest.sizeBytes
+                    guestDestination='sidecar\portable-manifest.json'
+                    timeoutSeconds=120
+                }))
+                $portableManifestGuestHash = [string](Get-HcrPropertyValue $manifestStage 'guestSha256')
+                $portableManifestGuestSize = [int64](Get-HcrPropertyValue $manifestStage 'bytesCopied')
+                $operation.portableManifestGuestSizeBytes = $portableManifestGuestSize
+                $operation.portableManifestGuestSha256 = $portableManifestGuestHash
+                $context.portableManifest = [pscustomobject][ordered]@{
+                    guestDestination = [string](Get-HcrPropertyValue $manifestStage 'guestDestination')
+                    sourceSizeBytes = [int64]$externalManifest.sizeBytes
+                    guestSizeBytes = $portableManifestGuestSize
+                    sourceSha256 = [string]$externalManifest.sha256
+                    guestSha256 = $portableManifestGuestHash
+                    document = Copy-HcrObject $externalManifest.document
+                    inventory = Copy-HcrObject $externalManifest.inventory
+                }
+                if ($portableManifestGuestHash -cne [string]$externalManifest.sha256 -or
+                    $portableManifestGuestSize -ne [int64]$externalManifest.sizeBytes) {
+                    $manifestStatus = 'failed'
+                    $stageStatus = 'failed'
+                    $stageSummary = 'External portable manifest staging did not preserve independent size and hash identity.'
+                }
+            }
+            catch {
+                $manifestStatus = 'failed'
+                $stageStatus = 'failed'
+                $manifestFailure = Get-HcrExceptionData $_.Exception
+                $stageSummary = "External portable manifest staging failed through the fixed adapter: $($manifestFailure.code)."
+            }
+        }
+        $artifactEvidence.Add([pscustomobject][ordered]@{
+            role='portableManifest'; id='portable-manifest'
+            fileName=[string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestRelativePath')
+            sizeBytes=[int64]$externalManifest.sizeBytes
+            sourceSha256=[string]$externalManifest.sha256
+            guestSha256=$portableManifestGuestHash; status=$manifestStatus
+        })
+    }
     foreach ($fixture in $fixtures) {
         $declaration = $fixture.declaration
         $fixtureId = [string](Get-HcrPropertyValue $declaration 'id')
@@ -411,6 +555,19 @@ function Invoke-HcrRunTestProfileV2 {
             }
         }
         $artifactEvidence.Add([pscustomobject][ordered]@{ role='fixture'; id=$fixtureId; fileName=$fixture.item.Name; sizeBytes=[int64]$fixture.item.Length; sourceSha256=$fixture.sha256; guestSha256=$fixtureGuestHash; status=$fixtureStatus })
+        if ($externalPortable) {
+            $fixtureIdentities.Add([pscustomobject][ordered]@{
+                id=$fixtureId
+                sourceRelativePath=[string](Get-HcrPropertyValue $declaration 'sourceRelativePath')
+                profileSizeBytes=[int64](Get-HcrPropertyValue $declaration 'sizeBytes')
+                sourceSizeBytes=[int64]$fixture.item.Length
+                guestSizeBytes=$(if($null -eq $fixtureGuestHash){$null}else{[int64]$fixture.item.Length})
+                profileSha256=[string](Get-HcrPropertyValue $declaration 'sha256')
+                sourceSha256=[string]$fixture.sha256
+                guestSha256=$fixtureGuestHash
+                status=$fixtureStatus
+            })
+        }
     }
     $automatic.Add((New-HcrV2AutomaticAssertion ([string](Get-HcrPropertyValue $steps[0] 'id')) $true $stageStatus $stageSummary $stageMachineEvidence))
     $tokenOk = -not $guest.isAdministrator -and -not $guest.isElevated -and $guest.tokenIntegrity -eq 'medium'
@@ -418,9 +575,15 @@ function Invoke-HcrRunTestProfileV2 {
     $cleanupTriggered = $stageStatus -ne 'passed' -or -not $tokenOk -or @($artifactEvidence | Where-Object { $_.status -ne 'passed' }).Count -gt 0
     $deploymentId = [Guid]::Empty.ToString(); $deploymentFingerprint = ('0' * 64)
     $previousInventory = $null; $deployedInventory = ('0' * 64); $dataPreserved = $false
-    $portableManifestGuestHash = $null; $driverArchiveGuestHash = $null; $driverExecutableGuestHash = $null
-    $fixedWebView2Version = [string](Get-HcrPropertyValue $webDriver 'browserVersion')
-    $driverVerified = $false; $loopbackOnly = $false; $deployStatus = 'notPerformed'
+    $driverArchiveGuestHash = $null; $driverExecutableGuestHash = $null
+    $uiRequired = [bool]$context.uiRequired
+    $fixedWebView2Version = if ($uiRequired) {
+        [string](Get-HcrPropertyValue $webDriver 'browserVersion')
+    } else { $null }
+    $driverVerified = -not $uiRequired; $loopbackOnly = -not $uiRequired; $deployStatus = 'notPerformed'
+    $deploymentSlotId = $null; $deployedEntrypoint = $null
+    $deployedPayloadSha256 = $artifactHash
+    $deployedPayloadSizeBytes = [int64]$artifactItem.Length
     $uiSessionStarted = $false; $uiSessionStopped = $false
     $uiSessionStopSummary = $null; $uiSessionStopEvidence = $null
     for ($index=1; $index -lt $steps.Count; $index++) {
@@ -436,11 +599,30 @@ function Invoke-HcrRunTestProfileV2 {
             $uiSessionStopEvidence = $machineEvidence
         }
         if ($status -eq 'passed' -and $type -eq 'deployPortable') {
-            $portableManifestGuestHash = [string](Get-HcrPropertyValue $machineEvidence 'portableManifestSha256')
-            $fixedWebView2Version = [string](Get-HcrPropertyValue $machineEvidence 'fixedWebView2Version')
-            if ($portableManifestGuestHash -ne [string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSha256') -or
-                $fixedWebView2Version -ne [string](Get-HcrPropertyValue $webDriver 'browserVersion')) {
-                $status = 'failed'; $summary = 'The deployed portable manifest hash or fixed WebView2 version did not match the immutable profile.'
+            $workerManifestHash = [string](Get-HcrPropertyValue $machineEvidence 'portableManifestSha256')
+            if (-not $externalPortable) { $portableManifestGuestHash = $workerManifestHash }
+            $fixedWebView2Version = if ($uiRequired) {
+                [string](Get-HcrPropertyValue $machineEvidence 'fixedWebView2Version')
+            } else { $null }
+            $expectedBrowserVersion = if ($uiRequired) {
+                [string](Get-HcrPropertyValue $webDriver 'browserVersion')
+            } else { '' }
+            if ($workerManifestHash -cne [string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSha256') -or
+                ($uiRequired -and $fixedWebView2Version -cne $expectedBrowserVersion) -or
+                (-not $uiRequired -and -not [string]::IsNullOrEmpty($fixedWebView2Version))) {
+                $status = 'failed'; $summary = 'The deployed portable manifest or conditional UI identity did not match the immutable profile.'
+            }
+            if ($externalPortable -and (
+                    [int64](Get-HcrPropertyValue $machineEvidence 'portableManifestGuestSizeBytes' -1) -ne
+                        [int64]$externalManifest.sizeBytes -or
+                    [string](Get-HcrPropertyValue $machineEvidence 'portableInventorySha256') -cne
+                        [string](Get-HcrPropertyValue $externalManifest.inventory 'sha256') -or
+                    [int](Get-HcrPropertyValue $machineEvidence 'portableInventoryFileCount' -1) -ne
+                        [int](Get-HcrPropertyValue $externalManifest.inventory 'fileCount') -or
+                    [int64](Get-HcrPropertyValue $machineEvidence 'portableInventorySizeBytes' -1) -ne
+                        [int64](Get-HcrPropertyValue $externalManifest.inventory 'payloadSizeBytes'))) {
+                $status = 'failed'
+                $summary = 'The deployed external portable inventory did not rebind to the validated sidecar.'
             }
         }
         if ($status -eq 'passed' -and $type -eq 'acquireWebDriver') {
@@ -465,6 +647,12 @@ function Invoke-HcrRunTestProfileV2 {
             $previousInventory = Get-HcrPropertyValue $machineEvidence 'previousDataInventorySha256'
             $deployedInventory = [string](Get-HcrPropertyValue $machineEvidence 'deployedDataInventorySha256')
             $dataPreserved = [bool](Get-HcrPropertyValue $machineEvidence 'dataPreserved' $false)
+            $deploymentSlotId = Get-HcrPropertyValue $machineEvidence 'deploymentSlotId'
+            $deployedEntrypoint = Get-HcrPropertyValue $machineEvidence 'entrypoint'
+            if ($externalPortable) {
+                $deployedPayloadSha256 = [string](Get-HcrPropertyValue $machineEvidence 'portableInventorySha256')
+                $deployedPayloadSizeBytes = [int64](Get-HcrPropertyValue $machineEvidence 'portableInventorySizeBytes')
+            }
         }
         if ($status -eq 'passed' -and $type -eq 'acquireWebDriver') { $driverVerified = $true }
         if ($script:HcrV2UiStepTypes -contains $type) { $uiTrace.Add([pscustomobject][ordered]@{ stepId=[string](Get-HcrPropertyValue $step 'id'); stepType=$type; testId=$(if(Test-HcrProperty $step 'testId'){[string](Get-HcrPropertyValue $step 'testId')}else{$null}); status=$status; summary=$summary; observations=@(ConvertTo-HcrV2Observations $machineEvidence) }) }
@@ -506,11 +694,21 @@ function Invoke-HcrRunTestProfileV2 {
     }
     $manifestHash=[string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSha256')
     $driverStatus = if ($driverVerified) { 'passed' } else { 'notPerformed' }
-    $artifactEvidence.Add([pscustomobject][ordered]@{ role='portableManifest'; id='portable-manifest'; fileName='portable-manifest.json'; sizeBytes=0; sourceSha256=$manifestHash; guestSha256=$(if($deployStatus -eq 'passed'){$portableManifestGuestHash}else{$null}); status=$deployStatus })
-    $driverArchive=Get-HcrPropertyValue $webDriver 'acquisition'; $driverExecutable=Get-HcrPropertyValue $webDriver 'executable'
-    $artifactEvidence.Add([pscustomobject][ordered]@{ role='webDriverArchive'; id='webdriver-archive'; fileName=[string](Get-HcrPropertyValue $driverArchive 'archiveFileName'); sizeBytes=[int64](Get-HcrPropertyValue $driverArchive 'archiveSizeBytes'); sourceSha256=[string](Get-HcrPropertyValue $driverArchive 'archiveSha256'); guestSha256=$(if($driverVerified){$driverArchiveGuestHash}else{$null}); status=$driverStatus })
-    $artifactEvidence.Add([pscustomobject][ordered]@{ role='webDriverExecutable'; id='webdriver-executable'; fileName='msedgedriver.exe'; sizeBytes=[int64](Get-HcrPropertyValue $driverExecutable 'sizeBytes'); sourceSha256=[string](Get-HcrPropertyValue $driverExecutable 'sha256'); guestSha256=$(if($driverVerified){$driverExecutableGuestHash}else{$null}); status=$driverStatus })
-    $artifactEvidence.Add([pscustomobject][ordered]@{ role='deployedPayload'; id='deployed-payload'; fileName=$artifactItem.Name; sizeBytes=[int64]$artifactItem.Length; sourceSha256=$artifactHash; guestSha256=$(if($deployStatus -eq 'passed'){$artifactHash}else{$null}); status=$deployStatus })
+    if (-not $externalPortable) {
+        $artifactEvidence.Add([pscustomobject][ordered]@{ role='portableManifest'; id='portable-manifest'; fileName='portable-manifest.json'; sizeBytes=0; sourceSha256=$manifestHash; guestSha256=$(if($deployStatus -eq 'passed'){$portableManifestGuestHash}else{$null}); status=$deployStatus })
+    }
+    if ($uiRequired) {
+        $driverArchive=Get-HcrPropertyValue $webDriver 'acquisition'; $driverExecutable=Get-HcrPropertyValue $webDriver 'executable'
+        $artifactEvidence.Add([pscustomobject][ordered]@{ role='webDriverArchive'; id='webdriver-archive'; fileName=[string](Get-HcrPropertyValue $driverArchive 'archiveFileName'); sizeBytes=[int64](Get-HcrPropertyValue $driverArchive 'archiveSizeBytes'); sourceSha256=[string](Get-HcrPropertyValue $driverArchive 'archiveSha256'); guestSha256=$(if($driverVerified){$driverArchiveGuestHash}else{$null}); status=$driverStatus })
+        $artifactEvidence.Add([pscustomobject][ordered]@{ role='webDriverExecutable'; id='webdriver-executable'; fileName='msedgedriver.exe'; sizeBytes=[int64](Get-HcrPropertyValue $driverExecutable 'sizeBytes'); sourceSha256=[string](Get-HcrPropertyValue $driverExecutable 'sha256'); guestSha256=$(if($driverVerified){$driverExecutableGuestHash}else{$null}); status=$driverStatus })
+    }
+    $artifactEvidence.Add([pscustomobject][ordered]@{
+        role='deployedPayload'; id='deployed-payload'
+        fileName=$(if($externalPortable){'payload.inventory.json'}else{$artifactItem.Name})
+        sizeBytes=$deployedPayloadSizeBytes; sourceSha256=$deployedPayloadSha256
+        guestSha256=$(if($deployStatus -eq 'passed'){$deployedPayloadSha256}else{$null})
+        status=$deployStatus
+    })
     $operation.cleanupTriggered=$cleanupTriggered
     $operation.automaticAssertions=@($automatic | ForEach-Object { $_ })
     Save-HcrOperationRecord $operation
@@ -528,21 +726,114 @@ function Invoke-HcrRunTestProfileV2 {
         else{$cleanupResults.Add((New-HcrV2CleanupResult $OperationId $operation.profileId $step 'notPerformed' 'Cleanup was not triggered.' $null))}
     }
     $manual=@(@((Get-HcrPropertyValue $profile 'manualAssertions'))|ForEach-Object{[pscustomobject][ordered]@{id=[string](Get-HcrPropertyValue $_ 'id');required=[bool](Get-HcrPropertyValue $_ 'required');description=[string](Get-HcrPropertyValue $_ 'description');status='notPerformed';attestation=$null}})
-    $machineStatus=if($cleanupTriggered -or -not $dataPreserved -or -not $driverVerified -or @($automatic|Where-Object{$_.required -and $_.status -ne 'passed'}).Count -gt 0){'failed'}else{'passed'}
+    $machineStatus=if($cleanupTriggered -or -not $dataPreserved -or
+        ($uiRequired -and -not $driverVerified) -or
+        @($automatic|Where-Object{$_.required -and $_.status -ne 'passed'}).Count -gt 0){'failed'}else{'passed'}
     $overallStatus=if($machineStatus -eq 'failed'){'failed'}elseif(@($manual|Where-Object{$_.required -and $_.status -ne 'passed'}).Count -gt 0){'incomplete'}else{'passed'}
-    $candidate=[pscustomobject][ordered]@{sourceCommit=$candidateSourceCommit;portableZipSha256=$artifactHash;profileSha256=$profileSha;fixtureSetSha256=$fixtureSetSha;webDriverManifestSha256=$webDriverSha}
+    $candidate = if ($externalPortable) {
+        $manifestDocument = $externalManifest.document
+        [pscustomobject][ordered]@{
+            sourceCommit=$candidateSourceCommit
+            runtimeSourceCommit=[string](Get-HcrPropertyValue $manifestDocument 'runtimeSourceCommit')
+            runtimeSourceTree=[string](Get-HcrPropertyValue $manifestDocument 'runtimeSourceTree')
+            packagingCommit=[string](Get-HcrPropertyValue $manifestDocument 'packagingCommit')
+            packagingTree=[string](Get-HcrPropertyValue $manifestDocument 'packagingTree')
+            portableZipFileName=$artifactItem.Name
+            portableZipSizeBytes=[int64]$artifactItem.Length
+            portableZipSha256=$artifactHash
+            portableZipSourceSha256=$artifactHash
+            portableZipGuestSha256=$artifactGuestHash
+            profileSha256=$profileSha
+            requiredDistributionBoundary=[string](Get-HcrPropertyValue $artifactDeclaration 'requiredDistributionBoundary')
+            portableManifestDistributionBoundary=[string](Get-HcrPropertyValue $manifestDocument 'distributionBoundary')
+            portableManifestSource='externalProfileRelative'
+            portableManifestRelativePath=[string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestRelativePath')
+            portableManifestSizeBytes=[int64](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSizeBytes')
+            portableManifestSourceSizeBytes=[int64]$externalManifest.sizeBytes
+            portableManifestGuestSizeBytes=$portableManifestGuestSize
+            portableManifestSha256=$manifestHash
+            portableManifestSourceSha256=[string]$externalManifest.sha256
+            portableManifestGuestSha256=$portableManifestGuestHash
+            portableInventoryFileCount=[int](Get-HcrPropertyValue $externalManifest.inventory 'fileCount')
+            portableInventorySizeBytes=[int64](Get-HcrPropertyValue $externalManifest.inventory 'payloadSizeBytes')
+            portableInventorySha256=[string](Get-HcrPropertyValue $externalManifest.inventory 'sha256')
+            documentationSourceCommit=[string](Get-HcrPropertyValue $manifestDocument 'documentationSourceCommit')
+            documentationSourceTree=[string](Get-HcrPropertyValue $manifestDocument 'documentationSourceTree')
+            documentationFileCount=[int](Get-HcrPropertyValue $manifestDocument 'documentationFileCount')
+            documentationPayloadSize=[int64](Get-HcrPropertyValue $manifestDocument 'documentationPayloadSize')
+            documentationInventoryDigest=[string](Get-HcrPropertyValue $manifestDocument 'documentationInventoryDigest')
+            oldRuntimeInventoryDigest=[string](Get-HcrPropertyValue $manifestDocument 'oldRuntimeInventoryDigest')
+            newRuntimeInventoryDigest=[string](Get-HcrPropertyValue $manifestDocument 'newRuntimeInventoryDigest')
+            fixtureSetSha256=$fixtureSetSha
+            webDriverManifestSha256=$webDriverSha
+        }
+    }
+    else {
+        [pscustomobject][ordered]@{sourceCommit=$candidateSourceCommit;portableZipSha256=$artifactHash;profileSha256=$profileSha;fixtureSetSha256=$fixtureSetSha;webDriverManifestSha256=$webDriverSha}
+    }
     $evidenceWarnings = [object[]]@()
     if ((Get-HcrAdapterMode) -eq 'mock') { $evidenceWarnings = [object[]]@([string]$script:HcrMockWarning) }
+    $guestEvidence = Copy-HcrObject $guest
+    if ($externalPortable) {
+        $orchestration = Get-HcrPropertyValue $guestRaw 'orchestration'
+        if ($null -eq $orchestration -and (Get-HcrAdapterMode) -eq 'mock') {
+            $orchestration = [pscustomobject][ordered]@{
+                userSid='S-1-5-21-1000-1000-1000-500'; isAdministrator=$true
+                isElevated=$true; tokenIntegrity='high'
+            }
+        }
+        $orchestrationSid = [string](Get-HcrPropertyValue $orchestration 'userSid')
+        if ($null -eq $orchestration -or
+            $orchestrationSid -notmatch '^S-1-[0-9-]+$' -or
+            $orchestrationSid -eq [string](Get-HcrPropertyValue $guest 'userSid') -or
+            -not [bool](Get-HcrPropertyValue $orchestration 'isAdministrator' $false) -or
+            -not [bool](Get-HcrPropertyValue $orchestration 'isElevated' $false) -or
+            @('high','system') -notcontains
+                [string](Get-HcrPropertyValue $orchestration 'tokenIntegrity')) {
+            Throw-HcrError 'GUEST_IDENTITY_INVALID' 'External evidence requires a distinct elevated orchestration identity.'
+        }
+        $guestEvidence | Add-Member -NotePropertyName orchestration `
+            -NotePropertyValue (Copy-HcrObject $orchestration) -Force
+    }
+    $profileEvidence = [pscustomobject][ordered]@{
+        id=$operation.profileId; schemaVersion=2; sha256=$profileSha
+    }
+    if ($externalPortable) {
+        $profileEvidence | Add-Member -NotePropertyName fixtureIds -NotePropertyValue @(
+            @((Get-HcrPropertyValue $profile 'fixtures' @())) | ForEach-Object {
+                [string](Get-HcrPropertyValue $_ 'id')
+            }
+        ) -Force
+    }
+    $automationEvidence = [pscustomobject][ordered]@{
+        deploymentId=$deploymentId;deploymentFingerprint=$deploymentFingerprint
+        dataPreserved=$dataPreserved;previousDataInventorySha256=$previousInventory
+        deployedDataInventorySha256=$deployedInventory;webDriverManifestSha256=$webDriverSha
+        fixedWebView2Version=$fixedWebView2Version
+        webDriverVersion=$(if($uiRequired){[string](Get-HcrPropertyValue $webDriver 'driverVersion')}else{$null})
+        loopbackOnly=$loopbackOnly;uiTrace=@($uiTrace | ForEach-Object { $_ })
+    }
+    if ($externalPortable) {
+        $automationEvidence | Add-Member -NotePropertyName deploymentSlotId -NotePropertyValue $deploymentSlotId -Force
+        $automationEvidence | Add-Member -NotePropertyName entrypoint -NotePropertyValue $deployedEntrypoint -Force
+        $automationEvidence | Add-Member -NotePropertyName uiRequired -NotePropertyValue $uiRequired -Force
+    }
     $evidence=[pscustomobject][ordered]@{
         schemaVersion=2;operationId=$OperationId;createdAt=Get-HcrUtcTimestamp
-        profile=[pscustomobject][ordered]@{id=$operation.profileId;schemaVersion=2;sha256=$profileSha};candidate=$candidate
-        runtime=[pscustomobject][ordered]@{pluginVersion='0.2.0';sourceCommit=$runtimeSourceCommit;adapterMode=$(if((Get-HcrAdapterMode)-eq'mock'){'mock'}else{'production'})}
+        profile=$profileEvidence;candidate=$candidate
+        runtime=$(if($externalPortable){$runtimeIdentity}else{[pscustomobject][ordered]@{pluginVersion='0.2.0';sourceCommit=$runtimeSourceCommit;adapterMode=$(if((Get-HcrAdapterMode)-eq'mock'){'mock'}else{'production'})}})
         baselineType=$operation.baselineType
         vm=[pscustomobject][ordered]@{id=$operation.vmId;name=$vmName;checkpointId=$null;checkpointName=$null;ownershipId=[string](Get-HcrPropertyValue $owned.ownership 'ownershipId');ownershipVerified=$true;fingerprint=Get-HcrVmFingerprint $owned.vm}
-        guest=$guest;artifacts=@($artifactEvidence | ForEach-Object { $_ });automation=[pscustomobject][ordered]@{deploymentId=$deploymentId;deploymentFingerprint=$deploymentFingerprint;dataPreserved=$dataPreserved;previousDataInventorySha256=$previousInventory;deployedDataInventorySha256=$deployedInventory;webDriverManifestSha256=$webDriverSha;fixedWebView2Version=$fixedWebView2Version;webDriverVersion=[string](Get-HcrPropertyValue $webDriver 'driverVersion');loopbackOnly=$loopbackOnly;uiTrace=@($uiTrace | ForEach-Object { $_ })}
+        guest=$guestEvidence;artifacts=@($artifactEvidence | ForEach-Object { $_ });automation=$automationEvidence
         powerOperations=@();networkOperations=@();networkRecovery=[pscustomobject][ordered]@{required=$false;changePlanId=$null;recoveryPlanId=$null;recoveryOperationId=$null;status='notPerformed';initialFingerprint=$null;finalFingerprint=$null}
         automaticAssertions=@($automatic | ForEach-Object { $_ });manualAssertions=$manual;cleanupTriggered=$cleanupTriggered;cleanupResults=@($cleanupResults | ForEach-Object { $_ });machineStatus=$machineStatus;overallStatus=$overallStatus
         warnings=$evidenceWarnings
+    }
+    if ($externalPortable) {
+        $evidence | Add-Member -NotePropertyName evidenceKind -NotePropertyValue 'externalPortable' -Force
+        $evidence | Add-Member -NotePropertyName fixtureIdentities -NotePropertyValue @(
+            $fixtureIdentities | ForEach-Object { $_ }
+        ) -Force
     }
     [void](Write-HcrOperationEvidence $operation $evidence);$operation.evidenceSha256=Get-HcrEvidenceDocumentDigest $evidence;Save-HcrOperationRecord $operation
     return [pscustomobject][ordered]@{changed=$true;data=[pscustomobject][ordered]@{testOperationId=$OperationId;profileId=$operation.profileId;machineStatus=$machineStatus;overallStatus=$overallStatus;cleanupTriggered=$cleanupTriggered;automaticAssertions=@($automatic | ForEach-Object { $_ });manualAssertions=$manual;cleanupResults=@($cleanupResults | ForEach-Object { $_ })};warnings=@('Evidence remains in a server-controlled staging root until collect_evidence exports it.')}

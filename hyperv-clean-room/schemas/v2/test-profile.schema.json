@@ -77,7 +77,6 @@
         "required": ["workflowKind"]
       },
       "then": {
-        "required": ["webDriver"],
         "properties": {
           "artifact": { "$ref": "#/$defs/portableArtifact" },
           "applications": {
@@ -126,6 +125,81 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "artifact": {
+            "properties": {
+              "portableManifestSource": {
+                "const": "externalProfileRelative"
+              }
+            },
+            "required": ["portableManifestSource"]
+          }
+        },
+        "required": ["artifact"]
+      },
+      "then": {
+        "if": {
+          "anyOf": [
+            {
+              "properties": {
+                "steps": {
+                  "contains": {
+                    "properties": {
+                      "type": {
+                        "enum": [
+                          "acquireWebDriver",
+                          "startUiSession",
+                          "stopUiSession",
+                          "uiClick",
+                          "uiSetText",
+                          "uiPressKey",
+                          "uiSelectOption",
+                          "uiUploadFixture",
+                          "assertUiElement",
+                          "captureUiScreenshot"
+                        ]
+                      }
+                    },
+                    "required": ["type"]
+                  }
+                }
+              },
+              "required": ["steps"]
+            },
+            {
+              "properties": {
+                "cleanupSteps": {
+                  "contains": {
+                    "properties": {
+                      "type": {
+                        "enum": ["stopUiSession", "captureUiScreenshot"]
+                      }
+                    },
+                    "required": ["type"]
+                  }
+                }
+              },
+              "required": ["cleanupSteps"]
+            }
+          ]
+        },
+        "then": { "required": ["webDriver"] },
+        "else": { "not": { "required": ["webDriver"] } }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "artifact": {
+            "required": ["portableManifestEntryPath"]
+          }
+        },
+        "required": ["artifact"]
+      },
+      "then": { "required": ["webDriver"] }
     }
   ],
   "$defs": {
@@ -147,7 +221,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 512,
-      "pattern": "^(?![A-Za-z]:)(?![\\\\/])(?!.*:)(?!.*%)(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$))(?!.*[. ](?:[\\\\/]|$)).+$"
+      "pattern": "^(?![A-Za-z]:)(?![\\\\/])(?!.*:)(?!.*%)(?!.*[\\u0000-\\u001F\\u007F])(?!(?:.*[\\\\/])?(?:[cC][oO][nN]|[pP][rR][nN]|[aA][uU][xX]|[nN][uU][lL]|[cC][oO][mM](?:[1-9]|[¹²³])|[lL][pP][tT](?:[1-9]|[¹²³])|[cC][oO][nN](?:[iI][nN]|[oO][uU][tT])\\$)(?:\\.[^\\\\/]*)?(?:[\\\\/]|$))(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$))(?!.*[. ](?:[\\\\/]|$)).+$"
     },
     "installerArtifact": {
       "type": "object",
@@ -167,6 +241,12 @@
       }
     },
     "portableArtifact": {
+      "oneOf": [
+        { "$ref": "#/$defs/embeddedPortableArtifact" },
+        { "$ref": "#/$defs/externalPortableArtifact" }
+      ]
+    },
+    "embeddedPortableArtifact": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -190,6 +270,52 @@
         "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "sizeBytes": { "type": "integer", "minimum": 1, "maximum": 8589934592 },
         "portableManifestEntryPath": { "const": "portable-manifest.json" },
+        "portableManifestSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "externalPortableArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageKind",
+        "fileNamePattern",
+        "architecture",
+        "sha256",
+        "sizeBytes",
+        "requiredDistributionBoundary",
+        "portableManifestSource",
+        "portableManifestRelativePath",
+        "portableManifestSizeBytes",
+        "portableManifestSha256"
+      ],
+      "properties": {
+        "packageKind": { "const": "portableZip" },
+        "fileNamePattern": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 260,
+          "pattern": "^(?!(?:[cC][oO][nN]|[pP][rR][nN]|[aA][uU][xX]|[nN][uU][lL]|[cC][oO][mM](?:[1-9]|[¹²³])|[lL][pP][tT](?:[1-9]|[¹²³])|[cC][oO][nN](?:[iI][nN]|[oO][uU][tT])\\$)(?:\\.|$))(?!.*[\\u0000-\\u001F\\u007F<>:\"|?*%])[^\\\\/]+\\.[zZ][iI][pP]$"
+        },
+        "architecture": { "const": "x64" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8589934592
+        },
+        "requiredDistributionBoundary": { "const": "end-user-complete" },
+        "portableManifestSource": { "const": "externalProfileRelative" },
+        "portableManifestRelativePath": {
+          "$ref": "#/$defs/safeRelativePath"
+        },
+        "portableManifestSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
         "portableManifestSha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"

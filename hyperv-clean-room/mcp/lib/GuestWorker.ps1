@@ -182,6 +182,155 @@ function Get-WorkerSha256File {
     }
 }
 
+function Skip-WorkerStrictJsonWhitespace {
+    param([string]$Text, [ref]$Index)
+    while ($Index.Value -lt $Text.Length -and
+        @(' ', "`t", "`r", "`n") -contains [string]$Text[$Index.Value]) {
+        $Index.Value++
+    }
+}
+
+function Read-WorkerStrictJsonString {
+    param([string]$Text, [ref]$Index)
+    if ($Index.Value -ge $Text.Length -or $Text[$Index.Value] -ne '"') {
+        Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON expected a string token.'
+    }
+    $Index.Value++
+    $builder = New-Object Text.StringBuilder
+    while ($Index.Value -lt $Text.Length) {
+        $character = $Text[$Index.Value++]
+        if ($character -eq '"') { return $builder.ToString() }
+        if ([int]$character -lt 32) {
+            Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON contains a control character.'
+        }
+        if ($character -ne '\') {
+            [void]$builder.Append($character)
+            continue
+        }
+        if ($Index.Value -ge $Text.Length) {
+            Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON contains an incomplete escape.'
+        }
+        $escaped = $Text[$Index.Value++]
+        switch ($escaped) {
+            '"' { [void]$builder.Append('"') }
+            '\' { [void]$builder.Append('\') }
+            '/' { [void]$builder.Append('/') }
+            'b' { [void]$builder.Append("`b") }
+            'f' { [void]$builder.Append("`f") }
+            'n' { [void]$builder.Append("`n") }
+            'r' { [void]$builder.Append("`r") }
+            't' { [void]$builder.Append("`t") }
+            'u' {
+                if ($Index.Value + 4 -gt $Text.Length) {
+                    Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON contains an incomplete Unicode escape.'
+                }
+                $hex = $Text.Substring($Index.Value, 4)
+                if ($hex -notmatch '^[0-9a-fA-F]{4}$') {
+                    Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON contains an invalid Unicode escape.'
+                }
+                [void]$builder.Append([char][Convert]::ToInt32($hex, 16))
+                $Index.Value += 4
+            }
+            default {
+                Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON contains an invalid escape.'
+            }
+        }
+    }
+    Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON contains an unterminated string.'
+}
+
+function Assert-WorkerStrictJsonValue {
+    param([string]$Text, [ref]$Index)
+    Skip-WorkerStrictJsonWhitespace $Text $Index
+    if ($Index.Value -ge $Text.Length) {
+        Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON ended before a value.'
+    }
+    if ($Text[$Index.Value] -eq '{') {
+        $Index.Value++
+        $names = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+        Skip-WorkerStrictJsonWhitespace $Text $Index
+        if ($Index.Value -lt $Text.Length -and $Text[$Index.Value] -eq '}') {
+            $Index.Value++
+            return
+        }
+        while ($true) {
+            Skip-WorkerStrictJsonWhitespace $Text $Index
+            $name = Read-WorkerStrictJsonString $Text $Index
+            if (-not $names.Add($name)) {
+                Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON contains a duplicate property.'
+            }
+            Skip-WorkerStrictJsonWhitespace $Text $Index
+            if ($Index.Value -ge $Text.Length -or $Text[$Index.Value] -ne ':') {
+                Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON expected a property separator.'
+            }
+            $Index.Value++
+            Assert-WorkerStrictJsonValue $Text $Index
+            Skip-WorkerStrictJsonWhitespace $Text $Index
+            if ($Index.Value -lt $Text.Length -and $Text[$Index.Value] -eq ',') {
+                $Index.Value++
+                continue
+            }
+            if ($Index.Value -lt $Text.Length -and $Text[$Index.Value] -eq '}') {
+                $Index.Value++
+                return
+            }
+            Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON expected the end of an object.'
+        }
+    }
+    if ($Text[$Index.Value] -eq '[') {
+        $Index.Value++
+        Skip-WorkerStrictJsonWhitespace $Text $Index
+        if ($Index.Value -lt $Text.Length -and $Text[$Index.Value] -eq ']') {
+            $Index.Value++
+            return
+        }
+        while ($true) {
+            Assert-WorkerStrictJsonValue $Text $Index
+            Skip-WorkerStrictJsonWhitespace $Text $Index
+            if ($Index.Value -lt $Text.Length -and $Text[$Index.Value] -eq ',') {
+                $Index.Value++
+                continue
+            }
+            if ($Index.Value -lt $Text.Length -and $Text[$Index.Value] -eq ']') {
+                $Index.Value++
+                return
+            }
+            Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON expected the end of an array.'
+        }
+    }
+    if ($Text[$Index.Value] -eq '"') {
+        [void](Read-WorkerStrictJsonString $Text $Index)
+        return
+    }
+    $tail = $Text.Substring($Index.Value)
+    $match = [regex]::Match($tail, '^(?:true|false|null|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)')
+    if (-not $match.Success) {
+        Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'Strict JSON contains an invalid scalar.'
+    }
+    $Index.Value += $match.Length
+}
+
+function ConvertFrom-WorkerStrictJsonBytes {
+    param([Parameter(Mandatory = $true)][byte[]]$Bytes)
+    if ($Bytes.Length -ge 3 -and $Bytes[0] -eq 0xEF -and
+        $Bytes[1] -eq 0xBB -and $Bytes[2] -eq 0xBF) {
+        Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The external sidecar has a UTF-8 BOM.'
+    }
+    if ([Array]::IndexOf($Bytes, [byte]0) -ge 0) {
+        Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The external sidecar contains a NUL byte.'
+    }
+    try { $text = (New-Object Text.UTF8Encoding($false, $true)).GetString($Bytes) }
+    catch { Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The external sidecar is not strict UTF-8.' }
+    $index = 0
+    Assert-WorkerStrictJsonValue $text ([ref]$index)
+    Skip-WorkerStrictJsonWhitespace $text ([ref]$index)
+    if ($index -ne $text.Length) {
+        Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The external sidecar contains trailing JSON data.'
+    }
+    try { return $text | ConvertFrom-Json -ErrorAction Stop }
+    catch { Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The external sidecar JSON could not be decoded.' }
+}
+
 function Test-WorkerSafeRelativePath {
     param([AllowNull()][object]$Value)
 
@@ -554,6 +703,37 @@ function Resolve-WorkerStagedArtifact {
     return $path
 }
 
+function Resolve-WorkerStagedPortableManifest {
+    param(
+        [Parameter(Mandatory = $true)][object]$Input,
+        [Parameter(Mandatory = $true)][string]$OperationId
+    )
+    $manifest = Get-WorkerProperty $Input 'portableManifest'
+    $destination = ([string](Get-WorkerProperty $manifest 'guestDestination')).Replace('/', '\')
+    $prefix = "operations\$OperationId\"
+    if (-not $destination.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+        Throw-WorkerError 'PORTABLE_MANIFEST_SCOPE_INVALID' 'The staged sidecar is not bound to this operation.'
+    }
+    $relative = $destination.Substring($prefix.Length)
+    $stagingRoot = Join-Path (Get-WorkerOperationRoot $OperationId) 'staging'
+    $path = Resolve-WorkerPath $stagingRoot $relative
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The operation-scoped staged sidecar is missing.'
+    }
+    $item = Get-Item -LiteralPath $path -Force
+    if ($item.PSIsContainer -or
+        ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+        [int64]$item.Length -ne [int64](Get-WorkerProperty $manifest 'guestSizeBytes') -or
+        [int64]$item.Length -gt 16MB) {
+        Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The staged sidecar type or size changed.'
+    }
+    $hash = Get-WorkerSha256File $path
+    if ($hash -cne [string](Get-WorkerProperty $manifest 'guestSha256')) {
+        Throw-WorkerError 'PORTABLE_MANIFEST_HASH_MISMATCH' 'The staged sidecar hash changed before deployment.'
+    }
+    return [pscustomobject][ordered]@{ path=$path; item=$item; sha256=$hash }
+}
+
 function Test-WorkerExpectedPresence {
     param(
         [Parameter(Mandatory = $true)][object]$Step,
@@ -747,9 +927,11 @@ function Test-WorkerPortableRelativePath {
         if ($segment.EndsWith('.') -or $segment.EndsWith(' ') -or
             $segment.IndexOfAny([IO.Path]::GetInvalidFileNameChars()) -ge 0) { return $false }
         $stem = ($segment -split '\.')[0]
-        if ($stem -match '^(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$') { return $false }
+        if ($stem -match '^(?i:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9\u00B9\u00B2\u00B3]|LPT[1-9\u00B9\u00B2\u00B3])$') {
+            return $false
+        }
         foreach ($character in $segment.ToCharArray()) {
-            if ([int]$character -lt 32) { return $false }
+            if ([int]$character -lt 32 -or [int]$character -eq 127) { return $false }
         }
     }
     return $true
@@ -858,6 +1040,86 @@ function Read-WorkerPortableManifest {
         [Parameter(Mandatory = $true)][object]$Input
     )
 
+    if ([bool](Get-WorkerProperty $Input 'externalPortable' $false)) {
+        $forbidden = @(
+            'portable-manifest.json', 'SHA256SUMS', 'SBOM.cdx.json',
+            'licenses/SBOM.cdx.json'
+        )
+        foreach ($entry in @($Archive.Entries)) {
+            $entryPath = ([string]$entry.FullName).Replace('\', '/').TrimEnd('/')
+            if ($forbidden -contains $entryPath -or
+                $entryPath -ieq 'data' -or
+                $entryPath.StartsWith('data/', [StringComparison]::OrdinalIgnoreCase)) {
+                Throw-WorkerError 'PORTABLE_ARCHIVE_UNDECLARED_ENTRY' 'The external archive contains a forbidden sidecar, companion, or mutable-data entry.'
+            }
+        }
+        $staged = Resolve-WorkerStagedPortableManifest $Input (
+            [string](Get-WorkerProperty $Input 'operationId')
+        )
+        $bytes = [IO.File]::ReadAllBytes([string]$staged.path)
+        $manifest = ConvertFrom-WorkerStrictJsonBytes $bytes
+        $bound = Get-WorkerProperty (Get-WorkerProperty $Input 'portableManifest') 'document'
+        $required = @(
+            'schemaVersion','packageKind','distributionBoundary','fileName',
+            'version','architecture','entrypoint','distributionMode','dataRoot',
+            'unsigned','newZipSize','newZipSha256','documentationFiles',
+            'documentationSourceCommit','documentationSourceTree',
+            'documentationFileCount','documentationPayloadSize',
+            'documentationInventoryDigest','runtimeSourceCommit','runtimeSourceTree',
+            'packagingCommit','packagingTree','oldRuntimeInventoryDigest',
+            'newRuntimeInventoryDigest','sbom','files'
+        )
+        $allowed = @(
+            $required + @(
+                'targetTriple','compileFeature','derivedFromZipFileName',
+                'derivedFromZipSize','derivedFromZipSha256','oldFileCount',
+                'newFileCount','oldPayloadSize','newPayloadSize','removedPaths',
+                'removedFiles','runtimeBuildRunId','sourceInputs','host','maa',
+                'webView2'
+            )
+        )
+        if (@($required | Where-Object { -not (Test-WorkerProperty $manifest $_) }).Count -ne 0 -or
+            @($manifest.PSObject.Properties | Where-Object {
+                    $allowed -notcontains $_.Name
+                }).Count -ne 0 -or
+            [int](Get-WorkerProperty $manifest 'schemaVersion' 0) -ne 2 -or
+            [string](Get-WorkerProperty $manifest 'packageKind') -cne 'windows-x64-portable' -or
+            [string](Get-WorkerProperty $manifest 'distributionBoundary') -cne 'end-user-complete' -or
+            [string](Get-WorkerProperty $manifest 'architecture') -cne 'x86_64' -or
+            [string](Get-WorkerProperty $manifest 'distributionMode') -cne 'fixed-portable' -or
+            [string](Get-WorkerProperty $manifest 'dataRoot') -cne 'data/' -or
+            -not [bool](Get-WorkerProperty $manifest 'unsigned' $false) -or
+            [string](Get-WorkerProperty $manifest 'packagingCommit') -cne
+                [string](Get-WorkerProperty $Input 'sourceCommit') -or
+            [string](Get-WorkerProperty $manifest 'newZipSha256') -cne
+                [string](Get-WorkerProperty (Get-WorkerProperty $Input 'artifact') 'guestSha256')) {
+            Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The external sidecar violates its frozen execution boundary.'
+        }
+        foreach ($name in $required) {
+            if ((Get-WorkerProperty $manifest $name | ConvertTo-Json -Depth 100 -Compress) -cne
+                (Get-WorkerProperty $bound $name | ConvertTo-Json -Depth 100 -Compress)) {
+                Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The staged sidecar differs from the host-validated immutable binding.'
+            }
+        }
+        $uiRequired = [bool](Get-WorkerProperty $Input 'uiRequired' $false)
+        $webView2 = Get-WorkerProperty $manifest 'webView2'
+        $webDriver = Get-WorkerProperty $Input 'webDriver'
+        if (($uiRequired -and (
+                    $null -eq $webView2 -or $null -eq $webDriver -or
+                    [string](Get-WorkerProperty $webView2 'version') -cne
+                        [string](Get-WorkerProperty $webDriver 'browserVersion')
+                )) -or
+            (-not $uiRequired -and ($null -ne $webDriver -or $null -ne $webView2))) {
+            Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The sidecar and profile conditional UI identities disagree.'
+        }
+        return [pscustomobject][ordered]@{
+            document=$manifest
+            sha256=[string]$staged.sha256
+            sizeBytes=[int64]$staged.item.Length
+            externalPortable=$true
+        }
+    }
+
     $matches = @($Archive.Entries | Where-Object { $_.FullName -ceq 'portable-manifest.json' })
     if ($matches.Count -ne 1 -or $matches[0].Length -gt 4MB) {
         Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The archive must contain one bounded root portable manifest.'
@@ -929,7 +1191,10 @@ function Read-WorkerPortableManifest {
     if ([string]$manifest.identities.webView2.version -ne [string](Get-WorkerProperty $webDriver 'browserVersion')) {
         Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The portable fixed WebView2 version does not match the fixed driver contract.'
     }
-    return [pscustomobject][ordered]@{ document=$manifest; sha256=$hash }
+    return [pscustomobject][ordered]@{
+        document=$manifest; sha256=$hash; sizeBytes=[int64]$bytes.Length
+        externalPortable=$false
+    }
 }
 
 function Invoke-WorkerDeployPortable {
@@ -952,13 +1217,15 @@ function Invoke-WorkerDeployPortable {
         if ($archive.Entries.Count -gt 4096) { Throw-WorkerError 'PORTABLE_ARCHIVE_TOO_MANY_ENTRIES' 'The portable archive exceeds 4096 entries.' }
         $manifestBound=Read-WorkerPortableManifest $archive $Input
         $manifest=$manifestBound.document
+        $externalPortable = [bool]$manifestBound.externalPortable
+        $manifestSizeField = if ($externalPortable) { 'size' } else { 'sizeBytes' }
         $manifestFiles=@($manifest.files)
         if($manifestFiles.Count-lt1-or$manifestFiles.Count-gt4096){Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The portable file inventory count is invalid.'}
         $declared=@{}; foreach($file in $manifestFiles){
             $path=([string]$file.path).Replace('\','/')
             if (@($file.PSObject.Properties).Count -ne 3 -or
                 -not (Test-WorkerProperty $file 'path') -or
-                -not (Test-WorkerProperty $file 'sizeBytes') -or
+                -not (Test-WorkerProperty $file $manifestSizeField) -or
                 -not (Test-WorkerProperty $file 'sha256') -or
                 -not (Test-WorkerPortableRelativePath $path) -or
                 $path -ieq 'portable-manifest.json' -or $declared.ContainsKey($path)) { Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The portable file inventory contains an unsafe or colliding path.' }
@@ -966,8 +1233,33 @@ function Invoke-WorkerDeployPortable {
                 $path.StartsWith('data/', [StringComparison]::OrdinalIgnoreCase)) {
                 Throw-WorkerError 'PORTABLE_MUTABLE_DATA_FORBIDDEN' 'The portable payload cannot declare mutable data entries.'
             }
-            if ([string]$file.sha256 -notmatch '^[a-f0-9]{64}$' -or -not(Test-WorkerInteger $file.sizeBytes) -or [int64]$file.sizeBytes -lt 0 -or [int64]$file.sizeBytes -gt 2GB){Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'A portable file identity is invalid.'}
+            $fileSize = Get-WorkerProperty $file $manifestSizeField
+            if ([string]$file.sha256 -notmatch '^[a-f0-9]{64}$' -or
+                -not(Test-WorkerInteger $fileSize) -or [int64]$fileSize -lt 0 -or
+                [int64]$fileSize -gt 2GB) {
+                Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'A portable file identity is invalid.'
+            }
             $declared[$path]=$file
+        }
+        [string[]]$portableInventoryPaths = @($declared.Keys)
+        [Array]::Sort($portableInventoryPaths, [StringComparer]::Ordinal)
+        $portableInventoryLines = @($portableInventoryPaths | ForEach-Object {
+            $identity = $declared[$_]
+            "$_`t$([int64](Get-WorkerProperty $identity $manifestSizeField))`t$([string](Get-WorkerProperty $identity 'sha256'))"
+        })
+        $portableInventorySha256 = Get-WorkerSha256Text ($portableInventoryLines -join "`n")
+        $inventoryDigest = $portableInventorySha256
+        $portableInventorySizeBytes = [int64]0
+        foreach ($identity in @($declared.Values)) {
+            $portableInventorySizeBytes += [int64](Get-WorkerProperty $identity $manifestSizeField)
+        }
+        if ($externalPortable) {
+            $boundInventory = Get-WorkerProperty (Get-WorkerProperty $Input 'portableManifest') 'inventory'
+            if ($portableInventorySha256 -cne [string](Get-WorkerProperty $boundInventory 'sha256') -or
+                $declared.Count -ne [int](Get-WorkerProperty $boundInventory 'fileCount') -or
+                $portableInventorySizeBytes -ne [int64](Get-WorkerProperty $boundInventory 'payloadSizeBytes')) {
+                Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The derived external inventory differs from the host-validated binding.'
+            }
         }
         $productRoot=Get-WorkerPortableProductRoot $application
         $slotsRoot=Initialize-WorkerDirectoryTree $productRoot 'slots'
@@ -988,22 +1280,57 @@ function Invoke-WorkerDeployPortable {
                 [void](Initialize-WorkerDirectoryTree $staging $relative)
                 continue
             }
-            if ($relative -ine 'portable-manifest.json' -and -not $declared.ContainsKey($relative)) { Throw-WorkerError 'PORTABLE_ARCHIVE_UNDECLARED_ENTRY' 'The portable archive contains an undeclared file.' }
+            if (($externalPortable -or $relative -ine 'portable-manifest.json') -and
+                -not $declared.ContainsKey($relative)) {
+                Throw-WorkerError 'PORTABLE_ARCHIVE_UNDECLARED_ENTRY' 'The portable archive contains an undeclared file.'
+            }
             if ($entry.CompressedLength -eq 0 -and $entry.Length -gt 0 -or ($entry.CompressedLength -gt 0 -and ([double]$entry.Length/[double]$entry.CompressedLength) -gt 200)){Throw-WorkerError 'PORTABLE_ARCHIVE_RATIO_INVALID' 'The portable archive compression ratio exceeds 200:1.'}
             $expanded+=[int64]$entry.Length;if($expanded -gt 8GB){Throw-WorkerError 'PORTABLE_ARCHIVE_TOO_LARGE' 'The portable archive exceeds eight GiB expanded.'}
             $target=Resolve-WorkerPath $staging $relative;$parent=Split-Path -Parent $target;if(-not(Test-Path -LiteralPath $parent -PathType Container)){[void](New-Item -ItemType Directory -Path $parent -Force)}
             $entryStream=$entry.Open();$targetStream=[IO.File]::Open($target,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
             try{$entryStream.CopyTo($targetStream)}finally{$targetStream.Dispose();$entryStream.Dispose()}
-            if($relative -ine 'portable-manifest.json'){$identity=$declared[$relative];if((Get-Item -LiteralPath $target).Length -ne [int64]$identity.sizeBytes -or (Get-WorkerSha256File $target) -ne [string]$identity.sha256){Throw-WorkerError 'PORTABLE_ARCHIVE_HASH_MISMATCH' 'An extracted portable file failed size or hash verification.'}}
+            if($relative -ine 'portable-manifest.json'){
+                $identity=$declared[$relative]
+                if((Get-Item -LiteralPath $target).Length -ne
+                        [int64](Get-WorkerProperty $identity $manifestSizeField) -or
+                    (Get-WorkerSha256File $target) -ne [string]$identity.sha256){
+                    Throw-WorkerError 'PORTABLE_ARCHIVE_HASH_MISMATCH' 'An extracted portable file failed size or hash verification.'
+                }
+            }
         }
         foreach($declaredPath in @($declared.Keys)){if(-not$seen.Contains($declaredPath)){Throw-WorkerError 'PORTABLE_ARCHIVE_MISSING_ENTRY' 'The portable archive is missing a declared file.'}}
         $previousHash=$null
         try{$active=Get-WorkerPortableActiveDeployment $application;$sourceData=Resolve-WorkerPath ([string]$active.slotPath) 'data';$sourceInventory=Get-WorkerPortableInventory $sourceData;$previousHash=$sourceInventory.sha256;Copy-WorkerPortableData $sourceInventory $sourceData (Join-Path $staging 'data');$deployedInventory=Get-WorkerPortableInventory (Join-Path $staging 'data');if($deployedInventory.sha256 -ne $previousHash){Throw-WorkerError 'PORTABLE_DATA_HASH_MISMATCH' 'Portable data preservation inventory changed.'}}catch{if((Get-WorkerErrorCode $_.Exception)-ne'PORTABLE_DEPLOYMENT_MISSING'){throw};[void](New-Item -ItemType Directory -Path (Join-Path $staging 'data') -Force);$deployedInventory=Get-WorkerPortableInventory (Join-Path $staging 'data')}
         $slotPath=Join-Path $slotsRoot $slotId;Move-Item -LiteralPath $staging -Destination $slotPath
-        $record=[ordered]@{schemaVersion=2;applicationId=[string]$application.id;productId=[string]$manifest.productId;slotId=$slotId;slotPath=$slotPath;deploymentId=[Guid]::NewGuid().ToString();deployedAt=[DateTimeOffset]::UtcNow.ToString('o');portableZipSha256=[string](Get-WorkerProperty (Get-WorkerProperty $Input 'artifact') 'guestSha256');portableManifestSha256=$manifestBound.sha256;dataInventorySha256=$deployedInventory.sha256}
+        $record=[ordered]@{
+            schemaVersion=2;applicationId=[string]$application.id
+            productId=$(if($externalPortable){[string]$application.id}else{[string]$manifest.productId})
+            slotId=$slotId;slotPath=$slotPath;deploymentId=[Guid]::NewGuid().ToString()
+            deployedAt=[DateTimeOffset]::UtcNow.ToString('o')
+            portableZipSha256=[string](Get-WorkerProperty (Get-WorkerProperty $Input 'artifact') 'guestSha256')
+            portableManifestSha256=$manifestBound.sha256
+            portableInventorySha256=$inventoryDigest
+            dataInventorySha256=$deployedInventory.sha256
+        }
         $activePath=Join-Path $productRoot 'active.json';$tempPath=Join-Path $productRoot ('active-'+[Guid]::NewGuid().ToString('N')+'.tmp');[IO.File]::WriteAllText($tempPath,(($record|ConvertTo-Json -Depth 20 -Compress)+"`n"),$script:Utf8NoBom)
         if(Test-Path -LiteralPath $activePath){$backup=Join-Path $productRoot ('active-backup-'+[Guid]::NewGuid().ToString('N')+'.json');[IO.File]::Replace($tempPath,$activePath,$backup,$true)}else{Move-Item -LiteralPath $tempPath -Destination $activePath}
-        return New-WorkerStepResult 'passed' 'The verified portable payload was atomically published with data preservation.' ([pscustomobject]@{deploymentId=$record.deploymentId;deploymentFingerprint=Get-WorkerSha256Text ($record|ConvertTo-Json -Depth 20 -Compress);dataPreserved=$true;previousDataInventorySha256=$previousHash;deployedDataInventorySha256=$deployedInventory.sha256;portableManifestSha256=$manifestBound.sha256;fixedWebView2Version=[string]$manifest.identities.webView2.version;token=Get-WorkerTokenProjection $Token})
+        return New-WorkerStepResult 'passed' 'The verified portable payload was atomically published with data preservation.' ([pscustomobject]@{
+            deploymentId=$record.deploymentId
+            deploymentFingerprint=Get-WorkerSha256Text ($record|ConvertTo-Json -Depth 20 -Compress)
+            deploymentSlotId=$slotId
+            entrypoint=$(if($externalPortable){[string]$manifest.entrypoint}else{[string]$manifest.entryPointRelativePath})
+            dataPreserved=$true;previousDataInventorySha256=$previousHash
+            deployedDataInventorySha256=$deployedInventory.sha256
+            portableManifestSha256=$manifestBound.sha256
+            portableManifestGuestSizeBytes=[int64]$manifestBound.sizeBytes
+            portableInventorySha256=$inventoryDigest
+            portableInventoryFileCount=[int]$declared.Count
+            portableInventorySizeBytes=$portableInventorySizeBytes
+            fixedWebView2Version=$(if($externalPortable){
+                if(Test-WorkerProperty $manifest 'webView2'){[string]$manifest.webView2.version}else{$null}
+            }else{[string]$manifest.identities.webView2.version})
+            token=Get-WorkerTokenProjection $Token
+        })
     }
     finally{if($null-ne$archive){$archive.Dispose()};$stream.Dispose()}
 }
@@ -1300,13 +1627,19 @@ function Invoke-WorkerStep {
         if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
             Throw-WorkerError 'GUEST_EXECUTABLE_REPARSE_FORBIDDEN' 'The declared executable is a reparse point.'
         }
-        $portableLaunch = $schemaVersion -eq 2 -and
+        $portableApplication = $schemaVersion -eq 2 -and
             (Get-WorkerProperty $application 'packageKind') -eq 'portableZip'
-        $arguments = if ($portableLaunch) { @('--portable') } else { @() }
-        $uiDebugPort = if ($portableLaunch) { Get-WorkerLoopbackEphemeralPort } else { $null }
+        $externalPortableLaunch = $portableApplication -and
+            [bool](Get-WorkerProperty $Input 'externalPortable' $false)
+        $arguments = if ($portableApplication -and -not $externalPortableLaunch) {
+            @('--portable')
+        } else { @() }
+        $uiPortableLaunch = $portableApplication -and
+            [bool](Get-WorkerProperty $Input 'uiRequired' $true)
+        $uiDebugPort = if ($uiPortableLaunch) { Get-WorkerLoopbackEphemeralPort } else { $null }
         $priorWebView2Arguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
         try {
-            if ($portableLaunch) {
+            if ($uiPortableLaunch) {
                 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$uiDebugPort"
             }
             $process = if ($arguments.Count -gt 0) {
@@ -1326,7 +1659,7 @@ function Invoke-WorkerStep {
                 ([pscustomobject]@{ exitCode = [int]$process.ExitCode; token = Get-WorkerTokenProjection $Token })
         }
         $recorded = New-WorkerProcessIdentity $process $OperationId $applicationId $executable
-        if ($portableLaunch) {
+        if ($uiPortableLaunch) {
             $recorded | Add-Member -NotePropertyName uiDebugPort -NotePropertyValue $uiDebugPort -Force
         }
         return New-WorkerStepResult 'passed' 'The declared application launched under the standard test user.' `

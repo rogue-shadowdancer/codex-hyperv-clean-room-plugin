@@ -6,7 +6,7 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: 0.3 target contract frozen; runtime and release remain 0.2.0
+### Status: 0.3 source runtime implemented; release and personal install remain 0.2.0
 
 Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,
 profile, evidence, plan, and credential contracts. The first public release
@@ -85,11 +85,23 @@ separate external evidence. The external manifest keeps the historical
 protected `end-user-complete` branch, which binds the complete documentation
 mapping, non-developer prerequisites, and four-asset topology. The neutral
 fixture has no WebView2, MaaFramework, driver, or UI step; all consumer-shaped
-fixtures are synthetic. The plugin
-manifest, PowerShell runtime, installed schema copies, immutable `v0.2.0`
-release, and personal installation remain `0.2.0`. P3.1 performs no Hyper-V,
-guest, credential, package, release, installation, driver, UI, network, or
-evidence operation.
+fixtures are synthetic. The plugin manifest, PowerShell runtime, and
+source-tree schema copies remained `0.2.0` through P3.1.
+
+G7/P3.2 implements that frozen target in the source runtime as plugin `0.3.0`.
+The seven source-tree installed schema copies are now byte-identical to their
+authorities. Native readers strictly parse the profile-relative manifest
+sidecar, reject unsafe or colliding Windows paths and closed-object drift,
+rebind source/staged/guest bytes, enforce bidirectional ZIP inventory, deploy
+an atomic data-preserving slot, launch the manifest entrypoint with zero caller
+arguments, and emit structurally separate external evidence. Generic non-UI
+packages omit driver identity; UI packages retain the closed fixed-driver DSL.
+The exact 20-tool catalog, v1 files, and embedded `0.2.0` semantics are
+unchanged. P3.2 validation is mock/parser/schema/static only. The immutable
+`v0.2.0` Release and release-derived personal installation remain `0.2.0`;
+P3.3 publication, installation, and source-match readback are not performed.
+No real Hyper-V, VM, checkpoint, credential, guest, package, portable,
+WebDriver, UI, network, or manual-attestation operation is performed in P3.2.
 
 [![public-release-validation](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
@@ -176,7 +188,7 @@ checkpoint success.
 `hyperv-clean-room` 是一个仅面向 Windows 的 Codex plugin 设计，用于受保护的
 Hyper-V VM 操作、声明式 current-user package lifecycle 测试和结构化 evidence。
 
-### 状态：0.3 目标契约已冻结；runtime 与 release 仍为 0.2.0
+### 状态：0.3 source runtime 已实现；release 与 personal install 仍为 0.2.0
 
 Gate 2 已依据冻结的 v1 cleanup、profile、evidence、plan 和 credential 合同实现
 PowerShell 5.1 MCP runtime。首个 public release 使用 plugin base version
@@ -235,6 +247,19 @@ checkpoints。对既有 pre-fix VM，只有完整、带 identity 的 `.avhdx` ch
 不完整或伪造 chain 继续 fail closed。H5A personal candidate 为
 `0.2.0+codex.20260723113253`。该修复不会 adopt 或重写 ownership，不会删除或 merge
 checkpoint，也不授权 Windows OOBE、package 或 UI 工作。
+
+G7/P3.1 从不可变 Birdsgone G6 consumer contract 冻结 `0.3.0` target；G7/P3.2
+把该 target 集成到 source runtime。plugin manifest 与 PowerShell source 现为
+`0.3.0`，七份 source-tree installed schema 与权威 schema 逐字节一致；精确 20 个
+tool 名称/input、五份 v1 schema 与原有 embedded `0.2.0` 行为保持不变。外部
+portable manifest 作为 profile-relative sidecar 被 strict UTF-8 解析，经过安全
+Windows path、closed provenance、source/staged/guest byte binding 与双向 ZIP
+inventory 校验后，才会原子发布 data-preserving slot；entrypoint 不接收 caller
+argument。non-UI 分支不生成 driver identity，UI 分支继续使用闭合的固定 driver DSL。
+P3.2 仅执行 mock/parser/schema/static 验证；不可变 `v0.2.0` Release 与由其派生的
+personal installation 仍为 `0.2.0`，P3.3 的 publication/install/source-match 尚未
+执行。P3.2 未执行任何真实 Hyper-V、VM、checkpoint、credential、guest、package、
+portable、WebDriver、UI、network 或 manual-attestation operation。
 
 JSON-RPC transport、common envelope、持久 ownership 与原子 plan guard、原生
 profile/evidence validation、mock-backed guest/test flow、evidence export 和交互式
