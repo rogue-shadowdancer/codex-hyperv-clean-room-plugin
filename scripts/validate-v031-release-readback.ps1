@@ -188,42 +188,59 @@ $historical = @($historicalBaselines | ForEach-Object {
         Assert-HcrHistoricalRelease $_
     })
 
-$repoHead = [string](& $gitCommand.Source -C $repoRoot rev-parse HEAD)
-Assert-HcrReadback ($LASTEXITCODE -eq 0 -and
-        $repoHead.Trim() -ceq $ExpectedMasterCommit) `
-    'The release-readback checkout HEAD does not equal ExpectedMasterCommit.'
-$sourceStatus = @(& $gitCommand.Source -C $repoRoot status `
-        --porcelain=v1 --untracked-files=all -- hyperv-clean-room)
-Assert-HcrReadback ($LASTEXITCODE -eq 0 -and $sourceStatus.Count -eq 0) `
-    ('The reviewed plugin source has index, worktree, or untracked changes: ' +
-        ($sourceStatus -join '; '))
-$verboseIndex = @(& $gitCommand.Source -C $repoRoot ls-files -v `
-        -- hyperv-clean-room)
-$assumeUnchanged = @($verboseIndex | Where-Object {
-        [string]$_ -cmatch '^[a-z] '
-    })
-Assert-HcrReadback ($LASTEXITCODE -eq 0 -and $assumeUnchanged.Count -eq 0) `
-    ('The reviewed plugin source contains assume-unchanged index flags: ' +
-        ($assumeUnchanged -join '; '))
-$taggedIndex = @(& $gitCommand.Source -C $repoRoot ls-files -t `
-        -- hyperv-clean-room)
-$skipWorktree = @($taggedIndex | Where-Object {
-        [string]$_ -cmatch '^S '
-    })
-Assert-HcrReadback ($LASTEXITCODE -eq 0 -and $skipWorktree.Count -eq 0) `
-    ('The reviewed plugin source contains skip-worktree index flags: ' +
-        ($skipWorktree -join '; '))
+$previousNoReplaceObjects = [Environment]::GetEnvironmentVariable(
+    'GIT_NO_REPLACE_OBJECTS',
+    [EnvironmentVariableTarget]::Process
+)
+$sourceInventory = $null
+try {
+    $env:GIT_NO_REPLACE_OBJECTS = '1'
+    $repoHead = [string](& $gitCommand.Source -C $repoRoot rev-parse HEAD)
+    Assert-HcrReadback ($LASTEXITCODE -eq 0 -and
+            $repoHead.Trim() -ceq $ExpectedMasterCommit) `
+        'The release-readback checkout HEAD does not equal ExpectedMasterCommit.'
+    $sourceStatus = @(& $gitCommand.Source -C $repoRoot status `
+            --porcelain=v1 --untracked-files=all -- hyperv-clean-room)
+    Assert-HcrReadback ($LASTEXITCODE -eq 0 -and $sourceStatus.Count -eq 0) `
+        ('The reviewed plugin source has index, worktree, or untracked changes: ' +
+            ($sourceStatus -join '; '))
+    $verboseIndex = @(& $gitCommand.Source -C $repoRoot ls-files -v `
+            -- hyperv-clean-room)
+    $assumeUnchanged = @($verboseIndex | Where-Object {
+            [string]$_ -cmatch '^[a-z] '
+        })
+    Assert-HcrReadback ($LASTEXITCODE -eq 0 -and $assumeUnchanged.Count -eq 0) `
+        ('The reviewed plugin source contains assume-unchanged index flags: ' +
+            ($assumeUnchanged -join '; '))
+    $taggedIndex = @(& $gitCommand.Source -C $repoRoot ls-files -t `
+            -- hyperv-clean-room)
+    $skipWorktree = @($taggedIndex | Where-Object {
+            [string]$_ -cmatch '^S '
+        })
+    Assert-HcrReadback ($LASTEXITCODE -eq 0 -and $skipWorktree.Count -eq 0) `
+        ('The reviewed plugin source contains skip-worktree index flags: ' +
+            ($skipWorktree -join '; '))
+
+    $sourceInventory = Get-HcrSourceInventory `
+        -SourceRoot $sourceRoot `
+        -RequireCachebuster
+    Assert-HcrReadback ([string]$sourceInventory.sourceCommit -ceq
+            $ExpectedMasterCommit) `
+        'The reviewed source checkout does not equal ExpectedMasterCommit.'
+    Assert-HcrReadback ([string]$sourceInventory.sourceVersion -ceq
+            '0.3.1+codex.20260729184240') `
+        'The reviewed source checkout is not the single frozen v0.3.1 build.'
+}
+finally {
+    if ($null -eq $previousNoReplaceObjects) {
+        Remove-Item Env:\GIT_NO_REPLACE_OBJECTS -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:GIT_NO_REPLACE_OBJECTS = $previousNoReplaceObjects
+    }
+}
 
 $resolvedInstallRoot = [IO.Path]::GetFullPath($InstallRoot)
-$sourceInventory = Get-HcrSourceInventory `
-    -SourceRoot $sourceRoot `
-    -RequireCachebuster
-Assert-HcrReadback ([string]$sourceInventory.sourceCommit -ceq
-        $ExpectedMasterCommit) `
-    'The reviewed source checkout does not equal ExpectedMasterCommit.'
-Assert-HcrReadback ([string]$sourceInventory.sourceVersion -ceq
-        '0.3.1+codex.20260729184240') `
-    'The reviewed source checkout is not the single frozen v0.3.1 build.'
 $installCheck = Get-HcrInstallCheck `
     -SourceInventory $sourceInventory `
     -TargetRoot $resolvedInstallRoot `
