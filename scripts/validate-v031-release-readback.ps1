@@ -230,6 +230,21 @@ try {
     Assert-HcrReadback ([string]$sourceInventory.sourceVersion -ceq
             '0.3.1+codex.20260729184240') `
         'The reviewed source checkout is not the single frozen v0.3.1 build.'
+    foreach ($payload in @($sourceInventory.files)) {
+        $payloadPath = [string]$payload.path
+        $repositoryPath = "hyperv-clean-room/$payloadPath"
+        $expectedBlob = [string](& $gitCommand.Source -C $repoRoot rev-parse `
+                "$ExpectedMasterCommit`:$repositoryPath")
+        Assert-HcrReadback ($LASTEXITCODE -eq 0 -and
+                $expectedBlob.Trim() -cmatch '^[a-f0-9]{40}$') `
+            "Reviewed commit has no ordinary blob for $repositoryPath."
+        $workingPath = Join-Path $sourceRoot $payloadPath.Replace('/', '\')
+        $workingBlob = [string](& $gitCommand.Source -C $repoRoot hash-object `
+                "--path=$repositoryPath" -- $workingPath)
+        Assert-HcrReadback ($LASTEXITCODE -eq 0 -and
+                $workingBlob.Trim() -ceq $expectedBlob.Trim()) `
+            "Working payload bytes differ from the reviewed commit: $repositoryPath"
+    }
 }
 finally {
     if ($null -eq $previousNoReplaceObjects) {

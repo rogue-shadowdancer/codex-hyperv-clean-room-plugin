@@ -89,7 +89,8 @@ against that reviewed source checkout. The checkout itself must have
 `HEAD == ExpectedMasterCommit` and no staged, tracked-worktree, or untracked
 change under `hyperv-clean-room/`; assume-unchanged and skip-worktree index
 flags are also forbidden on that source. All source identity and inventory Git
-reads run with replacement objects disabled.
+reads run with replacement objects disabled, and every working payload blob
+OID must equal the corresponding `ExpectedMasterCommit:path` blob OID.
 
 The historical H4/G9 `validate-gate4.ps1` installed-copy smoke calls
 `inspect_host` and a missing-ISO plan. It is not part of this recovery gate and

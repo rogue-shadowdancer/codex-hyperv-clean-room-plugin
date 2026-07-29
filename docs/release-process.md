@@ -286,7 +286,8 @@ Acceptance requires:
   payload plus ownership/manifest state from a checkout whose `HEAD` equals
   that reviewed commit and whose plugin source has no index, worktree, or
   untracked changes and no assume-unchanged or skip-worktree flags; replacement
-  objects are disabled for all source identity and inventory Git reads;
+  objects are disabled for all source identity and inventory Git reads, and
+  every working payload blob OID must equal its reviewed-commit blob OID;
 - exact 31-file payload plus two installer records and one personal marketplace
   entry;
 - a fresh app-server thread with
