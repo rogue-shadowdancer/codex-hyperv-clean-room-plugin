@@ -197,6 +197,22 @@ $sourceStatus = @(& $gitCommand.Source -C $repoRoot status `
 Assert-HcrReadback ($LASTEXITCODE -eq 0 -and $sourceStatus.Count -eq 0) `
     ('The reviewed plugin source has index, worktree, or untracked changes: ' +
         ($sourceStatus -join '; '))
+$verboseIndex = @(& $gitCommand.Source -C $repoRoot ls-files -v `
+        -- hyperv-clean-room)
+$assumeUnchanged = @($verboseIndex | Where-Object {
+        [string]$_ -cmatch '^[a-z] '
+    })
+Assert-HcrReadback ($LASTEXITCODE -eq 0 -and $assumeUnchanged.Count -eq 0) `
+    ('The reviewed plugin source contains assume-unchanged index flags: ' +
+        ($assumeUnchanged -join '; '))
+$taggedIndex = @(& $gitCommand.Source -C $repoRoot ls-files -t `
+        -- hyperv-clean-room)
+$skipWorktree = @($taggedIndex | Where-Object {
+        [string]$_ -cmatch '^S '
+    })
+Assert-HcrReadback ($LASTEXITCODE -eq 0 -and $skipWorktree.Count -eq 0) `
+    ('The reviewed plugin source contains skip-worktree index flags: ' +
+        ($skipWorktree -join '; '))
 
 $resolvedInstallRoot = [IO.Path]::GetFullPath($InstallRoot)
 $sourceInventory = Get-HcrSourceInventory `

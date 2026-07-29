@@ -285,7 +285,7 @@ Acceptance requires:
   accepts only `0.3.1+codex.20260729184240`, and it rehashes every installed
   payload plus ownership/manifest state from a checkout whose `HEAD` equals
   that reviewed commit and whose plugin source has no index, worktree, or
-  untracked changes;
+  untracked changes and no assume-unchanged or skip-worktree flags;
 - exact 31-file payload plus two installer records and one personal marketplace
   entry;
 - a fresh app-server thread with
