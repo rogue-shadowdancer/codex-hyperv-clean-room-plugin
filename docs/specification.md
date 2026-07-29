@@ -1207,6 +1207,10 @@ path to NFC with `/` separators, sort by path ordinal, encode each entry as
 SHA-256 the UTF-8 bytes without BOM. Evidence must copy the resulting count,
 payload-size sum, and digest, along with the manifest runtime/packaging and
 documentation identities and the profile-bound manifest path/size/SHA.
+Here, path ordinal means the exact Windows/.NET `StringComparer.Ordinal`
+ordering of UTF-16 code units, including supplementary Unicode characters.
+The normalized, case-insensitive manifest sidecar path must also be distinct
+from every fixture source path; the sidecar can never enter the fixture set.
 
 P3.1 acceptance requires six positive target fixtures, five direct
 schema-negative fixtures, and the exact 41-case negative matrix under
