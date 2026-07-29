@@ -919,7 +919,13 @@ function Test-HcrProfileDocumentV2 {
         [void](Test-HcrV2ClosedObject $fixture $fields $fields $path $errors)
         $id = [string](Get-HcrPropertyValue $fixture 'id')
         if (-not (Test-HcrIdentifier $id) -or $fixtureIds.Contains($id)) { Add-HcrValidationError $errors "$path.id is invalid or duplicated." } else { $fixtureIds.Add($id) }
-        if (-not (Test-HcrSafeRelativePath ([string](Get-HcrPropertyValue $fixture 'sourceRelativePath')))) { Add-HcrValidationError $errors "$path.sourceRelativePath is unsafe." }
+        $fixtureRelativePath = [string](Get-HcrPropertyValue $fixture 'sourceRelativePath')
+        if (($externalPortable -and
+                -not (Test-HcrV2WindowsSafeRelativePath $fixtureRelativePath)) -or
+            (-not $externalPortable -and
+                -not (Test-HcrSafeRelativePath $fixtureRelativePath))) {
+            Add-HcrValidationError $errors "$path.sourceRelativePath is unsafe."
+        }
         if (-not (Test-HcrV2Sha256 (Get-HcrPropertyValue $fixture 'sha256'))) { Add-HcrValidationError $errors "$path.sha256 is invalid." }
         $fixtureSize = Get-HcrPropertyValue $fixture 'sizeBytes'
         if (-not (Test-HcrInteger $fixtureSize) -or [decimal]$fixtureSize -lt 1 -or [decimal]$fixtureSize -gt 1GB) { Add-HcrValidationError $errors "$path.sizeBytes is invalid." }
@@ -1462,6 +1468,23 @@ function Resolve-HcrExternalPortableManifestV2 {
             errors = @($validation.errors)
         })
     }
+    $manifestIdentity = Get-HcrLocalFileIdentity `
+        $item.FullName `
+        'PORTABLE_MANIFEST_INVALID'
+    foreach ($fixture in @((Get-HcrPropertyValue $Profile 'fixtures' @()))) {
+        $fixtureRelative = [string](Get-HcrPropertyValue $fixture 'sourceRelativePath')
+        if (-not (Test-HcrV2WindowsSafeRelativePath $fixtureRelative)) {
+            Throw-HcrError 'FIXTURE_INVALID' 'An external fixture path is unsafe.'
+        }
+        $fixturePath = Get-HcrNormalizedPath (Join-Path $profileRoot $fixtureRelative)
+        if (-not (Test-HcrPathWithin $fixturePath $profileRoot)) {
+            Throw-HcrError 'FIXTURE_INVALID' 'An external fixture path escapes the profile directory.'
+        }
+        $fixtureIdentity = Get-HcrLocalFileIdentity $fixturePath 'FIXTURE_INVALID'
+        if ($fixtureIdentity -ceq $manifestIdentity) {
+            Throw-HcrError 'PORTABLE_MANIFEST_FIXTURE_PATH_COLLISION' 'The external manifest and a fixture resolve to the same local file identity.'
+        }
+    }
     return [pscustomobject][ordered]@{
         item = $item
         document = $document
@@ -1504,7 +1527,14 @@ function Read-AndValidate-HcrProfile {
             $cleanupBudgetSeconds += [int]$cleanupTimeout
         }
     }
-    return [pscustomobject][ordered]@{ path = $loaded.path; profile = $loaded.document; valid = $validation.valid; errors = @($validation.errors); cleanupBudgetSeconds = $cleanupBudgetSeconds }
+    return [pscustomobject][ordered]@{
+        path = $loaded.path
+        profile = $loaded.document
+        sha256 = [string]$loaded.sha256
+        valid = $validation.valid
+        errors = @($validation.errors)
+        cleanupBudgetSeconds = $cleanupBudgetSeconds
+    }
 }
 
 function Test-HcrEvidenceDocumentV2 {
@@ -1920,8 +1950,10 @@ function Test-HcrEvidenceDocumentV2 {
                 Add-HcrValidationError $errors '$.fixtureIdentities[] identity is invalid.'
                 $machineFactsPassed = $false
             }
-            if ((Get-HcrPropertyValue $fixture 'status') -ne 'passed' -or
-                [int64](Get-HcrPropertyValue $fixture 'profileSizeBytes') -ne
+            if ((Get-HcrPropertyValue $fixture 'status') -ne 'passed') {
+                $machineFactsPassed = $false
+            }
+            if ([int64](Get-HcrPropertyValue $fixture 'profileSizeBytes') -ne
                     [int64](Get-HcrPropertyValue $fixture 'sourceSizeBytes') -or
                 [int64](Get-HcrPropertyValue $fixture 'profileSizeBytes') -ne
                     [int64](Get-HcrPropertyValue $fixture 'guestSizeBytes') -or

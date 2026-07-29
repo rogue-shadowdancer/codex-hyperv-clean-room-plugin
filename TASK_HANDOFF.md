@@ -148,8 +148,8 @@ The final exact candidate must retain:
 - preserved schema-v1 tools: `16`
 - preserved schema-v1 files: `5`
 - exact source-tree installed schema-v2 copies: `7`
-- Gate 7 mock runtime assertions: `260`
-- generated mock evidence documents validated: `7`
+- Gate 7 mock runtime assertions: `285`
+- generated mock evidence documents validated: `8`
 - P3.1 positive fixtures: `6`
 - P3.1 direct schema-invalid fixtures: `5`
 - P3.1 negative cases: `41`

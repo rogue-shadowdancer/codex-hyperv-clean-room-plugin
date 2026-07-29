@@ -198,13 +198,19 @@ arbitrary selectors, and script execution are forbidden.
 Schema-v2 portable profiles declare fixtures by ID, safe relative file name,
 size, and SHA-256; fixture bytes are staged and dual-hashed by the server.
 
-External evidence uses the SHA-256 of the exact validated profile-file bytes.
+External evidence uses the SHA-256 retained from the exact profile-file bytes
+that were parsed and validated; it never reopens the caller-owned path to
+derive that identity.
 Its fixture-set digest is lowercase SHA-256 over UTF-8 without a BOM of the
 compact JSON array, in profile order, containing each fixture's fields in this
 exact order: `id`, slash-normalized `sourceRelativePath`, `sizeBytes`,
 lowercase `sha256`, and `mediaType`. The evidence fixture identity for every
-declared ID must repeat that normalized path, declared size, and declared hash
-as its profile/source/guest values; all three observations must agree and pass.
+declared ID repeats that normalized path, declared size, and declared hash as
+its required profile/source/guest identity. When staging fails before a guest
+observation exists, the required identity tuple remains declaration-bound while
+the artifact's nullable `guestSha256`, fixture status, automatic assertion, and
+machine status record the failure; such failure evidence remains valid and
+exportable without inventing an observed guest hash.
 When a profile contains a WebDriver object, its manifest digest is computed
 over that object's compact UTF-8 JSON in declaration order; the non-UI branch
 uses `null`.
@@ -1138,7 +1144,11 @@ strict UTF-8 without BOM, NUL, or duplicate JSON properties. Rooted, drive,
 UNC, device, URI, traversal, ADS, percent-ambiguous, environment-expanded,
 trailing-dot/space, reserved-device, non-NFC, case-colliding, link, junction,
 or reparse paths fail closed. Profile-declared size/SHA and source/guest
-size/SHA are independently rebound for the current operation.
+size/SHA are independently rebound for the current operation. The ZIP leaf is
+compared case-sensitively and literally against both the profile and manifest.
+External fixture paths use the same Windows-safe predicate, and the server
+compares volume/file-index identities so aliases and hard links cannot make a
+fixture resolve to the sidecar.
 
 The manifest is a sidecar. It is not inserted into the ZIP, copied into the
 portable `data/` directory, or treated as a fixture. External ZIPs forbid root
@@ -1283,7 +1293,7 @@ Microsoft x64 EdgeDriver/data-testid rules.
 P3.2 acceptance uses only synthetic ZIPs, fixtures, mock adapters, native
 parsers, schema validators, and static production seams. It validates all
 twenty tools, the preserved sixteen schema-v1 tools, seven exact installed
-schema-v2 copies, 260 mock runtime assertions, seven generated evidence
+schema-v2 copies, 285 mock runtime assertions, eight generated evidence
 documents, and the inherited Gate 2/Gate 6 contract suites. Every real host,
 Hyper-V, guest, portable, WebDriver, and UI operation counter remains zero.
 

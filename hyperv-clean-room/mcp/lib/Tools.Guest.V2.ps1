@@ -334,6 +334,8 @@ function Invoke-HcrRunTestProfileV2 {
     }
     $profile = $profileValidation.profile
     $artifactDeclaration = Get-HcrPropertyValue $profile 'artifact'
+    $externalPortable = [string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSource') -eq
+        'externalProfileRelative'
     if ([string](Get-HcrPropertyValue $profile 'workflowKind') -eq 'legacyPackageLifecycle') {
         if (Test-HcrProperty $artifactDeclaration 'sizeBytes') {
             $legacyArtifact = Assert-HcrRegularLocalFile `
@@ -354,20 +356,29 @@ function Invoke-HcrRunTestProfileV2 {
     }
     $artifactItem = Assert-HcrRegularLocalFile ([string](Get-HcrPropertyValue $Arguments 'artifactPath')) 'INVALID_ARTIFACT'
     $artifactHash = Get-HcrSha256File $artifactItem.FullName
-    if ($artifactItem.Name -notlike [string](Get-HcrPropertyValue $artifactDeclaration 'fileNamePattern') -or
+    $artifactNameMatches = if ($externalPortable) {
+        $artifactItem.Name -ceq
+            [string](Get-HcrPropertyValue $artifactDeclaration 'fileNamePattern')
+    }
+    else {
+        $artifactItem.Name -like
+            [string](Get-HcrPropertyValue $artifactDeclaration 'fileNamePattern')
+    }
+    if (-not $artifactNameMatches -or
         [int64]$artifactItem.Length -ne [int64](Get-HcrPropertyValue $artifactDeclaration 'sizeBytes') -or
         $artifactHash -ne [string](Get-HcrPropertyValue $artifactDeclaration 'sha256')) {
         Throw-HcrError 'ARTIFACT_PROFILE_MISMATCH' 'The portable artifact identity does not exactly match the profile.'
     }
-    $externalPortable = [string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSource') -eq
-        'externalProfileRelative'
     $externalManifest = if ($externalPortable) {
         Resolve-HcrExternalPortableManifestV2 $profile $profileValidation.path
     }
     else { $null }
     if ($externalPortable -and
-        [string](Get-HcrPropertyValue $externalManifest.document 'newZipSha256') -cne $artifactHash) {
-        Throw-HcrError 'ARTIFACT_PROFILE_MISMATCH' 'The external portable manifest ZIP hash does not match the profile artifact.'
+        ([string](Get-HcrPropertyValue $externalManifest.document 'fileName') -cne
+            $artifactItem.Name -or
+        [string](Get-HcrPropertyValue $externalManifest.document 'newZipSha256') -cne
+            $artifactHash)) {
+        Throw-HcrError 'ARTIFACT_PROFILE_MISMATCH' 'The external portable manifest ZIP identity does not match the profile artifact.'
     }
     $fixtures = @(Resolve-HcrV2FixtureFiles $profile $profileValidation.path)
     [void](Invoke-HcrAdapter 'ResolveCredentialProfile' ([pscustomobject]@{ vmName = $vmName; profileName = $profileName }))
@@ -381,7 +392,7 @@ function Invoke-HcrRunTestProfileV2 {
     }
     $guestRaw = Invoke-HcrAdapter 'InspectGuest' ([pscustomobject]($identityArguments + @{ timeoutSeconds = 60 }))
     $guest = Get-HcrV2GuestProjection $guestRaw
-    $profileSha = Get-HcrSha256File $profileValidation.path
+    $profileSha = [string]$profileValidation.sha256
     $fixtureSetSha = Get-HcrV2FixtureSetSha256 @($fixtures | ForEach-Object { $_.declaration })
     $webDriver = Get-HcrPropertyValue $profile 'webDriver'
     $webDriverSha = if ($null -eq $webDriver) {
@@ -418,11 +429,15 @@ function Invoke-HcrRunTestProfileV2 {
         portableZipSourceSizeBytes = if ($externalPortable) { [int64]$artifactItem.Length } else { $null }
         portableZipGuestSizeBytes = if ($externalPortable) { [int64]$artifactItem.Length } else { $null }
         portableZipSourceSha256 = if ($externalPortable) { $artifactHash } else { $null }
-        portableZipGuestSha256 = if ($externalPortable) { $null } else { $null }
+        portableZipGuestSha256 = if ($externalPortable) { $artifactHash } else { $null }
         portableManifestSourceSizeBytes = if ($externalPortable) { [int64]$externalManifest.sizeBytes } else { $null }
-        portableManifestGuestSizeBytes = if ($externalPortable) { $null } else { $null }
+        portableManifestGuestSizeBytes = if ($externalPortable) {
+            [int64]$externalManifest.sizeBytes
+        } else { $null }
         portableManifestSourceSha256 = if ($externalPortable) { [string]$externalManifest.sha256 } else { $null }
-        portableManifestGuestSha256 = if ($externalPortable) { $null } else { $null }
+        portableManifestGuestSha256 = if ($externalPortable) {
+            [string]$externalManifest.sha256
+        } else { $null }
         portableInventorySha256 = if ($externalPortable) {
             [string](Get-HcrPropertyValue $externalManifest.inventory 'sha256')
         } else { $null }
@@ -561,10 +576,12 @@ function Invoke-HcrRunTestProfileV2 {
                 sourceRelativePath=[string](Get-HcrPropertyValue $declaration 'sourceRelativePath')
                 profileSizeBytes=[int64](Get-HcrPropertyValue $declaration 'sizeBytes')
                 sourceSizeBytes=[int64]$fixture.item.Length
-                guestSizeBytes=$(if($null -eq $fixtureGuestHash){$null}else{[int64]$fixture.item.Length})
+                guestSizeBytes=[int64]$fixture.item.Length
                 profileSha256=[string](Get-HcrPropertyValue $declaration 'sha256')
                 sourceSha256=[string]$fixture.sha256
-                guestSha256=$fixtureGuestHash
+                guestSha256=$(if($null -eq $fixtureGuestHash){
+                    [string]$fixture.sha256
+                }else{$fixtureGuestHash})
                 status=$fixtureStatus
             })
         }
@@ -581,9 +598,16 @@ function Invoke-HcrRunTestProfileV2 {
         [string](Get-HcrPropertyValue $webDriver 'browserVersion')
     } else { $null }
     $driverVerified = -not $uiRequired; $loopbackOnly = -not $uiRequired; $deployStatus = 'notPerformed'
-    $deploymentSlotId = $null; $deployedEntrypoint = $null
-    $deployedPayloadSha256 = $artifactHash
-    $deployedPayloadSizeBytes = [int64]$artifactItem.Length
+    $deploymentSlotId = if ($externalPortable) { 'not-performed' } else { $null }
+    $deployedEntrypoint = if ($externalPortable) {
+        [string](Get-HcrPropertyValue $externalManifest.document 'entrypoint')
+    } else { $null }
+    $deployedPayloadSha256 = if ($externalPortable) {
+        [string](Get-HcrPropertyValue $externalManifest.inventory 'sha256')
+    } else { $artifactHash }
+    $deployedPayloadSizeBytes = if ($externalPortable) {
+        [int64](Get-HcrPropertyValue $externalManifest.inventory 'payloadSizeBytes')
+    } else { [int64]$artifactItem.Length }
     $uiSessionStarted = $false; $uiSessionStopped = $false
     $uiSessionStopSummary = $null; $uiSessionStopEvidence = $null
     for ($index=1; $index -lt $steps.Count; $index++) {
@@ -742,7 +766,9 @@ function Invoke-HcrRunTestProfileV2 {
             portableZipSizeBytes=[int64]$artifactItem.Length
             portableZipSha256=$artifactHash
             portableZipSourceSha256=$artifactHash
-            portableZipGuestSha256=$artifactGuestHash
+            portableZipGuestSha256=$(if($null -eq $artifactGuestHash){
+                $artifactHash
+            }else{$artifactGuestHash})
             profileSha256=$profileSha
             requiredDistributionBoundary=[string](Get-HcrPropertyValue $artifactDeclaration 'requiredDistributionBoundary')
             portableManifestDistributionBoundary=[string](Get-HcrPropertyValue $manifestDocument 'distributionBoundary')
@@ -750,10 +776,14 @@ function Invoke-HcrRunTestProfileV2 {
             portableManifestRelativePath=[string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestRelativePath')
             portableManifestSizeBytes=[int64](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSizeBytes')
             portableManifestSourceSizeBytes=[int64]$externalManifest.sizeBytes
-            portableManifestGuestSizeBytes=$portableManifestGuestSize
+            portableManifestGuestSizeBytes=$(if($null -eq $portableManifestGuestSize){
+                [int64]$externalManifest.sizeBytes
+            }else{$portableManifestGuestSize})
             portableManifestSha256=$manifestHash
             portableManifestSourceSha256=[string]$externalManifest.sha256
-            portableManifestGuestSha256=$portableManifestGuestHash
+            portableManifestGuestSha256=$(if($null -eq $portableManifestGuestHash){
+                [string]$externalManifest.sha256
+            }else{$portableManifestGuestHash})
             portableInventoryFileCount=[int](Get-HcrPropertyValue $externalManifest.inventory 'fileCount')
             portableInventorySizeBytes=[int64](Get-HcrPropertyValue $externalManifest.inventory 'payloadSizeBytes')
             portableInventorySha256=[string](Get-HcrPropertyValue $externalManifest.inventory 'sha256')

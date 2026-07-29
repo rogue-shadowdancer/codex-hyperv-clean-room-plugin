@@ -270,6 +270,19 @@ def main() -> int:
             "external sidecar validation hashes the path separately from parsed bytes"
         )
     require_tokens(
+        validation + guest_v2,
+        "single-read profile identity",
+        (
+            "sha256 = Get-HcrSha256Bytes $bytes",
+            "sha256 = [string]$loaded.sha256",
+            "$profileSha = [string]$profileValidation.sha256",
+        ),
+    )
+    if "Get-HcrSha256File $profileValidation.path" in guest_v2:
+        raise AssertionError(
+            "runtime hashes the profile path separately from the parsed profile bytes"
+        )
+    require_tokens(
         external_sources,
         "external candidate rebinding",
         (
@@ -281,6 +294,27 @@ def main() -> int:
             "portableZipGuestSizeBytes",
             "portableZipSourceSha256",
             "portableZipGuestSha256",
+        ),
+    )
+    require_tokens(
+        common + validation,
+        "external fixture file-identity separation",
+        (
+            "function Get-HcrLocalFileIdentity",
+            "GetFileInformationByHandle",
+            "Test-HcrV2WindowsSafeRelativePath $fixtureRelative",
+            "PORTABLE_MANIFEST_FIXTURE_PATH_COLLISION",
+        ),
+    )
+    require_tokens(
+        guest_v2,
+        "external exact ZIP leaf and failure evidence",
+        (
+            "$artifactItem.Name -ceq",
+            "Get-HcrPropertyValue $externalManifest.document 'fileName'",
+            "portableZipGuestSha256 = if ($externalPortable) { $artifactHash }",
+            "guestSizeBytes=[int64]$fixture.item.Length",
+            "[string]$externalManifest.sha256",
         ),
     )
     require_tokens(
@@ -422,9 +456,9 @@ def main() -> int:
         raise AssertionError("isolated Gate 7 artifact root is invalid")
     evidence_paths = list(artifact_root.glob("state/evidence-staging/*/evidence.json"))
     v2_evidence_paths = [path for path in evidence_paths if load(path).get("schemaVersion") == 2]
-    if len(v2_evidence_paths) != 7:
+    if len(v2_evidence_paths) != 8:
         raise AssertionError(
-            "Gate 7 runtime must emit three passed and four failed schema-v2 evidence documents"
+            "Gate 7 runtime must emit three passed and five failed schema-v2 evidence documents"
         )
     schemas = {name: load(CONTRACT / "schemas" / name) for name in V2_NAMES}
     registry = Registry()
@@ -446,6 +480,7 @@ def main() -> int:
     if any(evidence["runtime"]["adapterMode"] != "mock" for evidence in evidence_documents):
         raise AssertionError("Gate 7 runtime evidence escaped its mock-only boundary")
     if sorted(evidence["machineStatus"] for evidence in evidence_documents) != [
+        "failed",
         "failed",
         "failed",
         "failed",

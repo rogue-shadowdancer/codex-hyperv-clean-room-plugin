@@ -181,6 +181,11 @@ $duplicateManifestPath = Join-Path $testRoot 'external-portable-manifest-duplica
 $duplicateProfilePath = Join-Path $testRoot 'external-portable-profile-duplicate.json'
 $unknownNestedManifestPath = Join-Path $testRoot 'external-portable-manifest-unknown-nested.json'
 $unknownNestedProfilePath = Join-Path $testRoot 'external-portable-profile-unknown-nested.json'
+$externalManifestAliasPath = Join-Path $testRoot 'external-portable-manifest-hardlink.json'
+$externalManifestAliasProfilePath = Join-Path $testRoot 'external-portable-profile-hardlink.json'
+$externalTrailingFixtureProfilePath = Join-Path $testRoot 'external-portable-profile-trailing-fixture.json'
+$externalCaseArtifactDirectory = Join-Path $testRoot 'external-case-artifact'
+$externalFailureExportRoot = Join-Path $testRoot 'external-failure-export'
 $volumeRoot = [IO.Path]::GetPathRoot($testRoot)
 
 foreach ($directory in @($vmRoot, $fixtureDirectory)) {
@@ -1026,6 +1031,57 @@ $externalNativeValidation = Read-AndValidate-HcrProfile $externalProfilePath
 Assert-Gate7 $externalNativeValidation.valid `
     ('The mock external portable profile failed native validation: ' +
         ($externalNativeValidation.errors -join '; '))
+Assert-Gate7Equal ([string]$externalNativeValidation.sha256) `
+    (Get-HcrSha256File $externalProfilePath) `
+    'Profile validation did not retain the exact bytes that were parsed.'
+
+$trailingFixtureProfile = Copy-HcrObject ([pscustomobject]$externalProfile)
+$trailingFixtureProfile.fixtures = @([pscustomobject][ordered]@{
+    id='manifest-alias'
+    sourceRelativePath=([string]$externalManifestItem.Name + '.')
+    sizeBytes=[int64]$externalManifestItem.Length
+    sha256=$externalManifestSha
+    mediaType='application/json'
+})
+Write-Gate7Json $externalTrailingFixtureProfilePath $trailingFixtureProfile
+$trailingFixtureValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $externalTrailingFixtureProfilePath
+})
+Assert-Gate7Error $trailingFixtureValidation 'PROFILE_INVALID' `
+    'The external profile accepted a Windows-aliased trailing-dot fixture path.'
+
+[void](New-Item -ItemType HardLink `
+    -Path $externalManifestAliasPath `
+    -Target $externalManifestPath)
+$aliasFixtureProfile = Copy-HcrObject ([pscustomobject]$externalProfile)
+$aliasFixtureProfile.fixtures = @([pscustomobject][ordered]@{
+    id='manifest-alias'
+    sourceRelativePath=[IO.Path]::GetFileName($externalManifestAliasPath)
+    sizeBytes=[int64]$externalManifestItem.Length
+    sha256=$externalManifestSha
+    mediaType='application/json'
+})
+Write-Gate7Json $externalManifestAliasProfilePath $aliasFixtureProfile
+$aliasFixtureValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $externalManifestAliasProfilePath
+})
+Assert-Gate7Error $aliasFixtureValidation 'PROFILE_INVALID' `
+    'The external profile accepted a fixture resolving to the sidecar file identity.'
+
+[void](New-Item -ItemType Directory -Path $externalCaseArtifactDirectory)
+$externalCaseArtifactPath = Join-Path `
+    $externalCaseArtifactDirectory `
+    ([string]$externalZipItem.Name).ToUpperInvariant()
+Copy-Item -LiteralPath $externalPortablePath -Destination $externalCaseArtifactPath
+$caseMismatchedRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $externalProfilePath
+    artifactPath = $externalCaseArtifactPath
+})
+Assert-Gate7Error $caseMismatchedRun 'ARTIFACT_PROFILE_MISMATCH' `
+    'The external runtime accepted a case-insensitive ZIP leaf mismatch.'
+
 $validExternalJson = [IO.File]::ReadAllText(
     $externalManifestPath,
     (New-Object Text.UTF8Encoding($false, $true))
@@ -1127,6 +1183,56 @@ Assert-Gate7 (@($unknownRuntimeValidation.errors | Where-Object {
             [string]$_ -match '\$\.runtime contains unsupported field'
         }).Count -eq 1) `
     'Unknown external runtime provenance did not fail through closed-object validation.'
+
+$externalStageFailureState = Read-HcrMockAdapterState
+$externalStageFailureState | Add-Member -NotePropertyName stageAdapterFailure `
+    -NotePropertyValue $true -Force
+Write-HcrMockAdapterState $externalStageFailureState
+$externalStageFailureRun = Invoke-Gate7Tool 'run_test_profile' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    credentialProfile = 'test-profile'
+    profilePath = $externalProfilePath
+    artifactPath = $externalPortablePath
+})
+Assert-Gate7 $externalStageFailureRun.ok `
+    'An external staging failure escaped without auditable evidence.'
+Assert-Gate7Equal ([string]$externalStageFailureRun.data.machineStatus) 'failed' `
+    'An external staging failure did not derive machineStatus=failed.'
+$externalStageFailureOperation = Get-HcrOperationRecord `
+    ([string]$externalStageFailureRun.data.testOperationId)
+$externalStageFailureEvidence = Read-HcrJsonFile `
+    ([string]$externalStageFailureOperation.evidenceFile) `
+    'EVIDENCE_NOT_READY'
+$externalStageFailureValidation = Test-HcrEvidenceDocumentV2 `
+    $externalStageFailureEvidence `
+    $externalStageFailureOperation
+Assert-Gate7 $externalStageFailureValidation.valid `
+    ('Native validation rejected external staging-failure evidence: ' +
+        ($externalStageFailureValidation.errors -join '; '))
+Assert-Gate7 (
+    [string]$externalStageFailureEvidence.candidate.portableZipGuestSha256 -eq
+        [string]$externalStageFailureEvidence.candidate.portableZipSourceSha256 -and
+    @($externalStageFailureEvidence.artifacts | Where-Object {
+            [string]$_.role -eq 'portableZip' -and
+            [string]$_.status -eq 'failed' -and
+            $null -eq $_.guestSha256
+        }).Count -eq 1
+) 'External failure evidence did not separate required identity from absent guest observation.'
+$externalStageFailureValidationTool = Invoke-Gate7Tool 'validate_evidence' ([pscustomobject]@{
+    evidencePath = [string]$externalStageFailureOperation.evidenceFile
+})
+Assert-Gate7 $externalStageFailureValidationTool.ok `
+    'validate_evidence rejected external staging-failure evidence.'
+[void](New-Item -ItemType Directory -Path $externalFailureExportRoot)
+$externalStageFailureExport = Invoke-Gate7Tool 'collect_evidence' ([pscustomobject]@{
+    operationId = [string]$externalStageFailureRun.data.testOperationId
+    outputDirectory = $externalFailureExportRoot
+})
+Assert-Gate7 $externalStageFailureExport.ok `
+    'collect_evidence rejected external staging-failure evidence.'
+$restoredExternalStageState = Read-HcrMockAdapterState
+$restoredExternalStageState.stageAdapterFailure = $false
+Write-HcrMockAdapterState $restoredExternalStageState
 
 $externalUiValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
     profilePath = $externalUiProfilePath
