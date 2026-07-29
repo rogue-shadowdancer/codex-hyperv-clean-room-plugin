@@ -52,6 +52,11 @@ tool or adapter operation. Publication and installation do not turn the
 P3.2 mock/parser/static evidence into real-host, guest, portable, driver, UI,
 network, or clean-machine evidence.
 
+The local publication aggregate nevertheless invoked inherited Gate 2 bounded
+read-only `inspect_host` and missing-ISO `plan_vm_create` rejection outside the
+declared P3.3 no-host boundary. No Hyper-V/VM/checkpoint mutation occurred, and
+the result is not accepted as host or machine evidence.
+
 The portable launch path carries the owning operation's application,
 deployment, active-record fingerprint, and slot identities forward from the
 successful deployment step. The guest re-reads the shared active record and

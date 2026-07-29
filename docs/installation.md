@@ -139,7 +139,10 @@ Historical H4/G9 installed-copy acceptance uses the retained command:
 P3.3 does not run that historical smoke because it calls `inspect_host` and a
 missing-ISO plan. P3.3 instead pairs `check_install.ps1` with a catalog-only
 installed-server session and requires 31/31 payload hashes, exactly 20 unique
-tool names, zero tool calls, and every real-operation counter at zero.
+tool names, zero tool calls, and zero adapter operations in that session. The
+separately run local publication aggregate did invoke the inherited Gate 2
+bounded read-only `inspect_host` and missing-ISO plan rejection outside the
+declared P3.3 no-host boundary; it performed no mutation.
 
 After an install or reinstall, start a new Codex task before testing the newly
 loaded skill or MCP tools.

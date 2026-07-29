@@ -254,3 +254,8 @@ closeout commit, 31/31 payload hashes, two installer state records, one
 canonical marketplace entry, Codex installed/enabled readback, and exactly 20
 unique installed tool names. Catalog readback uses only `initialize` and
 `tools/list`; no real machine or MCP tool operation is permitted.
+
+The local publication aggregate also invoked inherited Gate 2, whose bounded
+read-only smoke called `inspect_host` and rejected `plan_vm_create` on a missing
+ISO. That invocation was outside the declared P3.3 no-host boundary. It
+performed no Hyper-V/VM/checkpoint mutation and is not machine acceptance.

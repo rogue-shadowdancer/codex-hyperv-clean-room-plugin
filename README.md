@@ -111,9 +111,12 @@ size/SHA-256 inventory, exact source commit and cachebuster, single canonical
 personal marketplace entry, and Codex installed/enabled state are closed by
 the installer. Catalog-only installed-server readback negotiates MCP
 `2025-11-25` and discovers exactly 20 unique tools without calling any tool.
-No real host, Hyper-V, VM, checkpoint, credential, guest, package, portable,
-WebDriver, UI, network, evidence, or manual-attestation operation is performed
-in P3.3.
+That catalog readback performs no real machine or adapter operation. The local
+publication aggregate nevertheless invoked its inherited Gate 2 bounded
+read-only `inspect_host` and missing-ISO `plan_vm_create` rejection, contrary
+to the declared P3.3 no-host boundary. No Hyper-V/VM/checkpoint mutation,
+credential or guest operation, package or portable execution, WebDriver/UI or
+network operation, evidence collection, or manual attestation was performed.
 
 [![public-release-validation](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
@@ -279,9 +282,13 @@ tag 与 GitHub Release。tag workflow `30451106948`、认证读回与匿名读�
 ownership marker 保护的 31-file payload、逐文件 size/SHA-256、精确 source
 commit/cachebuster、唯一 canonical personal marketplace entry 及 Codex
 installed/enabled 状态实行闭合校验。catalog-only installed-server 读回协商 MCP
-`2025-11-25`，发现精确 20 个 unique tools，且不调用任何 tool。P3.3 未执行任何真实
-host、Hyper-V、VM、checkpoint、credential、guest、package、portable、WebDriver、
-UI、network、evidence 或 manual-attestation operation。
+`2025-11-25`，发现精确 20 个 unique tools，且不调用任何 tool。该 catalog readback
+没有执行真实 MCP tool 或 adapter operation。可是 local publication aggregate 仍
+调用了继承自 Gate 2 的有界只读 `inspect_host` 与 missing-ISO `plan_vm_create`
+拒绝；这偏离了 P3.3 已声明的 no-host boundary。该过程没有执行
+Hyper-V/VM/checkpoint mutation、credential/guest operation、package/portable
+execution、WebDriver/UI/network operation、evidence collection 或 manual
+attestation。
 
 JSON-RPC transport、common envelope、持久 ownership 与原子 plan guard、原生
 profile/evidence validation、mock-backed guest/test flow、evidence export 和交互式

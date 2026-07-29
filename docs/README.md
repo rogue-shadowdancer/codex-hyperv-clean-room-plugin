@@ -40,7 +40,10 @@ real-operation counter zero. P3.3 release/install/source-match is complete:
 immutable source-only `v0.3.0` is bound to protected source commit
 `47151fdbe99346ec87af09460c79d0864978eabd`, and the one personal build
 `0.3.0+codex.20260729122233` closes all 31 payloads and exactly 20 tools without
-calling an MCP tool or performing a real machine operation.
+calling an MCP tool or adapter operation during catalog readback. The local
+publication aggregate did invoke its inherited Gate 2 bounded read-only
+`inspect_host` and missing-ISO `plan_vm_create` rejection outside the declared
+P3.3 no-host boundary; no mutation or machine acceptance resulted.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.
@@ -127,7 +130,10 @@ mock/parser/schema/static，全部真实 operation counter 为零。P3.3 已发�
 protected source commit `47151fdbe99346ec87af09460c79d0864978eabd` 的不可变、
 source-only `v0.3.0`，并以唯一 personal build
 `0.3.0+codex.20260729122233` 闭合 31 个 payload 与精确 20 个 tools；期间没有调用
-MCP tool，也没有执行真实机器 operation。
+MCP tool，catalog readback 也没有执行 adapter operation。local publication
+aggregate 仍调用了继承自 Gate 2 的有界只读 `inspect_host` 与 missing-ISO
+`plan_vm_create` 拒绝；这偏离了 P3.3 的 no-host boundary，但没有产生 mutation 或
+machine acceptance。
 继承的 Gate 2 测试仍在 Windows PowerShell 5.1 下使用 mock
 adapter、parser、production-adapter static seam、严格文档
 检查和有界真实 host 只读 smoke。Production guest adapter 已包含固定的 administrator-supervised

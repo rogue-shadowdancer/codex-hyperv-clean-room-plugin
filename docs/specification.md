@@ -1361,6 +1361,12 @@ tool names. It calls no tool and performs no real host, Hyper-V, VM,
 checkpoint, credential, guest, package, portable, WebDriver, UI, network,
 evidence, or manual-attestation operation. All such counters remain zero.
 
+The local publication aggregate is distinct from installed-server acceptance.
+It invoked inherited Gate 2 bounded read-only `inspect_host` and missing-ISO
+`plan_vm_create` rejection outside the declared P3.3 no-host boundary. This
+deviation performed no Hyper-V/VM/checkpoint mutation and must not be promoted
+to machine acceptance.
+
 ### Protected packaging amendment and G6.2 source result
 
 The earlier blocking packaging gap is closed by the protected

@@ -7,10 +7,13 @@
 ## Status
 
 G7/P3.3 publishes the reviewed P3.2 source runtime and closes the separately
-authorized personal-install lane. It does not execute a package, portable
-application, Hyper-V tool, VM operation, guest operation, credential flow,
-WebDriver/UI step, network transition, evidence operation, or manual
-attestation.
+authorized personal-install lane. Catalog acceptance invokes no MCP tool or
+adapter operation. The local publication aggregate did invoke the inherited
+Gate 2 bounded read-only `inspect_host` and missing-ISO `plan_vm_create`
+rejection, contrary to the declared P3.3 no-host boundary. It did not execute a
+Hyper-V/VM/checkpoint mutation, package or portable application, guest
+operation, credential flow, WebDriver/UI step, network transition, evidence
+operation, or manual attestation.
 
 The immutable source release is:
 
@@ -76,12 +79,16 @@ and cannot satisfy an executable, release-ready, or clean-room result.
   path, negotiates MCP `2025-11-25`, reports server
   `hyperv-clean-room` / `0.3.0`, and exposes exactly 20 expected / 20 observed /
   20 unique tool names.
-- Catalog acceptance calls no MCP tool. It does not run historical
-  `inspect_host` or missing-ISO smoke because P3.3 authorizes no real host or
-  machine operation.
+- Catalog acceptance calls no MCP tool or adapter operation and does not run
+  any real-host smoke.
 - Historical H4/G9 installed-copy acceptance and `validate-gate4.ps1` remain
-  the authority for the earlier bounded real-host smoke. P3.3 deliberately
-  replaces that lane with catalog-only readback and does not rerun it.
+  the authority for an installed-copy bounded real-host smoke. P3.3 replaces
+  that installed-copy lane with catalog-only readback and does not rerun it.
+- The separately run local publication aggregate includes inherited Gate 2,
+  which invoked bounded read-only `inspect_host` and a missing-ISO
+  `plan_vm_create` rejection. That was outside the P3.3 no-host authorization
+  boundary and is recorded here rather than being promoted to machine
+  acceptance.
 - Schema v1, all five v1 files, seven v2 paths, exact 20 public tool
   names/inputs, embedded `0.2.0` semantics, Plan/Apply, single-use recovery,
   closed UI DSL, and fail-closed end-user-complete rules remain unchanged.
@@ -116,8 +123,10 @@ Before source publication:
 - v1 schemas: `5`;
 - v2 installed schema copies: `7`;
 - public settings/protection and anonymous protected-master readback: passed;
-- real host, Hyper-V, guest, portable, WebDriver, and UI operation counters:
-  `0`.
+- inherited real-host read-only probes: `2` (`inspect_host` and missing-ISO
+  `plan_vm_create` rejection);
+- real Hyper-V/VM/checkpoint mutations and guest, package, portable, WebDriver,
+  UI, network, evidence, and manual-attestation operations: `0`.
 
 After Release publication and cachebuster install, final acceptance requires:
 
@@ -127,7 +136,8 @@ After Release publication and cachebuster install, final acceptance requires:
   files including the two installer records;
 - catalog-only installed-server readback with exactly 20 unique tools and zero
   tool calls;
-- full local publication and Gate 7 validators on the exact final candidate;
+- safe local publication components and the full Gate 7 validator on the exact
+  final candidate; do not rerun the inherited real-host smoke;
 - exact-head push and pull-request hosted checks;
 - substantive exact-head review with zero actionable findings;
 - all review conversations resolved;

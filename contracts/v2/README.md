@@ -6,7 +6,10 @@ in the source runtime without changing any MCP tool name or input. P3.2
 performs no package/release/install operation and invokes no real Hyper-V or
 guest operation. G7/P3.3 publishes immutable, source-only `v0.3.0` and accepts
 one commit-bound personal cachebuster install while invoking no MCP tool or
-real machine operation.
+adapter operation during catalog readback. The local publication aggregate
+also invoked inherited Gate 2 bounded read-only `inspect_host` and missing-ISO
+`plan_vm_create` rejection outside the declared P3.3 no-host boundary; it did
+not mutate Hyper-V, a VM, or a checkpoint.
 
 `consumer-contract.json` binds this target to immutable Birdsgone protected
 `main` `5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c`, tree
