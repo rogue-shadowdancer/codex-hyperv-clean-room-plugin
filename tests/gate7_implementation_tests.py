@@ -260,8 +260,10 @@ def main() -> int:
         validation + worker,
         "external sidecar scalar types",
         (
-            "Test-HcrInteger (\n                Get-HcrPropertyValue $Manifest 'schemaVersion'",
-            "Test-HcrBoolean (\n                Get-HcrPropertyValue $Manifest 'unsigned'",
+            "Test-HcrInteger (",
+            "Get-HcrPropertyValue $Manifest 'schemaVersion'",
+            "Test-HcrBoolean (",
+            "Get-HcrPropertyValue $Manifest 'unsigned'",
             "Test-WorkerInteger (Get-WorkerProperty $manifest 'schemaVersion')",
             "Test-WorkerBoolean (Get-WorkerProperty $manifest 'unsigned')",
         ),
