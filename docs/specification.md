@@ -1186,6 +1186,14 @@ non-admin/non-elevated test identity. Deployment/data, UI, Plan/Apply,
 network-recovery, automatic/manual, cleanup, and status derivation remain
 separate and immutable.
 
+The external candidate's complete portable inventory identity is derived from
+the validated manifest, never supplied independently: normalize each `files`
+path to NFC with `/` separators, sort by path ordinal, encode each entry as
+`path TAB size TAB lowercase-sha256`, join entries with LF and no final LF, then
+SHA-256 the UTF-8 bytes without BOM. Evidence must copy the resulting count,
+payload-size sum, and digest, along with the manifest runtime/packaging and
+documentation identities and the profile-bound manifest path/size/SHA.
+
 P3.1 acceptance requires six positive target fixtures, five direct
 schema-negative fixtures, and the exact 41-case negative matrix under
 `tests/fixtures/v3`. The neutral sample omits WebView2, MaaFramework, driver,

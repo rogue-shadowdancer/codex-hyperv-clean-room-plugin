@@ -153,7 +153,7 @@ The candidate must retain these exact outcomes after its final commit:
 - Gate 7 mock runtime assertions: `216`
 - generated mock evidence documents validated: `5`
 - `git diff --check`
-- Twelve Codex review passes found twenty-one actionable fail-closed or regression
+- Thirteen Codex review passes found twenty-two actionable fail-closed or regression
   coverage gaps: external ZIP
   artifact leaf/size binding, cleanup-only UI driver dispatch and WebView2
   cross-binding, embedded-evidence rejection of external fixture identities,
@@ -167,8 +167,9 @@ The candidate must retain these exact outcomes after its final commit:
   control/NFC enforcement for every schema-bound relative path, ASCII DEL
   exclusion, composition/alias-aware coverage introspection, reusable
   cross-document ZIP/application identity validation, and manifest-artifact name
-  binding. All twenty-one are repaired with direct regression probes; the final
-  published candidate requires a fresh zero-actionable-findings review.
+  binding, plus full profile/manifest/evidence provenance and inventory
+  cross-binding. All twenty-two are repaired with direct regression probes; the
+  final published candidate requires a fresh zero-actionable-findings review.
 - real host operations: `0`
 - real Hyper-V mutations: `0`
 - real guest operations: `0`

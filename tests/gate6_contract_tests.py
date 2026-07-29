@@ -858,6 +858,116 @@ def validate_external_portable_bindings(
     return errors
 
 
+def external_manifest_inventory_identity(
+    manifest: dict[str, Any],
+) -> tuple[int, int, str]:
+    entries = sorted(
+        (
+            unicodedata.normalize("NFC", item["path"].replace("\\", "/")),
+            item["size"],
+            item["sha256"].lower(),
+        )
+        for item in manifest.get("files", [])
+    )
+    canonical = "\n".join(
+        f"{path}\t{size}\t{sha256}" for path, size, sha256 in entries
+    )
+    return (
+        len(entries),
+        sum(size for _, size, _ in entries),
+        hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+    )
+
+
+def external_evidence_candidate_bindings(
+    profile: dict[str, Any], manifest: dict[str, Any]
+) -> dict[str, object]:
+    artifact = profile.get("artifact", {})
+    inventory_count, inventory_size, inventory_sha256 = (
+        external_manifest_inventory_identity(manifest)
+    )
+    return {
+        "runtimeSourceCommit": manifest.get("runtimeSourceCommit"),
+        "runtimeSourceTree": manifest.get("runtimeSourceTree"),
+        "packagingCommit": manifest.get("packagingCommit"),
+        "packagingTree": manifest.get("packagingTree"),
+        "portableZipFileName": manifest.get("fileName"),
+        "portableZipSizeBytes": manifest.get("newZipSize"),
+        "portableZipSha256": manifest.get("newZipSha256"),
+        "portableZipSourceSha256": manifest.get("newZipSha256"),
+        "portableZipGuestSha256": manifest.get("newZipSha256"),
+        "requiredDistributionBoundary": artifact.get(
+            "requiredDistributionBoundary"
+        ),
+        "portableManifestDistributionBoundary": manifest.get(
+            "distributionBoundary"
+        ),
+        "portableManifestSource": artifact.get("portableManifestSource"),
+        "portableManifestRelativePath": artifact.get(
+            "portableManifestRelativePath"
+        ),
+        "portableManifestSizeBytes": artifact.get("portableManifestSizeBytes"),
+        "portableManifestSourceSizeBytes": artifact.get(
+            "portableManifestSizeBytes"
+        ),
+        "portableManifestGuestSizeBytes": artifact.get(
+            "portableManifestSizeBytes"
+        ),
+        "portableManifestSha256": artifact.get("portableManifestSha256"),
+        "portableManifestSourceSha256": artifact.get("portableManifestSha256"),
+        "portableManifestGuestSha256": artifact.get("portableManifestSha256"),
+        "portableInventoryFileCount": inventory_count,
+        "portableInventorySizeBytes": inventory_size,
+        "portableInventorySha256": inventory_sha256,
+        "documentationSourceCommit": manifest.get("documentationSourceCommit"),
+        "documentationSourceTree": manifest.get("documentationSourceTree"),
+        "documentationFileCount": manifest.get("documentationFileCount"),
+        "documentationPayloadSize": manifest.get("documentationPayloadSize"),
+        "documentationInventoryDigest": manifest.get(
+            "documentationInventoryDigest"
+        ),
+        "oldRuntimeInventoryDigest": manifest.get("oldRuntimeInventoryDigest"),
+        "newRuntimeInventoryDigest": manifest.get("newRuntimeInventoryDigest"),
+    }
+
+
+def validate_external_operation_bindings(
+    profile: dict[str, Any],
+    manifest: dict[str, Any],
+    evidence: dict[str, Any],
+) -> list[str]:
+    errors = validate_external_portable_bindings(profile, manifest)
+    candidate = evidence.get("candidate", {})
+    for field, expected in external_evidence_candidate_bindings(
+        profile, manifest
+    ).items():
+        if candidate.get(field) != expected:
+            errors.append(f"EXTERNAL_EVIDENCE_{field}_MISMATCH")
+    profile_identity = evidence.get("profile", {})
+    expected_fixture_ids = [
+        fixture.get("id")
+        for fixture in profile.get("fixtures", [])
+        if isinstance(fixture, dict)
+    ]
+    if profile_identity.get("id") != profile.get("id"):
+        errors.append("EXTERNAL_EVIDENCE_PROFILE_ID_MISMATCH")
+    if profile_identity.get("fixtureIds") != expected_fixture_ids:
+        errors.append("EXTERNAL_EVIDENCE_FIXTURE_IDS_MISMATCH")
+    automation = evidence.get("automation", {})
+    if automation.get("entrypoint") != manifest.get("entrypoint"):
+        errors.append("EXTERNAL_EVIDENCE_ENTRYPOINT_MISMATCH")
+    ui_required = any(
+        step.get("type") in UI_STEP_TYPES
+        for step in [
+            *profile.get("steps", []),
+            *profile.get("cleanupSteps", []),
+        ]
+    )
+    if automation.get("uiRequired") is not ui_required:
+        errors.append("EXTERNAL_EVIDENCE_UI_REQUIREMENT_MISMATCH")
+    return errors
+
+
 def derive_status(results: list[dict[str, Any]]) -> str:
     required = [result for result in results if result.get("required") is True]
     if any(result.get("status") == "failed" for result in required):
@@ -1982,6 +2092,54 @@ def assert_p3_1_contract(
         raise AssertionError(
             "valid neutral external cross-document bindings were rejected"
         )
+    if validate_external_operation_bindings(
+        neutral_profile, neutral_manifest, neutral_evidence
+    ):
+        raise AssertionError(
+            "valid neutral external profile/manifest/evidence bindings were rejected"
+        )
+    expected_evidence_bindings = external_evidence_candidate_bindings(
+        neutral_profile, neutral_manifest
+    )
+    for field, expected in expected_evidence_bindings.items():
+        drifted_evidence = deepcopy(neutral_evidence)
+        if isinstance(expected, int):
+            drifted_evidence["candidate"][field] = expected + 1
+        elif isinstance(expected, str) and len(expected) in {40, 64}:
+            replacement = "0" if expected[0] != "0" else "1"
+            drifted_evidence["candidate"][field] = replacement * len(expected)
+        else:
+            drifted_evidence["candidate"][field] = f"drifted-{expected}"
+        if not validate_external_operation_bindings(
+            neutral_profile, neutral_manifest, drifted_evidence
+        ):
+            raise AssertionError(
+                f"external evidence candidate {field} drift was accepted"
+            )
+    evidence_entrypoint_drift = deepcopy(neutral_evidence)
+    evidence_entrypoint_drift["automation"]["entrypoint"] = "Different.exe"
+    if not validate_external_operation_bindings(
+        neutral_profile, neutral_manifest, evidence_entrypoint_drift
+    ):
+        raise AssertionError("external evidence entrypoint drift was accepted")
+    evidence_profile_id_drift = deepcopy(neutral_evidence)
+    evidence_profile_id_drift["profile"]["id"] = "different-profile"
+    if not validate_external_operation_bindings(
+        neutral_profile, neutral_manifest, evidence_profile_id_drift
+    ):
+        raise AssertionError("external evidence profile ID drift was accepted")
+    evidence_fixture_ids_drift = deepcopy(neutral_evidence)
+    evidence_fixture_ids_drift["profile"]["fixtureIds"] = ["unexpected-fixture"]
+    if not validate_external_operation_bindings(
+        neutral_profile, neutral_manifest, evidence_fixture_ids_drift
+    ):
+        raise AssertionError("external evidence fixture-ID drift was accepted")
+    evidence_ui_requirement_drift = deepcopy(neutral_evidence)
+    evidence_ui_requirement_drift["automation"]["uiRequired"] = True
+    if not validate_external_operation_bindings(
+        neutral_profile, neutral_manifest, evidence_ui_requirement_drift
+    ):
+        raise AssertionError("external evidence UI requirement drift was accepted")
     cross_document_probes: dict[str, dict[str, Any]] = {}
     name_drift_profile = deepcopy(neutral_profile)
     name_drift_profile["artifact"]["fileNamePattern"] = "Different.zip"
