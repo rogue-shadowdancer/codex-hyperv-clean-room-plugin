@@ -319,6 +319,17 @@ $externalManifest = [ordered]@{
         path='SBOM.cdx.json'; size=1; sha256=('6' * 64)
         derivedFromPath='licenses/SBOM.cdx.json'
     }
+    webView2=[ordered]@{
+        trackedManifest='WebView2.manifest.json'
+        trackedManifestSha256=('d' * 64)
+        version='138.0.3351.121'
+        architecture='x64'
+        rootDirectory='WebView2'
+        archiveSize=1
+        archiveSha256=('e' * 64)
+        fileCount=1
+        totalSize=1
+    }
     files=$externalFiles
 }
 Write-Gate7Json $externalManifestPath $externalManifest
@@ -805,6 +816,7 @@ $externalUiProfile | Add-Member `
     -NotePropertyName webDriver `
     -NotePropertyValue (Copy-HcrObject $profile.webDriver) `
     -Force
+$externalUiProfile.webDriver.driverVersion = '138.0.3351.122'
 $externalUiProfile.steps = @(
     [pscustomobject][ordered]@{
         id='stage';type='stageArtifact';timeoutSeconds=120;required=$true
@@ -1093,8 +1105,9 @@ Assert-Gate7Equal ([string]$externalEvidence.candidate.portableManifestSourceSha
     'External evidence did not independently rebind source and guest sidecar hashes.'
 Assert-Gate7 ($null -eq $externalEvidence.candidate.webDriverManifestSha256 -and
         -not [bool]$externalEvidence.automation.uiRequired -and
+        $null -eq $externalEvidence.automation.fixedWebView2Version -and
         $null -eq $externalEvidence.automation.webDriverVersion) `
-    'The non-UI external branch fabricated a WebDriver identity.'
+    'The non-UI external branch fabricated a conditional UI identity.'
 $externalEvidenceValidation = Invoke-Gate7Tool 'validate_evidence' ([pscustomobject]@{
     evidencePath = [string]$externalOperation.evidenceFile
 })
@@ -1138,6 +1151,8 @@ $externalUiEvidence = Read-HcrJsonFile `
 Assert-Gate7 ([bool]$externalUiEvidence.automation.uiRequired -and
         [string]$externalUiEvidence.automation.fixedWebView2Version -eq
             [string]$externalUiManifest.webView2.version -and
+        [string]$externalUiEvidence.automation.webDriverVersion -eq
+            [string]$externalUiProfile.webDriver.driverVersion -and
         $null -ne $externalUiEvidence.automation.webDriverManifestSha256) `
     'The external UI branch did not bind its conditional component and driver identity.'
 $externalUiEvidenceValidation = Invoke-Gate7Tool 'validate_evidence' ([pscustomobject]@{

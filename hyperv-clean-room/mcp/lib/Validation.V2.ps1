@@ -1442,12 +1442,16 @@ function Resolve-HcrExternalPortableManifestV2 {
         Throw-HcrError 'PORTABLE_MANIFEST_INVALID' 'The external portable-manifest path escapes the profile directory.'
     }
     $item = Assert-HcrRegularLocalFile $path 'PORTABLE_MANIFEST_INVALID'
-    if ([int64]$item.Length -gt 16MB -or
-        [int64]$item.Length -ne [int64](Get-HcrPropertyValue $artifact 'portableManifestSizeBytes')) {
+    if ([int64]$item.Length -gt 16MB) {
         Throw-HcrError 'PORTABLE_MANIFEST_SIZE_MISMATCH' 'The external portable-manifest size does not match the profile.'
     }
     $bytes = [IO.File]::ReadAllBytes($item.FullName)
-    $sha256 = Get-HcrSha256File $item.FullName
+    if ([int64]$bytes.LongLength -gt 16MB -or
+        [int64]$bytes.LongLength -ne
+            [int64](Get-HcrPropertyValue $artifact 'portableManifestSizeBytes')) {
+        Throw-HcrError 'PORTABLE_MANIFEST_SIZE_MISMATCH' 'The external portable-manifest size does not match the profile.'
+    }
+    $sha256 = Get-HcrSha256Bytes $bytes
     if ($sha256 -cne [string](Get-HcrPropertyValue $artifact 'portableManifestSha256')) {
         Throw-HcrError 'PORTABLE_MANIFEST_HASH_MISMATCH' 'The external portable-manifest SHA-256 does not match the profile.'
     }
@@ -1462,7 +1466,7 @@ function Resolve-HcrExternalPortableManifestV2 {
         item = $item
         document = $document
         sha256 = $sha256
-        sizeBytes = [int64]$item.Length
+        sizeBytes = [int64]$bytes.LongLength
         inventory = $validation.inventory
         uiRequired = [bool]$validation.uiRequired
     }

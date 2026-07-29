@@ -256,6 +256,20 @@ def main() -> int:
         ),
     )
     require_tokens(
+        common + validation,
+        "single-read external sidecar identity",
+        (
+            "function Get-HcrSha256Bytes",
+            "$bytes = [IO.File]::ReadAllBytes($item.FullName)",
+            "$sha256 = Get-HcrSha256Bytes $bytes",
+            "ConvertFrom-HcrStrictJsonBytes $bytes",
+        ),
+    )
+    if "Get-HcrSha256File $item.FullName" in validation:
+        raise AssertionError(
+            "external sidecar validation hashes the path separately from parsed bytes"
+        )
+    require_tokens(
         external_sources,
         "external candidate rebinding",
         (
@@ -332,6 +346,17 @@ def main() -> int:
             "cleanupSteps",
             "driverVersion",
             "browserVersion",
+        ),
+    )
+    require_tokens(
+        worker,
+        "worker conditional UI compatibility",
+        (
+            "Test-WorkerDriverVersionCompatibility",
+            "[string]::Join('.', $browserParts[0..2])",
+            "[string]::Join('.', $driverParts[0..2])",
+            "(-not $uiRequired -and $null -ne $webDriver)",
+            "Get-WorkerProperty $Input 'uiRequired' $false",
         ),
     )
 

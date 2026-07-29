@@ -1109,7 +1109,7 @@ function Read-WorkerPortableManifest {
                     [string](Get-WorkerProperty $webView2 'version') -cne
                         [string](Get-WorkerProperty $webDriver 'browserVersion')
                 )) -or
-            (-not $uiRequired -and ($null -ne $webDriver -or $null -ne $webView2))) {
+            (-not $uiRequired -and $null -ne $webDriver)) {
             Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The sidecar and profile conditional UI identities disagree.'
         }
         return [pscustomobject][ordered]@{
@@ -1327,7 +1327,10 @@ function Invoke-WorkerDeployPortable {
             portableInventoryFileCount=[int]$declared.Count
             portableInventorySizeBytes=$portableInventorySizeBytes
             fixedWebView2Version=$(if($externalPortable){
-                if(Test-WorkerProperty $manifest 'webView2'){[string]$manifest.webView2.version}else{$null}
+                if([bool](Get-WorkerProperty $Input 'uiRequired' $false) -and
+                    (Test-WorkerProperty $manifest 'webView2')){
+                    [string]$manifest.webView2.version
+                }else{$null}
             }else{[string]$manifest.identities.webView2.version})
             token=Get-WorkerTokenProjection $Token
         })
@@ -1339,6 +1342,24 @@ function Get-WorkerLoopbackEphemeralPort {
     $listener = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 0)
     try { $listener.Start(); return [int]$listener.LocalEndpoint.Port }
     finally { $listener.Stop() }
+}
+
+function Test-WorkerDriverVersionCompatibility {
+    param(
+        [AllowNull()][object]$BrowserVersion,
+        [AllowNull()][object]$DriverVersion
+    )
+
+    $browser = [string]$BrowserVersion
+    $driver = [string]$DriverVersion
+    if ($browser -notmatch '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' -or
+        $driver -notmatch '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$') {
+        return $false
+    }
+    $browserParts = @($browser -split '\.')
+    $driverParts = @($driver -split '\.')
+    return [string]::Join('.', $browserParts[0..2]) -ceq
+        [string]::Join('.', $driverParts[0..2])
 }
 
 function Get-WorkerWebDriverRoot {
@@ -1425,7 +1446,12 @@ function Invoke-WorkerAcquireWebDriver {
         [Parameter(Mandatory = $true)][object]$Token
     )
     $manifest=Get-WorkerProperty $Input 'webDriver';$version=[string](Get-WorkerProperty $manifest 'driverVersion');$acquisition=Get-WorkerProperty $manifest 'acquisition';$executableIdentity=Get-WorkerProperty $manifest 'executable'
-    if($version-notmatch'^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'-or$version-ne[string](Get-WorkerProperty $manifest 'browserVersion')-or[string](Get-WorkerProperty $acquisition 'source')-ne'microsoftFixedEndpoint'){Throw-WorkerError 'WEBDRIVER_MANIFEST_INVALID' 'The fixed driver manifest is incompatible.'}
+    if(-not(Test-WorkerDriverVersionCompatibility `
+                (Get-WorkerProperty $manifest 'browserVersion') `
+                $version)-or
+        [string](Get-WorkerProperty $acquisition 'source')-ne'microsoftFixedEndpoint'){
+        Throw-WorkerError 'WEBDRIVER_MANIFEST_INVALID' 'The fixed driver manifest is incompatible.'
+    }
     $root=Get-WorkerWebDriverRoot $OperationId;$archivePath=Join-Path $root 'edgedriver_win64.zip';$driverPath=Join-Path $root 'msedgedriver.exe'
     if(-not(Test-Path -LiteralPath $archivePath -PathType Leaf)){Invoke-WorkerFixedDownload ([Uri]("https://msedgedriver.microsoft.com/{0}/edgedriver_win64.zip"-f$version)) $archivePath ([int64](Get-WorkerProperty $acquisition 'archiveSizeBytes'))}
     if((Get-Item -LiteralPath $archivePath).Length-ne[int64](Get-WorkerProperty $acquisition 'archiveSizeBytes')-or(Get-WorkerSha256File $archivePath)-ne[string](Get-WorkerProperty $acquisition 'archiveSha256')){Throw-WorkerError 'WEBDRIVER_ARCHIVE_HASH_MISMATCH' 'The fixed driver archive identity does not match.'}

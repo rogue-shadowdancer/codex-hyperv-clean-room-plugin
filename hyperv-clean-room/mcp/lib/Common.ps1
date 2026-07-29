@@ -305,6 +305,24 @@ function Get-HcrSha256File {
     }
 }
 
+function Get-HcrSha256Bytes {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [byte[]]$Bytes
+    )
+
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString(
+                $sha.ComputeHash($Bytes)
+            )).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
 function Get-HcrRandomToken {
     param([int]$ByteCount = 32)
 
