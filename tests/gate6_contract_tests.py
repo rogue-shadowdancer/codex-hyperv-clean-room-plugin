@@ -813,6 +813,51 @@ def validate_external_ui_bindings(
     return errors
 
 
+def validate_external_portable_bindings(
+    profile: dict[str, Any], manifest: dict[str, Any]
+) -> list[str]:
+    errors: list[str] = []
+    artifact = profile.get("artifact", {})
+    if (
+        profile.get("workflowKind") != "portableAutomation"
+        or manifest.get("distributionBoundary") != "end-user-complete"
+    ):
+        errors.append("EXTERNAL_PORTABLE_BRANCH_REQUIRED")
+        return errors
+    if (
+        artifact.get("fileNamePattern") != manifest.get("fileName")
+        or artifact.get("sizeBytes") != manifest.get("newZipSize")
+        or artifact.get("sha256") != manifest.get("newZipSha256")
+    ):
+        errors.append("PORTABLE_ARTIFACT_IDENTITY_MISMATCH")
+
+    launch_steps = [
+        step
+        for step in profile.get("steps", [])
+        if step.get("type") == "launchApplication"
+    ]
+    applications = {
+        application.get("id"): application
+        for application in profile.get("applications", [])
+        if isinstance(application, dict)
+    }
+    if len(launch_steps) != 1:
+        errors.append("PORTABLE_LAUNCH_IDENTITY_REQUIRED")
+    else:
+        application = applications.get(launch_steps[0].get("application"))
+        if not isinstance(application, dict):
+            errors.append("PORTABLE_LAUNCH_APPLICATION_UNKNOWN")
+        elif (
+            application.get("executableRelativePath") != manifest.get("entrypoint")
+            or f"{application.get('dataDirectoryRelativePath')}/"
+            != manifest.get("dataRoot")
+        ):
+            errors.append("PORTABLE_APPLICATION_IDENTITY_MISMATCH")
+
+    errors.extend(validate_external_ui_bindings(profile, manifest))
+    return errors
+
+
 def derive_status(results: list[dict[str, Any]]) -> str:
     required = [result for result in results if result.get("required") is True]
     if any(result.get("status") == "failed" for result in required):
@@ -1064,7 +1109,9 @@ def validate_evidence_semantics(evidence: dict[str, Any]) -> list[str]:
             item for item in artifacts if item.get("role") == "portableManifest"
         ]
         if len(manifest_artifacts) == 1 and (
-            manifest_artifacts[0].get("sizeBytes")
+            manifest_artifacts[0].get("fileName")
+            != candidate.get("portableManifestRelativePath")
+            or manifest_artifacts[0].get("sizeBytes")
             != candidate.get("portableManifestSizeBytes")
             or manifest_artifacts[0].get("sourceSha256")
             != candidate.get("portableManifestSourceSha256")
@@ -1931,6 +1978,38 @@ def assert_p3_1_contract(
                 f"{unsafe_zip_leaf!r}"
             )
 
+    if validate_external_portable_bindings(neutral_profile, neutral_manifest):
+        raise AssertionError(
+            "valid neutral external cross-document bindings were rejected"
+        )
+    cross_document_probes: dict[str, dict[str, Any]] = {}
+    name_drift_profile = deepcopy(neutral_profile)
+    name_drift_profile["artifact"]["fileNamePattern"] = "Different.zip"
+    cross_document_probes["ZIP name"] = name_drift_profile
+    size_drift_profile = deepcopy(neutral_profile)
+    size_drift_profile["artifact"]["sizeBytes"] += 1
+    cross_document_probes["ZIP size"] = size_drift_profile
+    hash_drift_profile = deepcopy(neutral_profile)
+    hash_drift_profile["artifact"]["sha256"] = "f" * 64
+    cross_document_probes["ZIP hash"] = hash_drift_profile
+    entrypoint_drift_profile = deepcopy(neutral_profile)
+    entrypoint_drift_profile["applications"][0][
+        "executableRelativePath"
+    ] = "Different.exe"
+    cross_document_probes["application entrypoint"] = entrypoint_drift_profile
+    profile_validator = validator_for("test-profile.schema.json", schemas, registry)
+    for label, drifted_profile in cross_document_probes.items():
+        if list(profile_validator.iter_errors(drifted_profile)) or (
+            validate_profile_semantics(drifted_profile)
+        ):
+            raise AssertionError(
+                f"{label} cross-document probe unexpectedly failed profile validation"
+            )
+        if not validate_external_portable_bindings(
+            drifted_profile, neutral_manifest
+        ):
+            raise AssertionError(f"external cross-document {label} drift was accepted")
+
     synthetic_manifest = load_json(
         P3_1_FIXTURE_ROOT
         / "portable-manifest.external-birdsgone-shape.valid.json"
@@ -1938,22 +2017,7 @@ def assert_p3_1_contract(
     ui_profile = load_json(
         P3_1_FIXTURE_ROOT / "test-profile.external-ui.valid.json"
     )
-    application = ui_profile["applications"][0]
-    driver = ui_profile["webDriver"]
-    webview = synthetic_manifest["webView2"]
-    if (
-        ui_profile["artifact"]["fileNamePattern"]
-        != synthetic_manifest["fileName"]
-        or ui_profile["artifact"]["sizeBytes"] != synthetic_manifest["newZipSize"]
-        or ui_profile["artifact"]["sha256"] != synthetic_manifest["newZipSha256"]
-        or application["executableRelativePath"] != synthetic_manifest["entrypoint"]
-        or application["dataDirectoryRelativePath"] + "/"
-        != synthetic_manifest["dataRoot"]
-        or driver["browserVersion"] != webview["version"]
-        or driver["driverVersion"].split(".")[:3]
-        != webview["version"].split(".")[:3]
-        or validate_external_ui_bindings(ui_profile, synthetic_manifest)
-    ):
+    if validate_external_portable_bindings(ui_profile, synthetic_manifest):
         raise AssertionError("P3.1 external UI cross-document fixture bindings drifted")
 
     forbidden_real_identities = {
@@ -2414,6 +2478,19 @@ def main() -> int:
         raise AssertionError("ZIP-size drift probe unexpectedly failed schema validation")
     if not validate_evidence_semantics(zip_size_drift_probe):
         raise AssertionError("external evidence accepted portable ZIP size drift")
+
+    manifest_name_drift_probe = deepcopy(external_evidence_probe)
+    next(
+        artifact
+        for artifact in manifest_name_drift_probe["artifacts"]
+        if artifact["role"] == "portableManifest"
+    )["fileName"] = "Different-manifest.json"
+    if list(external_evidence_validator.iter_errors(manifest_name_drift_probe)):
+        raise AssertionError(
+            "manifest-name drift probe unexpectedly failed schema validation"
+        )
+    if not validate_evidence_semantics(manifest_name_drift_probe):
+        raise AssertionError("external evidence accepted portable manifest name drift")
 
     fixture_status_probe = deepcopy(external_evidence_probe)
     fixture_identity = {
