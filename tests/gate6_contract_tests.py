@@ -208,6 +208,10 @@ def canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+def compact_json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
 def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -879,14 +883,41 @@ def external_manifest_inventory_identity(
     )
 
 
+def external_profile_fixture_set_sha256(profile: dict[str, Any]) -> str:
+    identities = [
+        {
+            "id": fixture.get("id"),
+            "sourceRelativePath": str(
+                fixture.get("sourceRelativePath", "")
+            ).replace("\\", "/"),
+            "sizeBytes": fixture.get("sizeBytes"),
+            "sha256": fixture.get("sha256"),
+            "mediaType": fixture.get("mediaType"),
+        }
+        for fixture in profile.get("fixtures", [])
+        if isinstance(fixture, dict)
+    ]
+    return hashlib.sha256(compact_json(identities).encode("utf-8")).hexdigest()
+
+
+def external_profile_webdriver_sha256(profile: dict[str, Any]) -> str | None:
+    webdriver = profile.get("webDriver")
+    if not isinstance(webdriver, dict):
+        return None
+    return hashlib.sha256(compact_json(webdriver).encode("utf-8")).hexdigest()
+
+
 def external_evidence_candidate_bindings(
-    profile: dict[str, Any], manifest: dict[str, Any]
+    profile: dict[str, Any],
+    manifest: dict[str, Any],
+    profile_sha256: str,
 ) -> dict[str, object]:
     artifact = profile.get("artifact", {})
     inventory_count, inventory_size, inventory_sha256 = (
         external_manifest_inventory_identity(manifest)
     )
     return {
+        "sourceCommit": manifest.get("packagingCommit"),
         "runtimeSourceCommit": manifest.get("runtimeSourceCommit"),
         "runtimeSourceTree": manifest.get("runtimeSourceTree"),
         "packagingCommit": manifest.get("packagingCommit"),
@@ -896,6 +927,7 @@ def external_evidence_candidate_bindings(
         "portableZipSha256": manifest.get("newZipSha256"),
         "portableZipSourceSha256": manifest.get("newZipSha256"),
         "portableZipGuestSha256": manifest.get("newZipSha256"),
+        "profileSha256": profile_sha256,
         "requiredDistributionBoundary": artifact.get(
             "requiredDistributionBoundary"
         ),
@@ -928,6 +960,8 @@ def external_evidence_candidate_bindings(
         ),
         "oldRuntimeInventoryDigest": manifest.get("oldRuntimeInventoryDigest"),
         "newRuntimeInventoryDigest": manifest.get("newRuntimeInventoryDigest"),
+        "fixtureSetSha256": external_profile_fixture_set_sha256(profile),
+        "webDriverManifestSha256": external_profile_webdriver_sha256(profile),
     }
 
 
@@ -935,11 +969,12 @@ def validate_external_operation_bindings(
     profile: dict[str, Any],
     manifest: dict[str, Any],
     evidence: dict[str, Any],
+    profile_sha256: str,
 ) -> list[str]:
     errors = validate_external_portable_bindings(profile, manifest)
     candidate = evidence.get("candidate", {})
     for field, expected in external_evidence_candidate_bindings(
-        profile, manifest
+        profile, manifest, profile_sha256
     ).items():
         if candidate.get(field) != expected:
             errors.append(f"EXTERNAL_EVIDENCE_{field}_MISMATCH")
@@ -953,6 +988,45 @@ def validate_external_operation_bindings(
         errors.append("EXTERNAL_EVIDENCE_PROFILE_ID_MISMATCH")
     if profile_identity.get("fixtureIds") != expected_fixture_ids:
         errors.append("EXTERNAL_EVIDENCE_FIXTURE_IDS_MISMATCH")
+    expected_fixtures = {
+        fixture.get("id"): {
+            "sourceRelativePath": str(
+                fixture.get("sourceRelativePath", "")
+            ).replace("\\", "/"),
+            "profileSizeBytes": fixture.get("sizeBytes"),
+            "sourceSizeBytes": fixture.get("sizeBytes"),
+            "guestSizeBytes": fixture.get("sizeBytes"),
+            "profileSha256": fixture.get("sha256"),
+            "sourceSha256": fixture.get("sha256"),
+            "guestSha256": fixture.get("sha256"),
+            "status": "passed",
+        }
+        for fixture in profile.get("fixtures", [])
+        if isinstance(fixture, dict)
+    }
+    evidence_fixtures = evidence.get("fixtureIdentities", [])
+    actual_fixtures = {
+        fixture.get("id"): {
+            "sourceRelativePath": str(
+                fixture.get("sourceRelativePath", "")
+            ).replace("\\", "/"),
+            "profileSizeBytes": fixture.get("profileSizeBytes"),
+            "sourceSizeBytes": fixture.get("sourceSizeBytes"),
+            "guestSizeBytes": fixture.get("guestSizeBytes"),
+            "profileSha256": fixture.get("profileSha256"),
+            "sourceSha256": fixture.get("sourceSha256"),
+            "guestSha256": fixture.get("guestSha256"),
+            "status": fixture.get("status"),
+        }
+        for fixture in evidence_fixtures
+        if isinstance(fixture, dict)
+    }
+    if (
+        len(expected_fixtures) != len(profile.get("fixtures", []))
+        or len(actual_fixtures) != len(evidence_fixtures)
+        or actual_fixtures != expected_fixtures
+    ):
+        errors.append("EXTERNAL_EVIDENCE_FIXTURE_IDENTITIES_MISMATCH")
     automation = evidence.get("automation", {})
     if automation.get("entrypoint") != manifest.get("entrypoint"):
         errors.append("EXTERNAL_EVIDENCE_ENTRYPOINT_MISMATCH")
@@ -1903,6 +1977,9 @@ def assert_p3_1_contract(
     neutral_profile = load_json(
         P3_1_FIXTURE_ROOT / "test-profile.external-neutral.valid.json"
     )
+    neutral_profile_sha256 = sha256_file(
+        P3_1_FIXTURE_ROOT / "test-profile.external-neutral.valid.json"
+    )
     neutral_evidence = load_json(
         P3_1_FIXTURE_ROOT / "evidence.external-neutral.valid.json"
     )
@@ -2093,14 +2170,31 @@ def assert_p3_1_contract(
             "valid neutral external cross-document bindings were rejected"
         )
     if validate_external_operation_bindings(
-        neutral_profile, neutral_manifest, neutral_evidence
+        neutral_profile,
+        neutral_manifest,
+        neutral_evidence,
+        neutral_profile_sha256,
     ):
         raise AssertionError(
             "valid neutral external profile/manifest/evidence bindings were rejected"
         )
     expected_evidence_bindings = external_evidence_candidate_bindings(
-        neutral_profile, neutral_manifest
+        neutral_profile, neutral_manifest, neutral_profile_sha256
     )
+    required_external_candidate_fields = set(
+        schemas["evidence.schema.json"]["$defs"]["externalCandidateIdentity"][
+            "required"
+        ]
+    )
+    if set(expected_evidence_bindings) != required_external_candidate_fields:
+        missing = sorted(
+            required_external_candidate_fields - set(expected_evidence_bindings)
+        )
+        extra = sorted(set(expected_evidence_bindings) - required_external_candidate_fields)
+        raise AssertionError(
+            "external evidence binding coverage drifted from the closed candidate "
+            f"schema: missing={missing}, extra={extra}"
+        )
     for field, expected in expected_evidence_bindings.items():
         drifted_evidence = deepcopy(neutral_evidence)
         if isinstance(expected, int):
@@ -2111,7 +2205,10 @@ def assert_p3_1_contract(
         else:
             drifted_evidence["candidate"][field] = f"drifted-{expected}"
         if not validate_external_operation_bindings(
-            neutral_profile, neutral_manifest, drifted_evidence
+            neutral_profile,
+            neutral_manifest,
+            drifted_evidence,
+            neutral_profile_sha256,
         ):
             raise AssertionError(
                 f"external evidence candidate {field} drift was accepted"
@@ -2119,27 +2216,106 @@ def assert_p3_1_contract(
     evidence_entrypoint_drift = deepcopy(neutral_evidence)
     evidence_entrypoint_drift["automation"]["entrypoint"] = "Different.exe"
     if not validate_external_operation_bindings(
-        neutral_profile, neutral_manifest, evidence_entrypoint_drift
+        neutral_profile,
+        neutral_manifest,
+        evidence_entrypoint_drift,
+        neutral_profile_sha256,
     ):
         raise AssertionError("external evidence entrypoint drift was accepted")
     evidence_profile_id_drift = deepcopy(neutral_evidence)
     evidence_profile_id_drift["profile"]["id"] = "different-profile"
     if not validate_external_operation_bindings(
-        neutral_profile, neutral_manifest, evidence_profile_id_drift
+        neutral_profile,
+        neutral_manifest,
+        evidence_profile_id_drift,
+        neutral_profile_sha256,
     ):
         raise AssertionError("external evidence profile ID drift was accepted")
     evidence_fixture_ids_drift = deepcopy(neutral_evidence)
     evidence_fixture_ids_drift["profile"]["fixtureIds"] = ["unexpected-fixture"]
     if not validate_external_operation_bindings(
-        neutral_profile, neutral_manifest, evidence_fixture_ids_drift
+        neutral_profile,
+        neutral_manifest,
+        evidence_fixture_ids_drift,
+        neutral_profile_sha256,
     ):
         raise AssertionError("external evidence fixture-ID drift was accepted")
     evidence_ui_requirement_drift = deepcopy(neutral_evidence)
     evidence_ui_requirement_drift["automation"]["uiRequired"] = True
     if not validate_external_operation_bindings(
-        neutral_profile, neutral_manifest, evidence_ui_requirement_drift
+        neutral_profile,
+        neutral_manifest,
+        evidence_ui_requirement_drift,
+        neutral_profile_sha256,
     ):
         raise AssertionError("external evidence UI requirement drift was accepted")
+    fixture_profile = deepcopy(neutral_profile)
+    fixture_profile["fixtures"] = [
+        {
+            "id": "synthetic-input",
+            "sourceRelativePath": "fixtures/synthetic-input.json",
+            "sizeBytes": 128,
+            "sha256": "3" * 64,
+            "mediaType": "application/json",
+        }
+    ]
+    fixture_profile_sha256 = "8" * 64
+    fixture_evidence = deepcopy(neutral_evidence)
+    fixture_evidence["profile"]["sha256"] = fixture_profile_sha256
+    fixture_evidence["profile"]["fixtureIds"] = ["synthetic-input"]
+    fixture_evidence["candidate"]["profileSha256"] = fixture_profile_sha256
+    fixture_evidence["candidate"][
+        "fixtureSetSha256"
+    ] = external_profile_fixture_set_sha256(fixture_profile)
+    fixture_evidence["fixtureIdentities"] = [
+        {
+            "id": "synthetic-input",
+            "sourceRelativePath": "fixtures/synthetic-input.json",
+            "profileSizeBytes": 128,
+            "sourceSizeBytes": 128,
+            "guestSizeBytes": 128,
+            "profileSha256": "3" * 64,
+            "sourceSha256": "3" * 64,
+            "guestSha256": "3" * 64,
+            "status": "passed",
+        }
+    ]
+    if validate_external_operation_bindings(
+        fixture_profile,
+        neutral_manifest,
+        fixture_evidence,
+        fixture_profile_sha256,
+    ):
+        raise AssertionError("valid external fixture identity bindings were rejected")
+    for field in (
+        "sourceRelativePath",
+        "profileSizeBytes",
+        "sourceSizeBytes",
+        "guestSizeBytes",
+        "profileSha256",
+        "sourceSha256",
+        "guestSha256",
+        "status",
+    ):
+        fixture_drift = deepcopy(fixture_evidence)
+        current = fixture_drift["fixtureIdentities"][0][field]
+        if isinstance(current, int):
+            fixture_drift["fixtureIdentities"][0][field] = current + 1
+        elif field == "status":
+            fixture_drift["fixtureIdentities"][0][field] = "failed"
+        elif len(current) == 64:
+            fixture_drift["fixtureIdentities"][0][field] = "4" * 64
+        else:
+            fixture_drift["fixtureIdentities"][0][field] = "fixtures/other.json"
+        if not validate_external_operation_bindings(
+            fixture_profile,
+            neutral_manifest,
+            fixture_drift,
+            fixture_profile_sha256,
+        ):
+            raise AssertionError(
+                f"external fixture identity {field} drift was accepted"
+            )
     cross_document_probes: dict[str, dict[str, Any]] = {}
     name_drift_profile = deepcopy(neutral_profile)
     name_drift_profile["artifact"]["fileNamePattern"] = "Different.zip"

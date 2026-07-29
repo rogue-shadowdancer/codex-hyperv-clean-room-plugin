@@ -6,11 +6,11 @@
   "profile": {
     "id": "external-neutral-smoke",
     "schemaVersion": 2,
-    "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "sha256": "128e913c849098cd0c80f65554da6e7d42f998467edf9c3f35a0bd4a53e999e3",
     "fixtureIds": []
   },
   "candidate": {
-    "sourceCommit": "1111111111111111111111111111111111111111",
+    "sourceCommit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     "runtimeSourceCommit": "9999999999999999999999999999999999999999",
     "runtimeSourceTree": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "packagingCommit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -20,7 +20,7 @@
     "portableZipSha256": "1111111111111111111111111111111111111111111111111111111111111111",
     "portableZipSourceSha256": "1111111111111111111111111111111111111111111111111111111111111111",
     "portableZipGuestSha256": "1111111111111111111111111111111111111111111111111111111111111111",
-    "profileSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "profileSha256": "128e913c849098cd0c80f65554da6e7d42f998467edf9c3f35a0bd4a53e999e3",
     "requiredDistributionBoundary": "end-user-complete",
     "portableManifestDistributionBoundary": "end-user-complete",
     "portableManifestSource": "externalProfileRelative",
@@ -41,7 +41,7 @@
     "documentationInventoryDigest": "6666666666666666666666666666666666666666666666666666666666666666",
     "oldRuntimeInventoryDigest": "7777777777777777777777777777777777777777777777777777777777777777",
     "newRuntimeInventoryDigest": "7777777777777777777777777777777777777777777777777777777777777777",
-    "fixtureSetSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+    "fixtureSetSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
     "webDriverManifestSha256": null
   },
   "runtime": {
