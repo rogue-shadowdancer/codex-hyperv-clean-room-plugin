@@ -153,7 +153,7 @@ The candidate must retain these exact outcomes after its final commit:
 - Gate 7 mock runtime assertions: `216`
 - generated mock evidence documents validated: `5`
 - `git diff --check`
-- Nine Codex review passes found sixteen actionable fail-closed or regression
+- Ten Codex review passes found seventeen actionable fail-closed or regression
   coverage gaps: external ZIP
   artifact leaf/size binding, cleanup-only UI driver dispatch and WebView2
   cross-binding, embedded-evidence rejection of external fixture identities,
@@ -163,9 +163,10 @@ The candidate must retain these exact outcomes after its final commit:
   manifest runtime/packaging provenance, profile/manifest/evidence-consistent
   Windows-safe ZIP-leaf enforcement, superscript COM/LPT aliases, and complete
   manifest/profile/evidence ZIP-leaf regression coverage, Windows console-device
-  aliases in inventory paths, and non-NFC external ZIP leaves. All sixteen are
-  repaired with direct regression probes; the final published candidate requires
-  a fresh zero-actionable-findings review.
+  aliases in inventory paths, non-NFC external ZIP leaves, and comprehensive
+  control/NFC enforcement for every schema-bound relative path. All seventeen
+  are repaired with direct regression probes; the final published candidate
+  requires a fresh zero-actionable-findings review.
 - real host operations: `0`
 - real Hyper-V mutations: `0`
 - real guest operations: `0`
