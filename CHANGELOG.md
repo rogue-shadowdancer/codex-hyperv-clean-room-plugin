@@ -22,7 +22,9 @@ the local plugin cache.
   access errors. Validate every required state child with bounded
   delete-on-close probes; the plugin does not change ACLs or elevate itself.
 - Preserve Apply plan consumption while checking current authorization before
-  any VM-create drift probe.
+  any VM-create or checkpoint create/restore drift probe.
+- Declare least-privilege authorization and state-root access failures in each
+  affected schema-v2 Plan/Apply result contract.
 - Advance runtime provenance to v0.4.0 while retaining matching v0.3.0,
   v0.3.1, and v0.3.2 external evidence.
 

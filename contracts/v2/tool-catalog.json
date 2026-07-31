@@ -146,10 +146,12 @@
           }
         },
         "failureCodes": [
+          "HYPERV_AUTHORIZATION_REQUIRED",
           "HYPERV_UNAVAILABLE",
           "INVALID_ARGUMENT",
           "OWNERSHIP_UNVERIFIED",
           "STATE_BUSY",
+          "STATE_ROOT_ACCESS_DENIED",
           "VM_NOT_FOUND",
           "VM_STATE_UNSUPPORTED"
         ]
@@ -228,6 +230,7 @@
           "PLAN_NOT_FOUND",
           "POWER_TRANSITION_FAILED",
           "STATE_BUSY",
+          "STATE_ROOT_ACCESS_DENIED",
           "VM_STATE_UNSUPPORTED"
         ]
       }
@@ -317,11 +320,13 @@
         },
         "failureCodes": [
           "BASELINE_UNAVAILABLE",
+          "HYPERV_AUTHORIZATION_REQUIRED",
           "HYPERV_UNAVAILABLE",
           "INVALID_ARGUMENT",
           "OWNERSHIP_UNVERIFIED",
           "PRIMARY_ADAPTER_UNVERIFIED",
           "STATE_BUSY",
+          "STATE_ROOT_ACCESS_DENIED",
           "VM_NOT_FOUND"
         ]
       }
@@ -445,7 +450,8 @@
           "PLAN_KIND_MISMATCH",
           "PLAN_NOT_FOUND",
           "PRIMARY_ADAPTER_UNVERIFIED",
-          "STATE_BUSY"
+          "STATE_BUSY",
+          "STATE_ROOT_ACCESS_DENIED"
         ]
       }
     }

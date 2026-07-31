@@ -871,6 +871,7 @@ function Invoke-HcrApplyCheckpointCreate {
 
     $record = Consume-HcrPlanRecord ([string](Get-HcrPropertyValue $Arguments 'planId'))
     $plan = Assert-HcrPlanUsable $record 'checkpointCreate'
+    [void](Assert-HcrRuntimeHyperVAuthorized)
     $owned = Assert-HcrCheckpointPlanCommonDriftFree $plan
     if ($null -ne (Get-HcrCheckpointByName $owned.vm ([string](Get-HcrPropertyValue $plan 'checkpointName')))) {
         Throw-HcrError 'PLAN_DRIFT' 'The planned checkpoint name is no longer absent.'
@@ -997,6 +998,7 @@ function Invoke-HcrApplyCheckpointRestore {
     # The first well-formed call consumes before name, token, expiry, or drift checks.
     $record = Consume-HcrPlanRecord ([string](Get-HcrPropertyValue $Arguments 'planId'))
     $plan = Assert-HcrPlanUsable $record 'checkpointRestore'
+    [void](Assert-HcrRuntimeHyperVAuthorized)
     if ([string](Get-HcrPropertyValue $Arguments 'checkpointName') -ne
         [string](Get-HcrPropertyValue $plan 'checkpointName')) {
         Throw-HcrError 'CONFIRMATION_MISMATCH' 'The checkpoint name does not match the consumed restore plan.'

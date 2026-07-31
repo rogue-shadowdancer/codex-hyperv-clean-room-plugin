@@ -151,6 +151,11 @@ def main() -> int:
         raise AssertionError(
             "VM-create apply does not check current authorization before host drift probes"
         )
+    if host_v1.count("[void](Assert-HcrRuntimeHyperVAuthorized)") != 3:
+        raise AssertionError(
+            "VM create and checkpoint create/restore Apply paths do not all "
+            "check current authorization before host drift probes"
+        )
     if "$identity.Dispose()" not in adapters:
         raise AssertionError("current-token authorization leaks its Windows identity handle")
     if "ELEVATION_REQUIRED" in host_v1 + host_v2 + adapters:

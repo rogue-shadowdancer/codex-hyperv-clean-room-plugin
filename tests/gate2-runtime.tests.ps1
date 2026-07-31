@@ -1068,6 +1068,33 @@ $mock = Read-HcrMockAdapterState
 $mock.vms[0].notes = "hyperv-clean-room/v1:$ownershipId"
 Write-HcrMockAdapterState $mock
 
+$authorizationCheckpointPlan = Invoke-TestTool 'plan_checkpoint_create' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+    checkpointName = 'authorization-checkpoint'
+})
+Assert-True $authorizationCheckpointPlan.ok 'Authorization checkpoint plan failed.'
+$mock = Read-HcrMockAdapterState
+$mock.host.elevated = $false
+$mock.host.hyperVAdministratorsTokenEnabled = $false
+Write-HcrMockAdapterState $mock
+$global:HcrMockHostSnapshotCallCount = 0
+$unauthorizedCheckpointApply = Invoke-TestTool 'apply_checkpoint_create' ([pscustomobject]@{
+    planId = [string]$authorizationCheckpointPlan.data.plan.planId
+})
+Assert-ErrorCode $unauthorizedCheckpointApply 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'Checkpoint-create apply ran host drift probes before current authorization.'
+Assert-Equal $global:HcrMockHostSnapshotCallCount 0 `
+    'Checkpoint-create apply probed the host snapshot before current authorization.'
+Remove-Variable -Name HcrMockHostSnapshotCallCount -Scope Global -ErrorAction SilentlyContinue
+$mock = Read-HcrMockAdapterState
+$mock.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $mock
+$authorizationCheckpointReplay = Invoke-TestTool 'apply_checkpoint_create' ([pscustomobject]@{
+    planId = [string]$authorizationCheckpointPlan.data.plan.planId
+})
+Assert-ErrorCode $authorizationCheckpointReplay 'PLAN_ALREADY_CONSUMED' `
+    'Checkpoint-create authorization failure did not preserve plan consumption.'
+
 $checkpointPlan = Invoke-TestTool 'plan_checkpoint_create' ([pscustomobject]@{
     vmName = 'cleanroom-test'
     checkpointName = 'baseline'
@@ -1080,6 +1107,37 @@ $checkpointApply = Invoke-TestTool 'apply_checkpoint_create' ([pscustomobject]@{
     planId = [string]$checkpointPlan.data.plan.planId
 })
 Assert-True $checkpointApply.ok 'Checkpoint apply failed.'
+
+$authorizationRestorePlan = Invoke-TestTool 'plan_checkpoint_restore' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+    checkpointName = 'baseline'
+})
+Assert-True $authorizationRestorePlan.ok 'Authorization restore plan failed.'
+$mock = Read-HcrMockAdapterState
+$mock.host.elevated = $false
+$mock.host.hyperVAdministratorsTokenEnabled = $false
+Write-HcrMockAdapterState $mock
+$global:HcrMockHostSnapshotCallCount = 0
+$unauthorizedRestoreApply = Invoke-TestTool 'apply_checkpoint_restore' ([pscustomobject]@{
+    planId = [string]$authorizationRestorePlan.data.plan.planId
+    checkpointName = 'baseline'
+    confirmationToken = [string]$authorizationRestorePlan.data.plan.confirmationToken
+})
+Assert-ErrorCode $unauthorizedRestoreApply 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'Checkpoint-restore apply ran host drift probes before current authorization.'
+Assert-Equal $global:HcrMockHostSnapshotCallCount 0 `
+    'Checkpoint-restore apply probed the host snapshot before current authorization.'
+Remove-Variable -Name HcrMockHostSnapshotCallCount -Scope Global -ErrorAction SilentlyContinue
+$mock = Read-HcrMockAdapterState
+$mock.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $mock
+$authorizationRestoreReplay = Invoke-TestTool 'apply_checkpoint_restore' ([pscustomobject]@{
+    planId = [string]$authorizationRestorePlan.data.plan.planId
+    checkpointName = 'baseline'
+    confirmationToken = [string]$authorizationRestorePlan.data.plan.confirmationToken
+})
+Assert-ErrorCode $authorizationRestoreReplay 'PLAN_ALREADY_CONSUMED' `
+    'Checkpoint-restore authorization failure did not preserve plan consumption.'
 
 $restorePlan = Invoke-TestTool 'plan_checkpoint_restore' ([pscustomobject]@{
     vmName = 'cleanroom-test'
