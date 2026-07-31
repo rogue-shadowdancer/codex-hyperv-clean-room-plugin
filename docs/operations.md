@@ -2,14 +2,17 @@
 
 ## Current operating status
 
-G7/P3.3-R1 applies the ownership-marked personal install and
-cachebuster-reinstall workflow to compatible patch plugin `0.3.1`. Final
+G7/P3.3-R2 applies the ownership-marked personal install and
+cachebuster-reinstall workflow to compatible patch plugin `0.3.2`. Final
 acceptance requires the clean
 commit/reinstall state recorded in `TASK_HANDOFF.md`. The reserved build is
-`0.3.1+codex.20260729184240`. Catalog-only acceptance starts only from
+`0.3.2+codex.20260731014242`. Catalog-only acceptance starts only from
 `%USERPROFILE%\plugins\hyperv-clean-room`, negotiates MCP `2025-11-25`, and
-discovers exactly 20 unique tools without calling any tool. It therefore does
-not inspect or mutate a real host, Hyper-V resource, VM, guest, credential,
+discovers exactly 20 unique tools without calling any tool. An explicit
+test-only companion check selects an isolated MCP child in mock mode and calls
+only `inspect_host` and `list_vms` after verifying the mandatory warning and
+`changed=false`; it reports zero real-operation counts. Neither check inspects
+or mutates a real host, Hyper-V resource, VM, guest, credential,
 package, portable deployment, driver, UI, network, evidence, or manual result.
 It performs no real Hyper-V mutation.
 

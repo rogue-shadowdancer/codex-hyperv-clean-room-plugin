@@ -46,9 +46,12 @@ G7/P3.3 publishes that reviewed source as immutable, source-only `v0.3.0` and
 performs one ownership-checked personal cachebuster install. Installation
 acceptance closes the exact 31 payloads and two installed-state records against
 their relative paths, sizes, SHA-256 values, source commit, version, and
-cachebuster. Installed-server acceptance is catalog-only: it performs
-`initialize` and `tools/list`, discovers exactly 20 unique tools, and invokes no
-tool or adapter operation. Publication and installation do not turn the
+cachebuster. Installed-server acceptance remains catalog-only by default: it
+performs `initialize` and `tools/list`, discovers exactly 20 unique tools, and
+invokes no tool or adapter operation. Its explicit companion smoke runs only
+against an isolated selected MCP child whose mock warning is mandatory before
+each of the two read-only calls; it reports zero real-operation counts.
+Publication and installation do not turn the
 P3.2 mock/parser/static evidence into real-host, guest, portable, driver, UI,
 network, or clean-machine evidence.
 

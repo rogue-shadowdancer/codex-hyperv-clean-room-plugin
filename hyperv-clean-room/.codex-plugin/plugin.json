@@ -1,6 +1,6 @@
 {
   "name": "hyperv-clean-room",
-  "version": "0.3.1+codex.20260729184240",
+  "version": "0.3.2+codex.20260731014242",
   "description": "Automate safe Windows Hyper-V clean-room provisioning, package lifecycle tests, and evidence collection.",
   "author": {
     "name": "rogue-shadowdancer"

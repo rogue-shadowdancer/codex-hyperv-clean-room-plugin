@@ -3,7 +3,7 @@
 ## Status and assurance boundary
 
 Hyper-V Clean Room is a Windows-only Codex plugin whose product surface is a
-PowerShell 5.1 MCP server. Source version `0.3.1` preserves the exact 16
+PowerShell 5.1 MCP server. Source version `0.3.2` preserves the exact 16
 schema-v1 tools, five public schema-v1 documents, four schema-v2 power/network
 tools, and seven schema-v2 paths. It adds an external portable branch while
 preserving the embedded `0.2.0` branch. Gate 2 implements both the mock adapter and the

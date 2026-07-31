@@ -1,7 +1,7 @@
 {
   "contractVersion": 2,
   "targetPluginVersion": "0.3.0",
-  "currentRuntimeVersion": "0.3.1",
+  "currentRuntimeVersion": "0.3.2",
   "consumerContract": {
     "path": "contracts/v2/consumer-contract.json",
     "sourceCommit": "5eba3c60e4b95fa461a39adb9d9c1dfb066ce15c",
@@ -18,7 +18,7 @@
     "vm-plan.schema.json": "9aaf056f8beace6ba4107627f8028fdc3e74d484179d9bf238b83f4b8138b4fe"
   },
   "schemaV2RuntimeSha256": {
-    "evidence.schema.json": "b269e30d304499c834306092fd0c6024e3c9b01217af24a03cf3527b17c10e9d",
+    "evidence.schema.json": "398f9fe4930f3fc45190aab291ad5c596b4dd657a596a0916dca0c88f0d03336",
     "operation-envelope.schema.json": "7160708f6fb09ba8837e00350ba364aa52af7da0be6c619e903a1efbf485a5f6",
     "portable-manifest.schema.json": "e249c380d33d5e338fa86ec338f8fac914225092de2793811a10554422760fe2",
     "test-profile.schema.json": "aee2f3cdddf8db57449485a75d43ff39f276bf64e99bd0e999b5ca6f9f8ad3b9",

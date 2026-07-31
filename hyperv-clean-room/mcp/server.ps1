@@ -270,11 +270,13 @@ while ($true) {
                 }
                 if (-not (Test-HcrClosedParameterObject `
                         $parameters `
-                        @('name', 'arguments') `
+                        @('name', 'arguments', '_meta') `
                         @('name')) -or
                     (Get-HcrPropertyValue $parameters 'name') -isnot [string] -or
                     ((Test-HcrProperty $parameters 'arguments') -and
-                        -not (Test-HcrObjectLike (Get-HcrPropertyValue $parameters 'arguments')))) {
+                        -not (Test-HcrObjectLike (Get-HcrPropertyValue $parameters 'arguments'))) -or
+                    ((Test-HcrProperty $parameters '_meta') -and
+                        -not (Test-HcrObjectLike (Get-HcrPropertyValue $parameters '_meta')))) {
                     Write-HcrJsonRpcMessage (New-HcrJsonRpcError $id -32602 'Invalid tool-call parameters')
                     continue
                 }

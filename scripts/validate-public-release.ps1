@@ -41,10 +41,13 @@ function Invoke-ReleaseCheck {
 }
 
 function Invoke-IsolatedPowerShellScript {
-    param([Parameter(Mandatory = $true)][string]$Path)
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string[]]$Arguments = @()
+    )
 
     & $windowsPowerShell -NoLogo -NoProfile -NonInteractive `
-        -ExecutionPolicy Bypass -File $Path
+        -ExecutionPolicy Bypass -File $Path @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Isolated PowerShell validator failed with exit code $LASTEXITCODE`: $Path"
     }
@@ -136,7 +139,7 @@ try {
     Invoke-ReleaseCheck -Name 'gate2' -Action {
         Invoke-IsolatedPowerShellScript (
             Join-Path $PSScriptRoot 'validate-gate2.ps1'
-        )
+        ) -Arguments @('-SkipRealHostSmoke')
     }
     Invoke-ReleaseCheck -Name 'documentation' -Action {
         Invoke-IsolatedPowerShellScript (
