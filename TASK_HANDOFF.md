@@ -1,4 +1,4 @@
-# Task handoff: G7/P3.3-R2 v0.3.2 tool-call metadata repair
+# Task handoff: v0.4.0 least-privilege Hyper-V authorization
 
 `relayProtocolVersion: 1`
 
@@ -6,86 +6,69 @@
 
 ## Objective
 
-Publish the compatible Hyper-V Clean Room `v0.3.2` patch from one protected
-commit, install the precommitted personal build from that same commit, and
-prove both the default 20-tool selected catalog and an isolated selected-child
-mock tool-call path. This gate does not perform the external production typed
-read-only smoke or any real Hyper-V mutation.
+Publish and install one protected v0.4.0 runtime that supports normal,
+non-elevated Codex operation through enabled local `Hyper-V Administrators`
+membership while retaining elevated Administrator compatibility with an
+explicit broader-privilege warning. This source/release gate performs no
+production Hyper-V tool call or mutation.
 
-## Root cause and source repair
+## Frozen compatibility boundary
 
-Current Codex sends MCP-standard object `_meta` on `tools/call`. The v0.3.1
-server allowed only outer `name` and `arguments`, so valid `inspect_host` and
-`list_vms` requests failed with JSON-RPC `-32602` before tool schema validation
-or adapter dispatch.
+- Capability target remains `0.3.0`.
+- Exactly 20 public typed tools and their closed inputs remain unchanged.
+- SchemaVersion 1/2 routing, Plan/Apply consumption, expiry, drift, ownership,
+  fingerprint, and network-recovery ordering remain unchanged.
+- V1 host fingerprints retain the historical `elevated` component. V2 host
+  fingerprints continue excluding transient privilege state. New
+  authorization fields enter neither fingerprint.
+- Matching v0.3.0, v0.3.1, and v0.3.2 external evidence remains readable;
+  current generated provenance is v0.4.0.
 
-The v0.3.2 server:
+## Authorization contract
 
-- accepts only required string `name`, optional object `arguments`, and
-  optional object `_meta`;
-- rejects scalar, array, or null `_meta`, mistyped `arguments`, and every
-  unknown outer field with `-32602`; and
-- discards `_meta` after transport validation so only `arguments` reach the
-  tool schema and dispatcher.
+The production MCP server reads only its current process token. Local built-in
+SID `S-1-5-32-578` is `Hyper-V Administrators`.
 
-The exact 20 tool names and input schemas, schema-v1 behavior, v2 Plan/Apply
-guards, and all production adapter boundaries remain unchanged. The capability
-target remains `0.3.0`; current runtime/generated provenance advances to
-`0.3.2`, while matching v0.3.0 and v0.3.1 external evidence remains readable.
+- `hyperVAuthorized` is true when the token is an elevated Administrator or
+  has the Hyper-V Administrators SID enabled.
+- `authorizationMode` precedence is `elevatedAdministrator`,
+  `hyperVAdministrators`, then `none`.
+- `inspect_host` remains diagnostic and returns `elevated`,
+  `hyperVAdministratorsTokenEnabled`, `hyperVAuthorized`, and
+  `authorizationMode`; it returns no user name or user SID.
+- `list_vms`, `inspect_vm`, and every host Plan/Apply path require
+  authorization. Missing authorization returns
+  `HYPERV_AUTHORIZATION_REQUIRED`.
+- Successful elevated results include exactly:
+  `BROADER_PRIVILEGE_CONTEXT: MCP server is elevated; Hyper-V Administrators is the preferred least-privilege authorization mode.`
+- Production VM create, checkpoint create/restore, power, and network adapters
+  independently recompute live token authorization before mutation entry.
 
-## Selected app-server validation
-
-`scripts/validate-codex-app-server-catalog.ps1` remains catalog-only by default:
-it selects `hyperv-clean-room@personal` in an isolated ephemeral Codex home,
-requires server `hyperv-clean-room` / `0.3.2` and exactly 20 unique tools, and
-reports `toolCallCount: 0`.
-
-Explicit `-MockToolCallSmoke` copies the selected plugin into the isolated
-home and launches it through a child-local wrapper that sets:
-
-- `HCR_TEST_MODE=1`;
-- `HCR_ADAPTER_MODE=mock`;
-- an isolated mock adapter state path; and
-- isolated state and credential roots.
-
-It calls `inspect_host` first and requires `ok=true`, `changed=false`, mock host
-identity, and the mandatory `TEST_ONLY_MOCK_ADAPTER` warning before sending
-`list_vms(managedOnly=false)`. The second call must meet the same envelope and
-warning conditions and return the empty mock inventory. The result reports two
-mock adapter operations and zero real-operation, Hyper-V-mutation, and guest
-operation counts.
-
-## Safety deviation
-
-The first source-iteration app-server harness attempt set mock variables on the
-app-server parent only. Codex did not pass them to the selected MCP child, so
-one unintended production `inspect_host` call occurred. Its returned envelope
-was successful with `changed=false`; no mutation occurred. The harness stopped
-before `list_vms`.
-
-This result is recorded separately and is not acceptance evidence, does not
-satisfy the external production typed read-only smoke, and authorizes no later
-real adapter call. The corrected child-local mock harness passed before
-development continued. No production `list_vms` call and no further real
-adapter call belongs to this source/release gate.
+ISO read, existing VM-root enumeration, and state-root initialization/I/O fail
+respectively with `ISO_ACCESS_DENIED`, `VM_ROOT_ACCESS_DENIED`, and
+`STATE_ROOT_ACCESS_DENIED`. State initialization validates the root and all
+five required children with bounded delete-on-close probes. The runtime never
+changes ACLs, adds group membership, creates a caller VM root, or elevates
+itself.
 
 ## Version and release invariant
 
-The plugin-creator cachebuster helper was invoked exactly once. The only build
-is `0.3.2+codex.20260731014242`; do not run the helper again.
+Runtime and manifest base version are `0.4.0`. After the source candidate is
+stable, invoke the plugin-creator cachebuster helper exactly once and freeze
+the only `0.4.0+codex.20260731141404` personal build. Do not rerun the helper after any
+later correction.
 
 The gate closes only when:
 
-`protected master SHA = annotated v0.3.2 peeled SHA = Release tag target = install-manifest sourceCommit`
+`protected master SHA = annotated v0.4.0 peeled SHA = Release tag target = install-manifest sourceCommit`
 
-Publish one non-draft, non-prerelease, source-only `v0.3.2` Release with zero
-uploaded assets. Preserve the exact immutable v0.1.1, v0.2.0, v0.3.0, and
-v0.3.1 tag objects, peeled commits, Release identities, flags, timestamps, and
-zero-asset state. Do not add a post-tag closeout commit.
+Publish one non-draft, non-prerelease, source-only v0.4.0 Release with zero
+uploaded assets. Preserve immutable v0.1.1 through v0.3.2 tag objects, peeled
+commits, Release identities, flags, timestamps, and zero-asset state.
 
 ## Required verification
 
-Before commit and on the exact protected candidate as applicable:
+Before commit and again on the exact final candidate as applicable:
 
 ```powershell
 .\scripts\prepare-test-python.ps1
@@ -97,92 +80,70 @@ python -S .\tests\public_release_contract_tests.py
 .\scripts\validate-gate7.ps1 -SkipInheritedBaseline
 .\scripts\validate-install-source.ps1 -RequireCachebuster
 .\scripts\validate-codex-app-server-catalog.ps1 `
-  -PluginRoot .\hyperv-clean-room -ExpectedVersion 0.3.2
+  -PluginRoot .\hyperv-clean-room -ExpectedVersion 0.4.0
 .\scripts\validate-codex-app-server-catalog.ps1 `
-  -PluginRoot .\hyperv-clean-room -ExpectedVersion 0.3.2 `
+  -PluginRoot .\hyperv-clean-room -ExpectedVersion 0.4.0 `
   -MockToolCallSmoke
 ```
 
-The exact staged candidate must receive a substantive source/diff/test/scope
-review with ZERO ACTIONABLE FINDINGS. After push, the exact unchanged head must
-pass `public-release-validation`, have all review conversations resolved, and
-complete the required fresh review window before a normal protected merge.
+Mock runtime coverage must prove the unauthorised/least-privilege/elevated
+matrix, exact warnings and errors, role-authorized Plan/Apply, path-access
+errors, unchanged fingerprints, and zero real-operation counters. Static
+validation must prove all five real host mutation boundaries perform their own
+live-token check.
 
-After protected merge, tag/Release publication, and same-commit install:
-
-```powershell
-.\scripts\check_install.ps1
-.\scripts\validate-codex-app-server-catalog.ps1 `
-  -PluginRoot "$HOME\plugins\hyperv-clean-room" -ExpectedVersion 0.3.2
-.\scripts\validate-codex-app-server-catalog.ps1 `
-  -PluginRoot "$HOME\plugins\hyperv-clean-room" -ExpectedVersion 0.3.2 `
-  -MockToolCallSmoke
-.\scripts\validate-public-release.ps1
-.\scripts\validate-public-github-settings.ps1
-.\scripts\validate-v032-release-readback.ps1 `
-  -ExpectedMasterCommit <protected-master-sha>
-```
-
-The v0.3.2 readback is non-mutating and requires a clean checkout at the exact
-protected commit, no assume-unchanged or skip-worktree flags, replacement
-objects disabled for Git identity/inventory reads, byte identity between each
-working payload and reviewed blob after only the frozen PowerShell LF-to-CRLF
-checkout transform, 31 payloads plus two installer records, one canonical
-personal marketplace entry, installed/enabled Codex state, and the single
-frozen build.
-
-## Verification completed before exact-candidate staging
-
-- Strict documentation validation: 17 documents, 100 local links, strict UTF-8,
-  zero mojibake markers.
-- Gate 1.1: source version `0.3.2+codex.20260731014242`, five v1 schemas,
-  42 PowerShell payload files, no mutation.
-- Gate 2 mock stdio/runtime: 1,309 assertions, 20 tools, four protocol versions,
-  zero real Hyper-V mutations.
-- Gate 7: 358 runtime assertions, 16 preserved v1 tools, five preserved v1
-  schemas, seven installed v2 schemas, ten generated evidence documents, and
-  zero real host, Hyper-V, guest, portable, WebDriver, or UI operations.
-- Selected app-server default: 20 observed/unique tools and
-  `toolCallCount=0`.
-- Selected app-server explicit mock: two tool calls, two mock adapter
-  operations, both `changed=false` with mandatory test-only warnings, and zero
-  real adapter/operation/Hyper-V-mutation/guest counts.
-- Public-release contract validation passed with runtime `0.3.2`, 20 tools,
-  five v1 schemas, seven v2 schemas, and preserved protected-branch contract.
+The exact staged candidate requires substantive source/diff/test/scope review
+with ZERO ACTIONABLE FINDINGS. Candidate changes reset affected validation and
+review. Push only the reviewed branch, open a protected PR, resolve every
+actionable thread, and merge normally. If hosted CI capacity is unavailable,
+use the repository-authorized exact-head local fallback and report hosted CI
+as `notPerformed`; never represent it as success.
 
 ## Safety boundary
 
-- Do not perform the fresh external production typed read-only smoke in this
-  gate.
-- Do not execute any further real adapter, host, Hyper-V, VM, checkpoint,
-  credential, guest, package, portable, WebDriver, network, UI, evidence, or
-  manual-attestation operation.
-- Mock/parser/schema/static tests remain allowed and never count as real
+- Do not call a production Hyper-V adapter or typed Hyper-V tool in this
+  source/release task.
+- The historical H4/G9 production-adapter `validate-gate4.ps1` smoke remains
+  outside this gate and is not a substitute for the fresh post-install typed
+  acceptance task.
+- Do not mutate a VM, VHDX, checkpoint, switch, host setting, credential,
+  guest, package, portable deployment, network attachment, UI, evidence, or
+  manual attestation.
+- Mock/parser/schema/static/install validation is allowed and is not real-host
   evidence.
-- The historical H4/G9 `.\scripts\validate-gate4.ps1` production-adapter smoke
-  remains `notPerformed`; it is not part of this repair gate.
-- Do not modify installed state until the protected v0.3.2 commit and annotated
-  tag/Release exist.
-- Do not force-push, rewrite history, weaken protection, delete branches, move
-  tags, or upload Release assets.
+- Do not edit the existing installed v0.3.2 cache. Install v0.4.0 only after
+  protected merge, tag, and Release exist.
+- Do not force-push, rewrite protected history, move old tags, bypass review,
+  or upload Release assets.
 
-## Changed areas
+## Current checkpoint
 
-- MCP stdio outer request validation and regressions.
-- Selected Codex app-server catalog/mock validation.
-- Compatible runtime provenance/schema assertions.
-- v0.3.2 build, source/install/release readback, documentation, and release
-  records.
-
-## Blockers
-
-None at source-candidate preparation time.
+- Worktree: isolated task-owned checkout for this gate (local absolute path is
+  intentionally not published).
+- Branch: `codex/v0.4.0-hyperv-role-auth`
+- Base: protected `origin/master`
+  `d4598c4c49b8fc8500aea321190870288bcaa4ee`
+- User session preflight: `Elevated=false`, current token has enabled
+  Hyper-V Administrators SID.
+- Current personal installation remains v0.3.2 build
+  `0.3.2+codex.20260731014242` from source commit
+  `d4598c4c49b8fc8500aea321190870288bcaa4ee`.
+- Exactly 20 typed tools were loaded in the coordinating task. No typed tool
+  was called during this source gate.
+- PR #32 initially reviewed commit
+  `d612fb3c80d4fa2e73168149a77631fe39c2e36c`; hosted push/PR validation
+  succeeded. Codex review then identified VM-create authorization ordering and
+  required state-child access gaps. The additive successor candidate addresses
+  both without changing the frozen `0.4.0+codex.20260731141404` build; it must
+  receive new exact-head CI, review, and unchanged-head evidence before merge.
 
 ## Next gate
 
-After exact protected publication/install/readback succeeds, relay exact
-protected SHA, tag object/peeled SHA, Release URL, build, install manifest and
-payload identities, 20-tool catalog, mock-call counts, CI/review/protection,
-and the separately recorded safety deviation to a fresh external production
-typed read-only smoke task. That task must obtain its own authorization and
-must not infer any Hyper-V mutation authority from this release.
+After exact protected publication, installation, and readback, create a fresh
+non-elevated Codex task and actually select
+`plugin://hyperv-clean-room@personal`. Its production smoke calls only typed
+`inspect_host({})`, typed `list_vms({managedOnly:false})`, and typed
+`inspect_vm({vmName})` for one returned VM. It must prove
+`authorizationMode=hyperVAdministrators`, no broader-privilege or mock warning,
+and consistent real VM identity/state/configuration. That smoke grants no
+mutation authority.

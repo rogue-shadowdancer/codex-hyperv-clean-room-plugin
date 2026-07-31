@@ -417,10 +417,10 @@
         "adapterMode"
       ],
       "properties": {
-        "pluginBaseVersion": { "enum": ["0.3.0", "0.3.1", "0.3.2"] },
+        "pluginBaseVersion": { "enum": ["0.3.0", "0.3.1", "0.3.2", "0.4.0"] },
         "pluginBuildVersion": {
           "type": "string",
-          "pattern": "^0\\.3\\.[012]\\+codex\\.[0-9]{14}$"
+          "pattern": "^0\\.(?:3\\.[012]|4\\.0)\\+codex\\.[0-9]{14}$"
         },
         "sourceCommit": { "$ref": "#/$defs/gitObject" },
         "installedInventorySha256": { "$ref": "#/$defs/sha256" },
@@ -462,6 +462,19 @@
             "properties": {
               "pluginBuildVersion": {
                 "pattern": "^0\\.3\\.2\\+codex\\.[0-9]{14}$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "pluginBaseVersion": { "const": "0.4.0" } },
+            "required": ["pluginBaseVersion"]
+          },
+          "then": {
+            "properties": {
+              "pluginBuildVersion": {
+                "pattern": "^0\\.4\\.0\\+codex\\.[0-9]{14}$"
               }
             }
           }

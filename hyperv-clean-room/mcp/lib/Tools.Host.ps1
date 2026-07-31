@@ -13,6 +13,25 @@ function Get-HcrHostFingerprint {
     return Get-HcrSha256Text (ConvertTo-HcrJson $fingerprintInput 10)
 }
 
+function Assert-HcrHyperVAuthorizedHostSnapshot {
+    param([Parameter(Mandatory = $true)][object]$HostSnapshot)
+
+    if (-not [bool](Get-HcrPropertyValue $HostSnapshot 'hyperVAuthorized' $false)) {
+        Throw-HcrError `
+            'HYPERV_AUTHORIZATION_REQUIRED' `
+            'Hyper-V access requires an enabled Hyper-V Administrators token or an elevated Administrator token.'
+    }
+    if (-not [bool](Get-HcrPropertyValue $HostSnapshot 'hyperVCommandsAvailable' $false) -or
+        -not [bool](Get-HcrPropertyValue $HostSnapshot 'hypervisorPresent' $false)) {
+        Throw-HcrError 'HYPERV_UNAVAILABLE' 'Hyper-V host prerequisites are unavailable.'
+    }
+    return $HostSnapshot
+}
+
+function Get-HcrAuthorizedHostSnapshot {
+    return Assert-HcrHyperVAuthorizedHostSnapshot (Invoke-HcrAdapter 'GetHostSnapshot')
+}
+
 function Get-HcrVmFingerprint {
     param([Parameter(Mandatory = $true)][object]$Vm)
 
@@ -257,6 +276,7 @@ function Get-HcrRequiredOwnedVm {
         [switch]$RequireOfflineDiskIdentity
     )
 
+    [void](Get-HcrAuthorizedHostSnapshot)
     $vm = Invoke-HcrAdapter 'GetVm' ([pscustomobject]@{
         name = $VmName
         requireOfflineDiskIdentity = [bool]$RequireOfflineDiskIdentity
@@ -348,7 +368,10 @@ function Invoke-HcrInspectHost {
         }
     }
     if (Test-HcrProperty $Arguments 'vmRoot') {
-        $rootItem = Assert-HcrLocalDirectory ([string](Get-HcrPropertyValue $Arguments 'vmRoot')) 'INVALID_VM_ROOT'
+        $rootItem = Assert-HcrAccessibleLocalDirectory `
+            ([string](Get-HcrPropertyValue $Arguments 'vmRoot')) `
+            'INVALID_VM_ROOT' `
+            'VM_ROOT_ACCESS_DENIED'
         $volume = Invoke-HcrAdapter 'GetTargetVolume' ([pscustomobject]@{ path = $rootItem.FullName })
         $minimumGb = [int](Get-HcrPropertyValue $Arguments 'minimumFreeSpaceGb' 1)
         $data.targetVolume = [ordered]@{
@@ -374,6 +397,7 @@ function Invoke-HcrInspectHost {
 function Invoke-HcrListVms {
     param([Parameter(Mandatory = $true)][object]$Arguments)
 
+    [void](Get-HcrAuthorizedHostSnapshot)
     $managedOnly = [bool](Get-HcrPropertyValue $Arguments 'managedOnly' $true)
     $results = New-Object System.Collections.Generic.List[object]
     foreach ($vm in @(Invoke-HcrAdapter 'ListVms')) {
@@ -409,6 +433,7 @@ function Invoke-HcrListVms {
 function Invoke-HcrInspectVm {
     param([Parameter(Mandatory = $true)][object]$Arguments)
 
+    [void](Get-HcrAuthorizedHostSnapshot)
     $vm = Invoke-HcrAdapter 'GetVm' ([pscustomobject]@{ name = [string](Get-HcrPropertyValue $Arguments 'vmName') })
     if ($null -eq $vm) { Throw-HcrError 'VM_NOT_FOUND' 'The requested VM does not exist.' }
     $ownership = Get-HcrOwnershipStatus $vm
@@ -486,25 +511,24 @@ function Invoke-HcrPlanVmCreate {
 
     $name = [string](Get-HcrPropertyValue $Arguments 'name')
     Assert-HcrVmName $name
-    $iso = Assert-HcrRegularLocalFile ([string](Get-HcrPropertyValue $Arguments 'isoPath')) 'INVALID_ISO'
+    $hostSnapshot = Get-HcrAuthorizedHostSnapshot
+    $iso = Assert-HcrReadableRegularLocalFile `
+        ([string](Get-HcrPropertyValue $Arguments 'isoPath')) `
+        'INVALID_ISO' `
+        'ISO_ACCESS_DENIED'
     if ($iso.Extension -ine '.iso' -or $iso.Length -lt 1) {
         Throw-HcrError 'INVALID_ISO' 'isoPath must identify a non-empty .iso regular file.'
     }
-    $vmRootItem = Assert-HcrLocalDirectory ([string](Get-HcrPropertyValue $Arguments 'vmRoot')) 'INVALID_VM_ROOT'
+    $vmRootItem = Assert-HcrAccessibleLocalDirectory `
+        ([string](Get-HcrPropertyValue $Arguments 'vmRoot')) `
+        'INVALID_VM_ROOT' `
+        'VM_ROOT_ACCESS_DENIED'
     $processorCount = [int](Get-HcrPropertyValue $Arguments 'processorCount' 4)
     $startupMemoryGb = [int](Get-HcrPropertyValue $Arguments 'startupMemoryGb' 8)
     $maximumMemoryGb = [int](Get-HcrPropertyValue $Arguments 'maximumMemoryGb' 12)
     $diskSizeGb = [int](Get-HcrPropertyValue $Arguments 'diskSizeGb' 100)
     if ($maximumMemoryGb -lt $startupMemoryGb) {
         Throw-HcrError 'INVALID_ARGUMENT' 'maximumMemoryGb cannot be smaller than startupMemoryGb.'
-    }
-    $hostSnapshot = Invoke-HcrAdapter 'GetHostSnapshot'
-    if (-not [bool](Get-HcrPropertyValue $hostSnapshot 'hyperVCommandsAvailable' $false) -or
-        -not [bool](Get-HcrPropertyValue $hostSnapshot 'hypervisorPresent' $false)) {
-        Throw-HcrError 'HYPERV_UNAVAILABLE' 'Hyper-V host prerequisites are unavailable.'
-    }
-    if (-not [bool](Get-HcrPropertyValue $hostSnapshot 'elevated' $false)) {
-        Throw-HcrError 'ELEVATION_REQUIRED' 'VM creation requires an elevated server process.'
     }
     $switch = Invoke-HcrAdapter 'GetSwitch' ([pscustomobject]@{ name = [string](Get-HcrPropertyValue $Arguments 'switchName') })
     if ($null -eq $switch) { Throw-HcrError 'SWITCH_NOT_FOUND' 'The requested virtual switch does not exist.' }
@@ -534,7 +558,10 @@ function Invoke-HcrPlanVmCreate {
         expiresAt = $created.AddMinutes($script:HcrPlanLifetimeMinutes).ToString('o')
         hostFingerprint = Get-HcrHostFingerprint $hostSnapshot
         isoPath = $iso.FullName
-        isoSha256 = Get-HcrSha256File $iso.FullName
+        isoSha256 = Get-HcrSha256AccessibleFile `
+            $iso.FullName `
+            'INVALID_ISO' `
+            'ISO_ACCESS_DENIED'
         isoSizeBytes = [int64]$iso.Length
         isoLastWriteTimeUtc = $iso.LastWriteTimeUtc.ToString('o')
         switchName = [string](Get-HcrPropertyValue $switch 'name')
@@ -577,7 +604,10 @@ function Get-HcrRevalidatedVmCreatePaths {
     param([Parameter(Mandatory = $true)][object]$Plan)
 
     $plannedRoot = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Plan 'vmRoot'))
-    $rootItem = Assert-HcrLocalDirectory $plannedRoot 'PLAN_DRIFT'
+    $rootItem = Assert-HcrAccessibleLocalDirectory `
+        $plannedRoot `
+        'PLAN_DRIFT' `
+        'VM_ROOT_ACCESS_DENIED'
     $currentRoot = Get-HcrNormalizedPath $rootItem.FullName
     if (-not [string]::Equals($currentRoot, $plannedRoot, [StringComparison]::OrdinalIgnoreCase)) {
         Throw-HcrError 'PLAN_DRIFT' 'The VM root changed after planning.'
@@ -605,14 +635,19 @@ function Get-HcrRevalidatedVmCreatePaths {
 function Assert-HcrVmCreatePlanDriftFree {
     param([Parameter(Mandatory = $true)][object]$Plan)
 
-    $hostSnapshot = Invoke-HcrAdapter 'GetHostSnapshot'
+    [void](Assert-HcrRuntimeHyperVAuthorized)
+    $hostSnapshot = Assert-HcrHyperVAuthorizedHostSnapshot (Invoke-HcrAdapter 'GetHostSnapshot')
     if ((Get-HcrHostFingerprint $hostSnapshot) -ne (Get-HcrPropertyValue $Plan 'hostFingerprint')) {
         Throw-HcrError 'PLAN_DRIFT' 'The host fingerprint changed after planning.'
     }
-    $iso = Assert-HcrRegularLocalFile ([string](Get-HcrPropertyValue $Plan 'isoPath')) 'PLAN_DRIFT'
+    $iso = Assert-HcrReadableRegularLocalFile `
+        ([string](Get-HcrPropertyValue $Plan 'isoPath')) `
+        'PLAN_DRIFT' `
+        'ISO_ACCESS_DENIED'
     if ([int64]$iso.Length -ne [int64](Get-HcrPropertyValue $Plan 'isoSizeBytes') -or
         $iso.LastWriteTimeUtc.ToString('o') -ne [string](Get-HcrPropertyValue $Plan 'isoLastWriteTimeUtc') -or
-        (Get-HcrSha256File $iso.FullName) -ne [string](Get-HcrPropertyValue $Plan 'isoSha256')) {
+        (Get-HcrSha256AccessibleFile $iso.FullName 'PLAN_DRIFT' 'ISO_ACCESS_DENIED') -ne
+            [string](Get-HcrPropertyValue $Plan 'isoSha256')) {
         Throw-HcrError 'PLAN_DRIFT' 'The ISO identity changed after planning.'
     }
     $switch = Invoke-HcrAdapter 'GetSwitch' ([pscustomobject]@{ name = [string](Get-HcrPropertyValue $Plan 'switchName') })
@@ -753,7 +788,7 @@ function New-HcrCheckpointBasePlan {
         [Parameter(Mandatory = $true)][string]$CheckpointName
     )
 
-    $hostSnapshot = Invoke-HcrAdapter 'GetHostSnapshot'
+    $hostSnapshot = Get-HcrAuthorizedHostSnapshot
     $created = [DateTimeOffset]::UtcNow
     return [ordered]@{
         schemaVersion = 1
@@ -836,6 +871,7 @@ function Invoke-HcrApplyCheckpointCreate {
 
     $record = Consume-HcrPlanRecord ([string](Get-HcrPropertyValue $Arguments 'planId'))
     $plan = Assert-HcrPlanUsable $record 'checkpointCreate'
+    [void](Assert-HcrRuntimeHyperVAuthorized)
     $owned = Assert-HcrCheckpointPlanCommonDriftFree $plan
     if ($null -ne (Get-HcrCheckpointByName $owned.vm ([string](Get-HcrPropertyValue $plan 'checkpointName')))) {
         Throw-HcrError 'PLAN_DRIFT' 'The planned checkpoint name is no longer absent.'
@@ -962,6 +998,7 @@ function Invoke-HcrApplyCheckpointRestore {
     # The first well-formed call consumes before name, token, expiry, or drift checks.
     $record = Consume-HcrPlanRecord ([string](Get-HcrPropertyValue $Arguments 'planId'))
     $plan = Assert-HcrPlanUsable $record 'checkpointRestore'
+    [void](Assert-HcrRuntimeHyperVAuthorized)
     if ([string](Get-HcrPropertyValue $Arguments 'checkpointName') -ne
         [string](Get-HcrPropertyValue $plan 'checkpointName')) {
         Throw-HcrError 'CONFIRMATION_MISMATCH' 'The checkpoint name does not match the consumed restore plan.'

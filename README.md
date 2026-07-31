@@ -6,13 +6,26 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: 0.3.2 tool-call metadata compatibility
+### Status: 0.4.0 least-privilege Hyper-V authorization
 
-The `0.3.2` patch keeps the frozen `0.3.0` capability target, all 20 public
-tool names and schemas, and every Plan/Apply and fail-closed boundary. It
-accepts optional object-shaped MCP `_meta` on `tools/call`, ignores that
-transport metadata when validating tool `arguments`, and still rejects
-mistyped metadata and unknown outer fields.
+The `0.4.0` runtime keeps the frozen `0.3.0` capability target, exactly 20
+public tool names and closed inputs, and every Plan/Apply consumption and drift
+boundary. Production Hyper-V access now accepts either an enabled local
+`Hyper-V Administrators` token or an elevated Administrator token. The former
+is the preferred least-privilege mode; elevated compatibility remains
+available but every successful result carries a
+`BROADER_PRIVILEGE_CONTEXT` warning.
+
+`inspect_host` remains an unauthenticated diagnostic and reports only
+`elevated`, `hyperVAdministratorsTokenEnabled`, `hyperVAuthorized`, and the
+closed `authorizationMode`; it never returns a user name or user SID.
+`list_vms`, `inspect_vm`, and host Plan/Apply paths fail with
+`HYPERV_AUTHORIZATION_REQUIRED` when neither authorization is present. Real VM
+create, checkpoint create/restore, power, and network adapters independently
+re-read the live process token at the mutation boundary. ISO/VM-root checks are
+read-only; state initialization validates every required state child with
+bounded delete-on-close probes. All access failures use precise fail-closed
+errors.
 
 The selected-plugin Codex app-server validator remains catalog-only by default
 with 20/20 unique tools and `toolCallCount: 0`. An explicit test-only mode
@@ -20,10 +33,10 @@ launches an isolated selected MCP child with the mock adapter, calls only
 `inspect_host` and `list_vms`, requires `changed=false` plus the mandatory
 `TEST_ONLY_MOCK_ADAPTER` warning, and reports zero real-operation counts.
 
-The only v0.3.2 personal build is
-`0.3.2+codex.20260731014242`. Release acceptance requires protected `master`,
-annotated tag `v0.3.2`, the source-only GitHub Release, and installed
-`sourceCommit` to identify one exact commit. Immutable v0.1.1 through v0.3.1
+The v0.4.0 source gate freezes exactly one `0.4.0+codex.20260731141404` personal build
+after the candidate is stable. Release acceptance requires protected `master`,
+annotated tag `v0.4.0`, the source-only GitHub Release, and installed
+`sourceCommit` to identify one exact commit. Immutable v0.1.1 through v0.3.2
 are historical and are not moved or overwritten.
 
 Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,

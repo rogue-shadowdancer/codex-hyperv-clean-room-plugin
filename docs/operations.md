@@ -2,11 +2,12 @@
 
 ## Current operating status
 
-G7/P3.3-R2 applies the ownership-marked personal install and
-cachebuster-reinstall workflow to compatible patch plugin `0.3.2`. Final
+The v0.4.0 gate applies the ownership-marked personal install and
+cachebuster-reinstall workflow to the least-privilege runtime. Final
 acceptance requires the clean
-commit/reinstall state recorded in `TASK_HANDOFF.md`. The reserved build is
-`0.3.2+codex.20260731014242`. Catalog-only acceptance starts only from
+commit/reinstall state recorded in `TASK_HANDOFF.md`. Exactly one
+`0.4.0+codex.20260731141404` build is frozen after the candidate is stable.
+Catalog-only acceptance starts only from
 `%USERPROFILE%\plugins\hyperv-clean-room`, negotiates MCP `2025-11-25`, and
 discovers exactly 20 unique tools without calling any tool. An explicit
 test-only companion check selects an isolated MCP child in mock mode and calls
@@ -71,7 +72,8 @@ Production runtime prerequisites:
 - Windows PowerShell 5.1;
 - the Windows Hyper-V PowerShell module;
 - a host capable of Hyper-V and PowerShell Direct;
-- elevation for VM/checkpoint mutations;
+- an enabled `Hyper-V Administrators` token (preferred), or an elevated
+  Administrator token (compatible but broader), for real Hyper-V access;
 - a Generation 2 Windows guest for guest operations;
 - two distinct guest accounts: an orchestration administrator and a standard,
   non-administrator test user.

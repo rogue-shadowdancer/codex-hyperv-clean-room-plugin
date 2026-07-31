@@ -329,9 +329,7 @@ function Write-HcrOperationEvidence {
     )
 
     $root = [string](Get-HcrPropertyValue $Operation 'evidenceRoot')
-    if (-not (Test-Path -LiteralPath $root -PathType Container)) {
-        [void](New-Item -ItemType Directory -Path $root -Force)
-    }
+    [void](Initialize-HcrStateManagedDirectory $root)
     $path = Join-Path $root 'evidence.json'
     Write-HcrJsonFile $path $Evidence
     $Operation.evidenceFile = $path
@@ -390,7 +388,7 @@ function Invoke-HcrRunTestProfileV1 {
 
     # Validation is complete; creating immutable operation state enters execution.
     $evidenceRoot = Get-HcrEvidenceStagingRoot $OperationId
-    [void](New-Item -ItemType Directory -Path $evidenceRoot -Force)
+    [void](Initialize-HcrStateManagedDirectory $evidenceRoot)
     $steps = @((Get-HcrPropertyValue $profile 'steps'))
     $cleanupSteps = @((Get-HcrPropertyValue $profile 'cleanupSteps' @()))
     $automaticIdentities = @()
@@ -685,8 +683,8 @@ function Resolve-HcrEvidenceReferences {
         if (-not (Test-HcrPathWithin $candidate $EvidenceRoot)) {
             Throw-HcrError 'EVIDENCE_REFERENCE_INVALID' 'A manual evidence reference escapes the staging root.'
         }
-        $item = Assert-HcrRegularLocalFile $candidate 'EVIDENCE_REFERENCE_INVALID'
-        $actualHash = Get-HcrSha256File $item.FullName
+        $item = Assert-HcrStateRegularFile $candidate 'EVIDENCE_REFERENCE_INVALID'
+        $actualHash = Get-HcrStateFileSha256 $item.FullName
         if ($actualHash -ne $expectedHash) {
             Throw-HcrError 'EVIDENCE_REFERENCE_HASH_MISMATCH' 'A manual evidence reference hash does not match.'
         }
@@ -716,7 +714,7 @@ function Invoke-HcrRecordManualAttestation {
             Throw-HcrError 'OPERATION_TYPE_MISMATCH' 'Manual attestations require a test-profile operation.'
         }
         $evidencePath = [string](Get-HcrPropertyValue $operation 'evidenceFile')
-        if (-not (Test-Path -LiteralPath $evidencePath -PathType Leaf)) {
+        if (-not (Test-HcrStatePathExists $evidencePath 'Leaf')) {
             Throw-HcrError 'EVIDENCE_NOT_READY' 'The operation evidence is not ready.'
         }
         $evidence = Read-HcrJsonFile $evidencePath 'EVIDENCE_NOT_READY'
@@ -854,12 +852,14 @@ function Invoke-HcrCollectEvidence {
         }
         $sourceRoot = [string](Get-HcrPropertyValue $operation 'evidenceRoot')
         $evidencePath = [string](Get-HcrPropertyValue $operation 'evidenceFile')
-        if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container) -or
+        if (-not (Test-HcrStatePathExists $sourceRoot 'Container') -or
             [string]::IsNullOrWhiteSpace($evidencePath) -or
-            -not (Test-Path -LiteralPath $evidencePath -PathType Leaf)) {
+            -not (Test-HcrStatePathExists $evidencePath 'Leaf')) {
             Throw-HcrError 'EVIDENCE_NOT_READY' 'The operation evidence staging root is unavailable.'
         }
-        [void](Assert-HcrLocalDirectory $sourceRoot 'EVIDENCE_STAGING_INVALID')
+        [void](Invoke-HcrStateIo $sourceRoot {
+            Assert-HcrLocalDirectory $sourceRoot 'EVIDENCE_STAGING_INVALID'
+        })
         $evidence = Read-HcrJsonFile $evidencePath 'EVIDENCE_NOT_READY'
         $validation = if ([int](Get-HcrPropertyValue $operation 'schemaVersion' 1) -eq 2) {
             Test-HcrEvidenceDocumentV2 $evidence $operation
@@ -880,7 +880,7 @@ function Invoke-HcrCollectEvidence {
                 & $testHook $sourceRoot $evidencePath
             }
         }
-        foreach ($item in @(Get-ChildItem -LiteralPath $sourceRoot -Force -Recurse)) {
+        foreach ($item in @(Get-HcrStateItems $sourceRoot -Recurse)) {
             if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
                 Throw-HcrError 'EVIDENCE_STAGING_INVALID' 'The evidence staging root contains a reparse point.'
             }
@@ -905,7 +905,7 @@ function Invoke-HcrCollectEvidence {
         }
 
         $sourceFiles = New-Object System.Collections.Generic.List[object]
-        foreach ($file in @(Get-ChildItem -LiteralPath $sourceRoot -Force -Recurse -File | Sort-Object FullName)) {
+        foreach ($file in @(Get-HcrStateItems $sourceRoot -Recurse -File | Sort-Object FullName)) {
             $relative = $file.FullName.Substring($sourceRoot.Length).TrimStart('\', '/').Replace('\', '/')
             if (-not (Test-HcrSafeRelativePath $relative)) {
                 Throw-HcrError 'EVIDENCE_STAGING_INVALID' 'The evidence staging root contains an unsafe relative path.'
@@ -913,8 +913,8 @@ function Invoke-HcrCollectEvidence {
             if ($relative.Equals('inventory.json', [StringComparison]::OrdinalIgnoreCase)) {
                 Throw-HcrError 'EVIDENCE_STAGING_INVALID' 'The generated inventory name is reserved in the evidence staging root.'
             }
-            $regular = Assert-HcrRegularLocalFile $file.FullName 'EVIDENCE_STAGING_INVALID'
-            $sourceHash = Get-HcrSha256File $regular.FullName
+            $regular = Assert-HcrStateRegularFile $file.FullName 'EVIDENCE_STAGING_INVALID'
+            $sourceHash = Get-HcrStateFileSha256 $regular.FullName
             if ($claimedHashes.ContainsKey($relative) -and $claimedHashes[$relative] -ne $sourceHash) {
                 Throw-HcrError 'EVIDENCE_REFERENCE_HASH_MISMATCH' 'A manual evidence reference changed before export.'
             }
@@ -945,14 +945,14 @@ function Invoke-HcrCollectEvidence {
             }
             $destinationParent = Split-Path -Parent $destination
             [void](Initialize-HcrLocalDirectoryPath $destinationParent 'INVALID_EVIDENCE_OUTPUT')
-            $beforeHash = Get-HcrSha256File `
-                (Assert-HcrRegularLocalFile $source.path 'EVIDENCE_STAGING_INVALID').FullName
+            $beforeHash = Get-HcrStateFileSha256 `
+                (Assert-HcrStateRegularFile $source.path 'EVIDENCE_STAGING_INVALID').FullName
             if ($beforeHash -ne $source.sha256) {
                 Throw-HcrError 'EVIDENCE_REFERENCE_HASH_MISMATCH' 'An evidence source changed before copy.'
             }
-            Copy-Item -LiteralPath $source.path -Destination $destination -ErrorAction Stop
-            $afterHash = Get-HcrSha256File `
-                (Assert-HcrRegularLocalFile $source.path 'EVIDENCE_STAGING_INVALID').FullName
+            Copy-HcrStateFile $source.path $destination
+            $afterHash = Get-HcrStateFileSha256 `
+                (Assert-HcrStateRegularFile $source.path 'EVIDENCE_STAGING_INVALID').FullName
             $copied = Assert-HcrRegularLocalFile $destination 'EVIDENCE_STAGING_INVALID'
             $copiedHash = Get-HcrSha256File $copied.FullName
             if ($beforeHash -ne $afterHash -or

@@ -61,6 +61,16 @@ isolated-child mock smoke for `inspect_host` and `list_vms`, requiring
 counts. The only build is `0.3.2+codex.20260731014242`; protected `master`,
 annotated `v0.3.2`, the zero-asset Release, and installed `sourceCommit` must
 be one commit while v0.1.1 through v0.3.1 remain immutable.
+The v0.4.0 least-privilege gate retains the same capability target and exact
+20-tool closed input surface. A production MCP server is Hyper-V-authorized
+when its current token is elevated Administrator or has enabled local
+`Hyper-V Administrators` SID `S-1-5-32-578`; the non-elevated group token is
+preferred. `inspect_host` remains diagnostic, while VM inventory/inspection
+and all host Plan/Apply paths fail closed without authorization. Every real
+host mutation adapter rechecks the live token at its mutation boundary.
+Elevated compatibility emits `BROADER_PRIVILEGE_CONTEXT`, and inaccessible
+ISO, VM-root, or state-root paths return precise access-denied codes without
+changing ACLs or elevating the process.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.

@@ -156,6 +156,30 @@ function Clear-TestMutationFault {
     }
 }
 
+function Invoke-WithCurrentUserDeniedAccess {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][Security.AccessControl.FileSystemRights]$Rights,
+        [Parameter(Mandatory = $true)][scriptblock]$Action
+    )
+
+    $acl = Get-Acl -LiteralPath $Path
+    $originalSddl = $acl.Sddl
+    $rule = New-Object Security.AccessControl.FileSystemAccessRule(
+        [Security.Principal.WindowsIdentity]::GetCurrent().User,
+        $Rights,
+        [Security.AccessControl.AccessControlType]::Deny
+    )
+    [void]$acl.AddAccessRule($rule)
+    Set-Acl -LiteralPath $Path -AclObject $acl
+    try { & $Action }
+    finally {
+        $restoredAcl = Get-Acl -LiteralPath $Path
+        $restoredAcl.SetSecurityDescriptorSddlForm($originalSddl)
+        Set-Acl -LiteralPath $Path -AclObject $restoredAcl
+    }
+}
+
 function Start-TestProcess {
     param(
         [Parameter(Mandatory = $true)][string]$FilePath,
@@ -204,7 +228,8 @@ $mockState = [ordered]@{
         architecture = 'AMD64'
         hyperVCommandsAvailable = $true
         hypervisorPresent = $true
-        elevated = $true
+        elevated = $false
+        hyperVAdministratorsTokenEnabled = $true
         processorCount = 8
         memoryBytes = 17179869184
         switches = @([ordered]@{
@@ -260,6 +285,12 @@ foreach ($runtimeFile in @(
     . (Join-Path (Join-Path (Join-Path $pluginRoot 'mcp') 'lib') $runtimeFile)
 }
 Initialize-HcrRuntime $pluginRoot
+Assert-Equal (@(Get-ChildItem `
+        -LiteralPath $stateRoot `
+        -Recurse `
+        -Force `
+        -Filter '.hcr-access-*.tmp').Count) 0 `
+    'State-root writable probes left a temporary file behind.'
 
 $junctionTarget = Join-Path $testRoot 'junction-target'
 $junctionPath = Join-Path $testRoot 'junction-link'
@@ -443,6 +474,224 @@ catch {
 }
 $env:HCR_TEST_MODE = $savedTestMode
 
+$leastPrivilegeHost = Invoke-TestTool 'inspect_host' ([pscustomobject]@{})
+Assert-True $leastPrivilegeHost.ok 'Least-privilege host inspection failed.'
+Assert-True (-not [bool]$leastPrivilegeHost.data.host.elevated) `
+    'The mock least-privilege host unexpectedly reported elevation.'
+Assert-True ([bool]$leastPrivilegeHost.data.host.hyperVAdministratorsTokenEnabled) `
+    'The mock Hyper-V Administrators token was not projected.'
+Assert-True ([bool]$leastPrivilegeHost.data.host.hyperVAuthorized) `
+    'The mock Hyper-V Administrators token was not authorized.'
+Assert-Equal ([string]$leastPrivilegeHost.data.host.authorizationMode) `
+    'hyperVAdministrators' `
+    'The least-privilege authorization mode is incorrect.'
+Assert-True (@(Get-HcrPropertyNames $leastPrivilegeHost.data.host) -notcontains 'userName') `
+    'Host authorization diagnostics exposed a user name.'
+Assert-True (@(Get-HcrPropertyNames $leastPrivilegeHost.data.host) -notcontains 'userSid') `
+    'Host authorization diagnostics exposed a user SID.'
+Assert-True (@($leastPrivilegeHost.warnings) -notcontains $script:HcrBroaderPrivilegeWarning) `
+    'A non-elevated Hyper-V Administrators token emitted the broader-privilege warning.'
+$leastPrivilegeFingerprint = [string]$leastPrivilegeHost.data.hostFingerprint
+
+$authorizationState = Read-HcrMockAdapterState
+$authorizationState.host.hyperVAdministratorsTokenEnabled = $false
+Write-HcrMockAdapterState $authorizationState
+$diagnosticOnlyHost = Invoke-TestTool 'inspect_host' ([pscustomobject]@{})
+Assert-True $diagnosticOnlyHost.ok 'Unauthorised diagnostic inspect_host was blocked.'
+Assert-Equal ([string]$diagnosticOnlyHost.data.host.authorizationMode) 'none' `
+    'Unauthorised inspect_host did not report authorizationMode=none.'
+Assert-True (-not [bool]$diagnosticOnlyHost.data.host.hyperVAuthorized) `
+    'Unauthorised inspect_host reported Hyper-V authorization.'
+$unauthorizedList = Invoke-TestTool 'list_vms' ([pscustomobject]@{ managedOnly = $false })
+Assert-ErrorCode $unauthorizedList 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'list_vms accepted a token without Hyper-V authorization.'
+$unauthorizedInspectVm = Invoke-TestTool 'inspect_vm' ([pscustomobject]@{ vmName = 'missing' })
+Assert-ErrorCode $unauthorizedInspectVm 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'inspect_vm accepted a token without Hyper-V authorization.'
+$unauthorizedPlan = Invoke-TestTool 'plan_vm_create' ([pscustomobject]@{
+    name = 'unauthorized-plan'
+    isoPath = $isoPath
+    vmRoot = $vmRoot
+    switchName = 'Default Switch'
+})
+Assert-ErrorCode $unauthorizedPlan 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'plan_vm_create accepted a token without Hyper-V authorization.'
+$authorizationState = Read-HcrMockAdapterState
+$authorizationState.host.hyperVCommandsAvailable = $false
+$authorizationState.host.hypervisorPresent = $false
+Write-HcrMockAdapterState $authorizationState
+$unauthorizedUnavailableList = Invoke-TestTool 'list_vms' ([pscustomobject]@{
+    managedOnly = $false
+})
+Assert-ErrorCode $unauthorizedUnavailableList 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'An unavailable host masked the current-token authorization failure.'
+$authorizationState = Read-HcrMockAdapterState
+$authorizationState.host.hyperVCommandsAvailable = $true
+$authorizationState.host.hypervisorPresent = $true
+Write-HcrMockAdapterState $authorizationState
+
+$authorizationState = Read-HcrMockAdapterState
+$authorizationState.host.elevated = $true
+$authorizationState.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $authorizationState
+$elevatedHost = Invoke-TestTool 'inspect_host' ([pscustomobject]@{})
+Assert-Equal ([string]$elevatedHost.data.host.authorizationMode) `
+    'elevatedAdministrator' `
+    'Elevated Administrator did not take authorization-mode precedence.'
+Assert-True (@($elevatedHost.warnings) -contains $script:HcrBroaderPrivilegeWarning) `
+    'Elevated compatibility mode omitted the broader-privilege warning.'
+
+$authorizationState = Read-HcrMockAdapterState
+$authorizationState.host.elevated = $false
+$authorizationState.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $authorizationState
+$restoredLeastPrivilegeHost = Invoke-TestTool 'inspect_host' ([pscustomobject]@{})
+Assert-Equal ([string]$restoredLeastPrivilegeHost.data.hostFingerprint) `
+    $leastPrivilegeFingerprint `
+    'Authorization projection fields changed the schema-v1 host fingerprint.'
+$leastPrivilegeList = Invoke-TestTool 'list_vms' ([pscustomobject]@{ managedOnly = $false })
+Assert-True $leastPrivilegeList.ok `
+    'list_vms rejected an enabled Hyper-V Administrators token.'
+
+Invoke-WithCurrentUserDeniedAccess `
+    $isoPath `
+    ([Security.AccessControl.FileSystemRights]::ReadData) `
+    {
+        $deniedIsoPlan = Invoke-TestTool 'plan_vm_create' ([pscustomobject]@{
+            name = 'denied-iso-plan'
+            isoPath = $isoPath
+            vmRoot = $vmRoot
+            switchName = 'Default Switch'
+        })
+        Assert-ErrorCode $deniedIsoPlan 'ISO_ACCESS_DENIED' `
+            'An unreadable ISO did not fail with ISO_ACCESS_DENIED.'
+    }
+
+Invoke-WithCurrentUserDeniedAccess `
+    $vmRoot `
+    ([Security.AccessControl.FileSystemRights]::ListDirectory) `
+    {
+        $deniedRootPlan = Invoke-TestTool 'plan_vm_create' ([pscustomobject]@{
+            name = 'denied-root-plan'
+            isoPath = $isoPath
+            vmRoot = $vmRoot
+            switchName = 'Default Switch'
+        })
+        Assert-ErrorCode $deniedRootPlan 'VM_ROOT_ACCESS_DENIED' `
+            'An inaccessible VM root did not fail with VM_ROOT_ACCESS_DENIED.'
+    }
+
+$deniedStateRoot = Join-Path $testRoot 'denied-state-root'
+[void](New-Item -ItemType Directory -Path $deniedStateRoot -Force)
+$savedStateRootEnvironment = $env:HCR_STATE_ROOT
+$savedRuntimeStateRoot = $script:HcrStateRoot
+try {
+    Invoke-WithCurrentUserDeniedAccess `
+        $deniedStateRoot `
+        ([Security.AccessControl.FileSystemRights]::CreateDirectories -bor
+            [Security.AccessControl.FileSystemRights]::ListDirectory) `
+        {
+            $env:HCR_STATE_ROOT = $deniedStateRoot
+            $script:HcrStateRoot = $null
+            Assert-ThrowsHcrCode `
+                { [void](Initialize-HcrStateStore) } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'An inaccessible state root did not fail with STATE_ROOT_ACCESS_DENIED.'
+        }
+}
+finally {
+    $env:HCR_STATE_ROOT = $savedStateRootEnvironment
+    $script:HcrStateRoot = $savedRuntimeStateRoot
+}
+
+$restrictedChildStateRoot = Join-Path $testRoot 'restricted-child-state-root'
+$savedStateRootEnvironment = $env:HCR_STATE_ROOT
+$savedRuntimeStateRoot = $script:HcrStateRoot
+try {
+    $env:HCR_STATE_ROOT = $restrictedChildStateRoot
+    $script:HcrStateRoot = $null
+    [void](Initialize-HcrStateStore)
+
+    Invoke-WithCurrentUserDeniedAccess `
+        (Join-Path $restrictedChildStateRoot 'plans') `
+        ([Security.AccessControl.FileSystemRights]::ListDirectory) `
+        {
+            $script:HcrStateRoot = $null
+            Assert-ThrowsHcrCode `
+                { [void](Initialize-HcrStateStore) } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'A non-enumerable state child did not fail during initialization.'
+        }
+
+    Invoke-WithCurrentUserDeniedAccess `
+        (Join-Path $restrictedChildStateRoot 'operations') `
+        ([Security.AccessControl.FileSystemRights]::CreateFiles) `
+        {
+            $script:HcrStateRoot = $null
+            Assert-ThrowsHcrCode `
+                { [void](Initialize-HcrStateStore) } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'A non-writable state child did not fail during initialization.'
+        }
+
+    $script:HcrStateRoot = $restrictedChildStateRoot
+    Invoke-WithCurrentUserDeniedAccess `
+        (Join-Path $restrictedChildStateRoot 'ownership') `
+        ([Security.AccessControl.FileSystemRights]::CreateFiles) `
+        {
+            Assert-ThrowsHcrCode `
+                {
+                    Write-HcrJsonFile `
+                        (Join-Path $restrictedChildStateRoot 'ownership\probe.json') `
+                        ([pscustomobject]@{ probe = $true })
+                } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'A post-start state write denial escaped as a generic error.'
+        }
+
+    $restrictedReadPath = Join-Path $restrictedChildStateRoot 'ownership\read-probe.json'
+    Write-HcrJsonFile $restrictedReadPath ([pscustomobject]@{ probe = $true })
+    Invoke-WithCurrentUserDeniedAccess `
+        $restrictedReadPath `
+        ([Security.AccessControl.FileSystemRights]::ReadData) `
+        {
+            Assert-ThrowsHcrCode `
+                { [void](Read-HcrJsonFile $restrictedReadPath) } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'A post-start state read denial escaped as a generic integrity error.'
+        }
+
+    $evidenceStagingRoot = Join-Path $restrictedChildStateRoot 'evidence-staging'
+    $restrictedOperationRoot = Join-Path $evidenceStagingRoot ([Guid]::NewGuid().ToString())
+    Invoke-WithCurrentUserDeniedAccess `
+        $evidenceStagingRoot `
+        ([Security.AccessControl.FileSystemRights]::CreateDirectories) `
+        {
+            Assert-ThrowsHcrCode `
+                { [void](Initialize-HcrStateManagedDirectory $restrictedOperationRoot) } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'A post-start evidence-staging create denial escaped as a generic error.'
+        }
+
+    [void](Initialize-HcrStateManagedDirectory $restrictedOperationRoot)
+    Write-HcrJsonFile `
+        (Join-Path $restrictedOperationRoot 'evidence.json') `
+        ([pscustomobject]@{ probe = $true })
+    Invoke-WithCurrentUserDeniedAccess `
+        $restrictedOperationRoot `
+        ([Security.AccessControl.FileSystemRights]::ListDirectory) `
+        {
+            Assert-ThrowsHcrCode `
+                { [void](Get-HcrStateItems $restrictedOperationRoot -Recurse) } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'A post-start evidence-staging enumeration denial escaped as a generic error.'
+        }
+}
+finally {
+    $env:HCR_STATE_ROOT = $savedStateRootEnvironment
+    $script:HcrStateRoot = $savedRuntimeStateRoot
+}
+
 $profilePath = Join-Path $repoRoot 'examples\minimal-test-profile.json'
 $validProfile = Invoke-TestTool 'validate_test_profile' ([pscustomobject]@{
     profilePath = $profilePath
@@ -538,6 +787,37 @@ Assert-Equal ([string]$mock.host.targetVolumes[0].root) $plannedVolumeRoot `
     'The same-root volume replacement fixture changed the drive root.'
 $mock.host.targetVolumes[0].uniqueId = $stableVolumeId
 Write-HcrMockAdapterState $mock
+
+$authorizationConsumptionPlan = Invoke-TestTool 'plan_vm_create' ([pscustomobject]@{
+    name = 'authorization-consumption-vm'
+    isoPath = $isoPath
+    vmRoot = $vmRoot
+    switchName = 'Default Switch'
+    diskSizeGb = 40
+})
+Assert-True $authorizationConsumptionPlan.ok `
+    'The authorization-consumption VM-create plan failed.'
+$mock = Read-HcrMockAdapterState
+$mock.host.elevated = $false
+$mock.host.hyperVAdministratorsTokenEnabled = $false
+Write-HcrMockAdapterState $mock
+$global:HcrMockHostSnapshotCallCount = 0
+$unauthorizedVmCreateApply = Invoke-TestTool 'apply_vm_create' ([pscustomobject]@{
+    planId = [string]$authorizationConsumptionPlan.data.plan.planId
+})
+Assert-ErrorCode $unauthorizedVmCreateApply 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'VM-create apply ran drift probes before checking current authorization.'
+Assert-Equal $global:HcrMockHostSnapshotCallCount 0 `
+    'VM-create apply probed the host snapshot before checking current authorization.'
+Remove-Variable -Name HcrMockHostSnapshotCallCount -Scope Global -ErrorAction SilentlyContinue
+$mock = Read-HcrMockAdapterState
+$mock.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $mock
+$authorizationConsumptionReplay = Invoke-TestTool 'apply_vm_create' ([pscustomobject]@{
+    planId = [string]$authorizationConsumptionPlan.data.plan.planId
+})
+Assert-ErrorCode $authorizationConsumptionReplay 'PLAN_ALREADY_CONSUMED' `
+    'A VM-create authorization failure did not preserve plan consumption ordering.'
 
 $vmPlan = Invoke-TestTool 'plan_vm_create' ([pscustomobject]@{
     name = 'cleanroom-test'
@@ -788,6 +1068,33 @@ $mock = Read-HcrMockAdapterState
 $mock.vms[0].notes = "hyperv-clean-room/v1:$ownershipId"
 Write-HcrMockAdapterState $mock
 
+$authorizationCheckpointPlan = Invoke-TestTool 'plan_checkpoint_create' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+    checkpointName = 'authorization-checkpoint'
+})
+Assert-True $authorizationCheckpointPlan.ok 'Authorization checkpoint plan failed.'
+$mock = Read-HcrMockAdapterState
+$mock.host.elevated = $false
+$mock.host.hyperVAdministratorsTokenEnabled = $false
+Write-HcrMockAdapterState $mock
+$global:HcrMockHostSnapshotCallCount = 0
+$unauthorizedCheckpointApply = Invoke-TestTool 'apply_checkpoint_create' ([pscustomobject]@{
+    planId = [string]$authorizationCheckpointPlan.data.plan.planId
+})
+Assert-ErrorCode $unauthorizedCheckpointApply 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'Checkpoint-create apply ran host drift probes before current authorization.'
+Assert-Equal $global:HcrMockHostSnapshotCallCount 0 `
+    'Checkpoint-create apply probed the host snapshot before current authorization.'
+Remove-Variable -Name HcrMockHostSnapshotCallCount -Scope Global -ErrorAction SilentlyContinue
+$mock = Read-HcrMockAdapterState
+$mock.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $mock
+$authorizationCheckpointReplay = Invoke-TestTool 'apply_checkpoint_create' ([pscustomobject]@{
+    planId = [string]$authorizationCheckpointPlan.data.plan.planId
+})
+Assert-ErrorCode $authorizationCheckpointReplay 'PLAN_ALREADY_CONSUMED' `
+    'Checkpoint-create authorization failure did not preserve plan consumption.'
+
 $checkpointPlan = Invoke-TestTool 'plan_checkpoint_create' ([pscustomobject]@{
     vmName = 'cleanroom-test'
     checkpointName = 'baseline'
@@ -800,6 +1107,37 @@ $checkpointApply = Invoke-TestTool 'apply_checkpoint_create' ([pscustomobject]@{
     planId = [string]$checkpointPlan.data.plan.planId
 })
 Assert-True $checkpointApply.ok 'Checkpoint apply failed.'
+
+$authorizationRestorePlan = Invoke-TestTool 'plan_checkpoint_restore' ([pscustomobject]@{
+    vmName = 'cleanroom-test'
+    checkpointName = 'baseline'
+})
+Assert-True $authorizationRestorePlan.ok 'Authorization restore plan failed.'
+$mock = Read-HcrMockAdapterState
+$mock.host.elevated = $false
+$mock.host.hyperVAdministratorsTokenEnabled = $false
+Write-HcrMockAdapterState $mock
+$global:HcrMockHostSnapshotCallCount = 0
+$unauthorizedRestoreApply = Invoke-TestTool 'apply_checkpoint_restore' ([pscustomobject]@{
+    planId = [string]$authorizationRestorePlan.data.plan.planId
+    checkpointName = 'baseline'
+    confirmationToken = [string]$authorizationRestorePlan.data.plan.confirmationToken
+})
+Assert-ErrorCode $unauthorizedRestoreApply 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'Checkpoint-restore apply ran host drift probes before current authorization.'
+Assert-Equal $global:HcrMockHostSnapshotCallCount 0 `
+    'Checkpoint-restore apply probed the host snapshot before current authorization.'
+Remove-Variable -Name HcrMockHostSnapshotCallCount -Scope Global -ErrorAction SilentlyContinue
+$mock = Read-HcrMockAdapterState
+$mock.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $mock
+$authorizationRestoreReplay = Invoke-TestTool 'apply_checkpoint_restore' ([pscustomobject]@{
+    planId = [string]$authorizationRestorePlan.data.plan.planId
+    checkpointName = 'baseline'
+    confirmationToken = [string]$authorizationRestorePlan.data.plan.confirmationToken
+})
+Assert-ErrorCode $authorizationRestoreReplay 'PLAN_ALREADY_CONSUMED' `
+    'Checkpoint-restore authorization failure did not preserve plan consumption.'
 
 $restorePlan = Invoke-TestTool 'plan_checkpoint_restore' ([pscustomobject]@{
     vmName = 'cleanroom-test'

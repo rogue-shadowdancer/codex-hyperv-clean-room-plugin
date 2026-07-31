@@ -384,7 +384,8 @@ $mockState = [ordered]@{
         architecture = 'AMD64'
         hyperVCommandsAvailable = $true
         hypervisorPresent = $true
-        elevated = $true
+        elevated = $false
+        hyperVAdministratorsTokenEnabled = $true
         processorCount = 8
         memoryBytes = 17179869184
         switches = @([ordered]@{
@@ -452,7 +453,7 @@ $runtimeInstallPluginPath = Join-Path $runtimeInstallPluginDirectory 'plugin.jso
 $runtimeInstallPayloadPath = Join-Path $runtimeInstallMcpDirectory 'runtime.ps1'
 Write-Gate7Json $runtimeInstallPluginPath ([ordered]@{
     name = 'hyperv-clean-room'
-    version = '0.3.2+codex.20260729090000'
+    version = '0.4.0+codex.20260729090000'
 })
 [IO.File]::WriteAllText(
     $runtimeInstallPayloadPath,
@@ -494,7 +495,7 @@ Write-Gate7Json (
     installationId = $runtimeInstallationId
     sourceRoot = $runtimeInstallRoot
     targetRoot = $runtimeInstallRoot
-    sourceVersion = '0.3.2+codex.20260729090000'
+    sourceVersion = '0.4.0+codex.20260729090000'
     sourceCommit = ('e' * 40)
     cachebuster = '20260729090000'
     installedAtUtc = [DateTime]::UtcNow.ToString('o')
@@ -572,11 +573,11 @@ finally {
 
 $pluginManifest = Get-Content -LiteralPath (Join-Path $pluginRoot '.codex-plugin\plugin.json') `
     -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
-Assert-Gate7 ([string]$pluginManifest.version -match '^0\.3\.2(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') `
-    'The loaded Gate 7 runtime does not expose the 0.3.2 patch version.'
+Assert-Gate7 ([string]$pluginManifest.version -match '^0\.4\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') `
+    'The loaded Gate 7 runtime does not expose the 0.4.0 least-privilege version.'
 $runtimeCatalog = Get-Content -LiteralPath (Join-Path $repoRoot 'contracts\v2\tool-catalog.json') `
     -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
-Assert-Gate7Equal ([string]$runtimeCatalog.currentRuntimeVersion) '0.3.2' `
+Assert-Gate7Equal ([string]$runtimeCatalog.currentRuntimeVersion) '0.4.0' `
     'The tool catalog did not advance with the loaded runtime.'
 foreach ($schemaName in @(
         'evidence.schema.json', 'operation-envelope.schema.json',
@@ -637,9 +638,55 @@ $vmCreate = Invoke-Gate7Tool 'apply_vm_create' ([pscustomobject]@{
 })
 Assert-Gate7 $vmCreate.ok 'The mock VM baseline apply failed.'
 
-$nonElevatedPowerState = Read-HcrMockAdapterState
-$nonElevatedPowerState.host.elevated = $false
-Write-HcrMockAdapterState $nonElevatedPowerState
+$authorizedConsumptionState = Read-HcrMockAdapterState
+$authorizedConsumptionState.host.elevated = $false
+$authorizedConsumptionState.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $authorizedConsumptionState
+$authorizationConsumptionPlan = Invoke-Gate7Tool 'plan_vm_power' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    action = 'start'
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7 $authorizationConsumptionPlan.ok `
+    'The authorization-consumption power plan failed.'
+$unauthorizedConsumptionState = Read-HcrMockAdapterState
+$unauthorizedConsumptionState.host.hyperVAdministratorsTokenEnabled = $false
+Write-HcrMockAdapterState $unauthorizedConsumptionState
+$unauthorizedPowerPlan = Invoke-Gate7Tool 'plan_vm_power' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    action = 'start'
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7Error $unauthorizedPowerPlan 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'Power planning accepted a token without Hyper-V authorization.'
+$unauthorizedNetworkPlan = Invoke-Gate7Tool 'plan_vm_network' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    target = 'disconnected'
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7Error $unauthorizedNetworkPlan 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'Network planning accepted a token without Hyper-V authorization.'
+$unauthorizedCheckpointPlan = Invoke-Gate7Tool 'plan_checkpoint_create' ([pscustomobject]@{
+    vmName = 'cleanroom-v2'
+    checkpointName = 'unauthorized-checkpoint'
+})
+Assert-Gate7Error $unauthorizedCheckpointPlan 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'Checkpoint planning accepted a token without Hyper-V authorization.'
+$unauthorizedPowerApply = Invoke-Gate7Tool 'apply_vm_power' ([pscustomobject]@{
+    planId = [string]$authorizationConsumptionPlan.data.plan.planId
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7Error $unauthorizedPowerApply 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'Power apply accepted a token without Hyper-V authorization.'
+$restoredConsumptionState = Read-HcrMockAdapterState
+$restoredConsumptionState.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $restoredConsumptionState
+$consumedAuthorizationReplay = Invoke-Gate7Tool 'apply_vm_power' ([pscustomobject]@{
+    planId = [string]$authorizationConsumptionPlan.data.plan.planId
+}) -EnvelopeSchemaVersion 2
+Assert-Gate7Error $consumedAuthorizationReplay 'PLAN_ALREADY_CONSUMED' `
+    'An authorization failure did not preserve apply plan consumption ordering.'
+
+$leastPrivilegePowerState = Read-HcrMockAdapterState
+$leastPrivilegePowerState.host.elevated = $false
+$leastPrivilegePowerState.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $leastPrivilegePowerState
 $powerPlan = Invoke-Gate7Tool 'plan_vm_power' ([pscustomobject]@{
     vmName = 'cleanroom-v2'
     action = 'start'
@@ -647,9 +694,10 @@ $powerPlan = Invoke-Gate7Tool 'plan_vm_power' ([pscustomobject]@{
 Assert-Gate7 $powerPlan.ok 'Power planning failed.'
 Assert-Gate7Equal ([string]$powerPlan.data.plan.planKind) 'vmPower' `
     'Power planning returned the wrong plan kind.'
-$elevatedPowerState = Read-HcrMockAdapterState
-$elevatedPowerState.host.elevated = $true
-Write-HcrMockAdapterState $elevatedPowerState
+$authorizedPowerState = Read-HcrMockAdapterState
+$authorizedPowerState.host.elevated = $false
+$authorizedPowerState.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $authorizedPowerState
 $powerApply = Invoke-Gate7Tool 'apply_vm_power' ([pscustomobject]@{
     planId = [string]$powerPlan.data.plan.planId
 }) -EnvelopeSchemaVersion 2
@@ -661,9 +709,10 @@ $powerReplay = Invoke-Gate7Tool 'apply_vm_power' ([pscustomobject]@{
 }) -EnvelopeSchemaVersion 2
 Assert-Gate7Error $powerReplay 'PLAN_ALREADY_CONSUMED' 'A power plan was reusable.'
 
-$nonElevatedNetworkState = Read-HcrMockAdapterState
-$nonElevatedNetworkState.host.elevated = $false
-Write-HcrMockAdapterState $nonElevatedNetworkState
+$leastPrivilegeNetworkState = Read-HcrMockAdapterState
+$leastPrivilegeNetworkState.host.elevated = $false
+$leastPrivilegeNetworkState.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $leastPrivilegeNetworkState
 $networkPlan = Invoke-Gate7Tool 'plan_vm_network' ([pscustomobject]@{
     vmName = 'cleanroom-v2'
     target = 'disconnected'
@@ -683,9 +732,10 @@ Assert-Gate7 `
     ([string]$networkPlan.data.changePlan.pairedPlanId -eq
         [string]$networkPlan.data.recoveryPlan.planId) `
     'The disconnect plan was not paired to its recovery plan.'
-$elevatedNetworkState = Read-HcrMockAdapterState
-$elevatedNetworkState.host.elevated = $true
-Write-HcrMockAdapterState $elevatedNetworkState
+$authorizedNetworkState = Read-HcrMockAdapterState
+$authorizedNetworkState.host.elevated = $false
+$authorizedNetworkState.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $authorizedNetworkState
 $prematureRecovery = Invoke-Gate7Tool 'apply_vm_network' ([pscustomobject]@{
     planId = [string]$networkPlan.data.recoveryPlan.planId
 }) -EnvelopeSchemaVersion 2
@@ -1419,8 +1469,8 @@ $externalOperation = Get-HcrOperationRecord ([string]$externalRun.data.testOpera
 $externalEvidence = Read-HcrJsonFile ([string]$externalOperation.evidenceFile) 'EVIDENCE_NOT_READY'
 Assert-Gate7Equal ([string]$externalEvidence.evidenceKind) 'externalPortable' `
     'The external evidence structural discriminator is missing.'
-Assert-Gate7Equal ([string]$externalEvidence.runtime.pluginBaseVersion) '0.3.2' `
-    'External evidence did not bind the 0.3.2 runtime base.'
+Assert-Gate7Equal ([string]$externalEvidence.runtime.pluginBaseVersion) '0.4.0' `
+    'External evidence did not bind the 0.4.0 runtime base.'
 Assert-Gate7Equal ([string]$externalEvidence.candidate.packagingCommit) ('b' * 40) `
     'External evidence fabricated or lost the manifest packaging commit.'
 Assert-Gate7Equal ([string]$externalEvidence.candidate.portableZipSourceSha256) `
@@ -1462,6 +1512,17 @@ $v031ExternalValidation = Test-HcrEvidenceDocumentV2 `
 Assert-Gate7 $v031ExternalValidation.valid `
     ('The compatible patch rejected immutable v0.3.1 external evidence: ' +
         (@($v031ExternalValidation.errors) -join '; '))
+$v032ExternalEvidence = Copy-HcrObject $externalEvidence
+$v032ExternalEvidence.runtime.pluginBaseVersion = '0.3.2'
+$v032ExternalEvidence.runtime.pluginBuildVersion = '0.3.2+codex.20260731014242'
+$v032ExternalOperation = Copy-HcrObject $externalOperation
+$v032ExternalOperation.evidenceSha256 = Get-HcrEvidenceDocumentDigest `
+    $v032ExternalEvidence
+$v032ExternalValidation = Test-HcrEvidenceDocumentV2 `
+    $v032ExternalEvidence $v032ExternalOperation
+Assert-Gate7 $v032ExternalValidation.valid `
+    ('The v0.4.0 runtime rejected immutable v0.3.2 external evidence: ' +
+        (@($v032ExternalValidation.errors) -join '; '))
 $mismatchedExternalEvidence = Copy-HcrObject $historicalExternalEvidence
 $mismatchedExternalEvidence.runtime.pluginBuildVersion = '0.3.1+codex.20260729184240'
 $mismatchedExternalOperation = Copy-HcrObject $historicalExternalOperation

@@ -3,7 +3,7 @@
 ## Status and assurance boundary
 
 Hyper-V Clean Room is a Windows-only Codex plugin whose product surface is a
-PowerShell 5.1 MCP server. Source version `0.3.2` preserves the exact 16
+PowerShell 5.1 MCP server. Source version `0.4.0` preserves the exact 16
 schema-v1 tools, five public schema-v1 documents, four schema-v2 power/network
 tools, and seven schema-v2 paths. It adds an external portable branch while
 preserving the embedded `0.2.0` branch. Gate 2 implements both the mock adapter and the
@@ -11,6 +11,16 @@ production Hyper-V/PowerShell Direct adapter, but validates guest execution
 only through mock behavior, parser checks, and closed-dispatch static seams.
 No real guest credential, file transfer, package process, VM mutation, or
 checkpoint mutation was exercised in Gate 2.
+
+The host authorization seam evaluates only the current MCP server token. It
+projects whether that token is elevated and whether local built-in SID
+`S-1-5-32-578` (`Hyper-V Administrators`) is enabled, then derives one of
+`elevatedAdministrator`, `hyperVAdministrators`, or `none`. No user name or
+user SID is emitted. VM inventory/inspection and host Plan/Apply paths require
+authorization. The production VM-create, checkpoint-create/restore,
+power-transition, and network-transition adapters recompute authorization at
+the final mutation boundary so a mock snapshot or earlier plan cannot confer
+authority.
 
 Implementation is therefore not the same as clean-machine validation. A real
 operator must treat guest transfer and lifecycle actions as state-changing and
@@ -257,6 +267,13 @@ JSON is written as UTF-8 through a same-directory temporary file and atomic
 replacement. Per-record exclusive locks coordinate server processes. Plans,
 operations, and ownership records are separate so consuming a plan cannot
 silently rewrite resource ownership or evidence.
+
+Initialization validates the root and all five required children as ordinary,
+enumerable directories and opens one unique file in each with
+`DeleteOnClose`. This proves the current server token can perform the bounded
+state writes and cleanup required by the runtime without changing ACLs. Later
+state read, write, enumeration, and lock access denials use the same
+`STATE_ROOT_ACCESS_DENIED` boundary.
 
 Credential storage is deliberately outside this tree. Exported evidence is
 also outside this tree and must be placed in an existing caller-selected

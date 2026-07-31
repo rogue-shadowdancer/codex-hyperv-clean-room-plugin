@@ -352,3 +352,33 @@ The external production typed read-only smoke remains a fresh separate gate.
 No production `list_vms` call and no real Hyper-V, VM, checkpoint, credential,
 guest, package, portable, WebDriver, UI, network, evidence, or manual-attestation
 operation is authorized here.
+
+## v0.4.0 least-privilege Hyper-V authorization
+
+The immutable v0.1.1 through v0.3.2 tags and Releases are historical and must
+not be moved, deleted, replaced, or reissued. Runtime v0.4.0 retains the frozen
+v0.3.0 capability target, exact 20 tool names and closed inputs, schemaVersion
+1/2 dispatch, and Plan/Apply consumption/drift semantics. Its release scope is
+the current-token authorization model, precise path-access failures, tests,
+documentation, and provenance version update.
+
+After the source candidate is stable, invoke
+`plugin-creator/scripts/update_plugin_cachebuster.py` exactly once and freeze
+the resulting `0.4.0+codex.20260731141404` value. Candidate changes after that point
+must reuse the same value. Before commit and again on exact final HEAD, run the
+complete documentation, publication-hygiene, public-release contract, Gate 4,
+Gate 7, install-source, selected catalog, and selected-child mock gates. All
+production adapter counters must remain zero.
+
+Publish only after a normal protected PR merge. Create annotated tag `v0.4.0`
+at exact protected `master`, publish one non-draft/non-prerelease source-only
+Release with zero uploaded assets, and install the already-frozen personal
+build from that same checkout. Acceptance requires protected master, peeled
+tag, Release target, and install-manifest `sourceCommit` to be identical, plus
+immutable readback of v0.1.1 through v0.3.2.
+
+The source/release gate does not perform production Hyper-V calls. A fresh
+non-elevated Codex task must actually select the installed personal plugin and
+separately run typed `inspect_host`, `list_vms(managedOnly=false)`, and one
+typed `inspect_vm` before real-VM read access is accepted. Every Hyper-V or
+guest mutation remains subject to its own action-time authorization.

@@ -1720,7 +1720,9 @@ function Test-HcrEvidenceDocumentV2 {
             ($pluginBaseVersion -eq '0.3.1' -and
                 $pluginBuildVersion -match '^0\.3\.1\+codex\.[0-9]{14}$') -or
             ($pluginBaseVersion -eq '0.3.2' -and
-                $pluginBuildVersion -match '^0\.3\.2\+codex\.[0-9]{14}$')
+                $pluginBuildVersion -match '^0\.3\.2\+codex\.[0-9]{14}$') -or
+            ($pluginBaseVersion -eq '0.4.0' -and
+                $pluginBuildVersion -match '^0\.4\.0\+codex\.[0-9]{14}$')
         )
         if (-not $compatibleExternalVersion -or
             [string](Get-HcrPropertyValue $runtime 'sourceCommit') -notmatch

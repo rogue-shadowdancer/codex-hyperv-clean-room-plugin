@@ -5,7 +5,7 @@ param(
     [string]$PluginRoot,
 
     [ValidateNotNullOrEmpty()]
-    [string]$ExpectedVersion = '0.3.2',
+    [string]$ExpectedVersion = '0.4.0',
 
     [ValidateNotNullOrEmpty()]
     [string]$EnvironmentId = 'local',
