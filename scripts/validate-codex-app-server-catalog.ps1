@@ -5,13 +5,15 @@ param(
     [string]$PluginRoot,
 
     [ValidateNotNullOrEmpty()]
-    [string]$ExpectedVersion = '0.3.1',
+    [string]$ExpectedVersion = '0.3.2',
 
     [ValidateNotNullOrEmpty()]
     [string]$EnvironmentId = 'local',
 
     [ValidateRange(5, 120)]
     [int]$TimeoutSeconds = 45,
+
+    [switch]$MockToolCallSmoke,
 
     [string]$PythonExecutable
 )
@@ -48,6 +50,9 @@ $pythonArguments += @(
     '--environment-id', $EnvironmentId,
     '--timeout-seconds', [string]$TimeoutSeconds
 )
+if ($MockToolCallSmoke) {
+    $pythonArguments += '--mock-tool-call-smoke'
+}
 
 & $PythonExecutable @pythonArguments
 if ($LASTEXITCODE -ne 0) {

@@ -157,17 +157,17 @@ def main() -> int:
             )
     version = str(manifest.get("version", ""))
     if not re.fullmatch(
-        r"0\.3\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?", version
+        r"0\.3\.2(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?", version
     ):
         raise AssertionError(
-            "integrated source version must expose base 0.3.1 with at most "
+            "integrated source version must expose base 0.3.2 with at most "
             f"one Codex cachebuster: {version}"
         )
 
     server = read_text("hyperv-clean-room/mcp/server.ps1")
     common = read_text("hyperv-clean-room/mcp/lib/Common.ps1")
-    if "$script:HcrPluginVersion" not in server or "$script:HcrPluginVersion = '0.3.1'" not in common:
-        raise AssertionError("MCP serverInfo is not bound to plugin version 0.3.1")
+    if "$script:HcrPluginVersion" not in server or "$script:HcrPluginVersion = '0.3.2'" not in common:
+        raise AssertionError("MCP serverInfo is not bound to plugin version 0.3.2")
     schemas = sorted((PLUGIN_ROOT / "schemas").glob("*.json"))
     if len(schemas) != 5:
         raise AssertionError("schema-v1 count must remain exactly five")
@@ -212,37 +212,46 @@ def main() -> int:
         '"CODEX_HOME"',
         '"unselectedServerCount"',
         '"promptTextSelectionAccepted": False',
-        '"toolCallCount": 0',
+        '"--mock-tool-call-smoke"',
+        'action="store_true"',
+        "if args.mock_tool_call_smoke:",
+        '"method": "mcpServer/tool/call"',
+        '"TEST_ONLY_MOCK_ADAPTER:"',
+        '"toolCallCount": tool_call_count',
+        '"realAdapterOperationCount": 0',
+        '"realOperationCount": 0',
         '"startupStatus": "ready"',
     ):
         if fragment not in catalog_validator:
             raise AssertionError(
                 f"selected-plugin catalog validator is missing: {fragment}"
             )
-    for forbidden in (
-        '"method": "mcpServer/tool/call"',
-        '"method": "turn/start"',
-    ):
+    for forbidden in ('"method": "turn/start"',):
         if forbidden in catalog_validator:
             raise AssertionError(
-                f"catalog-only validator must not send: {forbidden}"
+                f"selected-plugin validator must not send: {forbidden}"
             )
-    if catalog_validator.count('"inspect_host"') != 1:
+    if "tool_call_count = 0" not in catalog_validator:
         raise AssertionError(
-            "catalog validator must name inspect_host only in the expected "
-            "20-tool set and must never call it"
+            "selected-plugin validator must keep the default tool-call count at zero"
         )
+    catalog_wrapper = read_text("scripts/validate-codex-app-server-catalog.ps1")
+    for fragment in ("[switch]$MockToolCallSmoke", "'--mock-tool-call-smoke'"):
+        if fragment not in catalog_wrapper:
+            raise AssertionError(
+                f"selected-plugin validator wrapper is missing: {fragment}"
+            )
 
-    release_readback = read_text("scripts/validate-v031-release-readback.ps1")
+    release_readback = read_text("scripts/validate-v032-release-readback.ps1")
     for fragment in (
         "repos/$Repository/branches/master",
         "repos/$Repository/git/ref/tags/$Tag",
-        "repos/$Repository/releases/tags/v0.3.1",
-        "Annotated v0.3.1 does not peel to protected master",
+        "repos/$Repository/releases/tags/v0.3.2",
+        "Annotated v0.3.2 does not peel to protected master",
         "Release target does not equal protected master",
         "Installed sourceCommit does not equal protected master",
         "[Parameter(Mandatory = $true)]",
-        "'0.3.1+codex.20260729184240'",
+        "'0.3.2+codex.20260731014242'",
         "rev-parse HEAD",
         "--porcelain=v1 --untracked-files=all -- hyperv-clean-room",
         "sourceStatus.Count -eq 0",
@@ -259,20 +268,21 @@ def main() -> int:
         'committedText.Replace("`n", "`r`n")',
         "workingHash -ceq $expectedHash",
         "workingHash -ceq [string]$payload.sha256",
-        "Unsupported v0.3.1 payload type",
+        "Unsupported v0.3.2 payload type",
         "Get-HcrInstallCheck",
         "$installCheck.matches",
         "$installCheck.payloadError",
         "'v0.1.1'",
         "'v0.2.0'",
         "'v0.3.0'",
+        "'v0.3.1'",
         "payload count is not 31",
         "inventory count is not 33",
         "hyperv-clean-room@personal",
     ):
         if fragment not in release_readback:
             raise AssertionError(
-                f"v0.3.1 release readback is missing: {fragment}"
+                f"v0.3.2 release readback is missing: {fragment}"
             )
     for forbidden in (
         "release create",
@@ -299,6 +309,11 @@ def main() -> int:
 
     settings_source = read_text("scripts/validate-public-github-settings.ps1")
     release_process = read_text("docs/release-process.md")
+    release_validator = read_text("scripts/validate-public-release.ps1")
+    if "-SkipRealHostSmoke" not in release_validator:
+        raise AssertionError(
+            "public-release aggregate must not execute the inherited real-host smoke"
+        )
     for value in (EXPECTED_DESCRIPTION, *EXPECTED_TOPICS):
         if value not in settings_source or value not in release_process:
             raise AssertionError(f"public repository metadata is not frozen: {value}")

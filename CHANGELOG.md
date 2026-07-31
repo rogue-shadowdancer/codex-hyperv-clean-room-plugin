@@ -4,6 +4,44 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
+## 0.3.2 - Tool-call metadata compatibility - 2026-07-31
+
+### Fixed
+
+- Accept optional object-shaped MCP `_meta` on `tools/call` while continuing to
+  require `name`, accept only object-shaped `arguments`, reject every other
+  outer field, and pass only `arguments` to the selected tool.
+- Add stdio regressions for `inspect_host` and `list_vms` with request metadata,
+  plus scalar, array, null, and unknown-field rejection.
+- Extend the selected-plugin Codex app-server validator with an explicit,
+  default-off mock tool-call smoke. Its default remains catalog-only with
+  `toolCallCount: 0`; mock mode requires a child-local mock adapter, verifies
+  the mandatory `TEST_ONLY_MOCK_ADAPTER` warning and `changed=false` before
+  continuing from `inspect_host` to `list_vms`, and reports zero real-operation
+  counts.
+- Preserve compatible validation of immutable v0.3.0 and v0.3.1 external
+  evidence while generating only v0.3.2 provenance. The capability target
+  remains `0.3.0`, with exactly 20 tools and unchanged tool input schemas.
+- Add a fail-closed v0.3.2 release/install readback that also freezes the
+  identities and zero-asset state of v0.1.1 through v0.3.1.
+
+### Safety and release boundary
+
+- The only v0.3.2 personal build is
+  `0.3.2+codex.20260731014242`; the cachebuster helper was invoked exactly once
+  before the protected release candidate was committed.
+- Release acceptance requires protected `master`, the annotated `v0.3.2` tag,
+  the source-only GitHub Release, and installed `sourceCommit` to identify the
+  same final commit. Immutable v0.1.1 through v0.3.1 remain unchanged.
+- During source iteration, the first app-server harness attempt failed to pass
+  mock variables to the selected MCP child and made one unintended production
+  `inspect_host` call. Its envelope was successful with `changed=false`; no
+  mutation occurred. It is recorded only as a safety deviation and is not
+  release acceptance or real-host evidence.
+- The corrected harness binds mock mode inside an isolated selected MCP child.
+  No production `list_vms` call and no further real adapter call occurred.
+  Real Hyper-V/VM/guest/package/UI/evidence operations remain `notPerformed`.
+
 ## 0.3.1 - Selected-plugin catalog compatibility - 2026-07-30
 
 ### Fixed

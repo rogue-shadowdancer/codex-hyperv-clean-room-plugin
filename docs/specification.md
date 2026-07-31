@@ -13,11 +13,13 @@ mock/parser/schema/static only. G7/P3.3 publishes immutable, source-only
 `0.3.0+codex.20260729122233`, closing 31 payloads and exactly 20 catalog tools.
 G7/P3.3-R1 preserves that capability target while advancing the compatible
 runtime to `0.3.1`, accepting MCP-standard `_meta`/`cursor` tool-list
-parameters, and requiring a genuinely selected Codex plugin thread. Its only
-personal build is `0.3.1+codex.20260729184240`; protected `master`, annotated
-`v0.3.1`, the source-only Release, and installed `sourceCommit` must be one
-commit.
-Its catalog readback invokes no MCP tool or adapter operation. The local
+parameters, and requiring a genuinely selected Codex plugin thread.
+G7/P3.3-R2 advances the compatible runtime to `0.3.2` and accepts optional
+object `_meta` on `tools/call` without passing transport metadata into tool
+arguments. Its only personal build is `0.3.2+codex.20260731014242`; protected
+`master`, annotated `v0.3.2`, the source-only Release, and installed
+`sourceCommit` must be one commit.
+Its default catalog readback invokes no MCP tool or adapter operation. The local
 publication aggregate did invoke inherited Gate 2 bounded read-only
 `inspect_host` and missing-ISO `plan_vm_create` rejection outside the declared
 P3.3 no-host boundary; no Hyper-V/VM/checkpoint mutation, credential or guest
@@ -338,9 +340,12 @@ profile, or evidence files in place; corrupt or unknown records fail closed.
 - Require omitted or object-shaped method `params` and reject scalar, null, or
   array forms. Initialize params contain only required, typed
   `protocolVersion`, `capabilities`, and `clientInfo` fields; `clientInfo`
-  requires non-empty string `name` and `version`. `ping`, `tools/list`, and
-  `notifications/initialized` accept only omitted or empty params. Tool-call
-  params contain only `name` and optional object-shaped `arguments`.
+  requires non-empty string `name` and `version`. `ping` and
+  `notifications/initialized` accept only omitted or empty params.
+  `tools/list` additionally accepts optional string-or-null `cursor` and
+  object `_meta`. Tool-call params contain only `name`, optional object-shaped
+  `arguments`, and optional object-shaped `_meta`; only `arguments` reach tool
+  input validation.
 - Return every tool result as a JSON string in the MCP text content block.
 - Set the MCP `isError` flag when the envelope has `ok: false`.
 - Never serialize a PowerShell error record or stack trace into a response.
@@ -1399,6 +1404,43 @@ source-only GitHub Release target, and install-manifest `sourceCommit` must be
 identical. No post-tag closeout commit is allowed. All real host, Hyper-V, VM,
 checkpoint, credential, guest, package, portable, WebDriver, network, UI,
 evidence, and manual-attestation operations remain `notPerformed`.
+
+## G7/P3.3-R2 plugin 0.3.2 tool-call metadata boundary
+
+P3.3-R2 preserves the frozen `0.3.0` capability target, exact 20-tool catalog,
+all tool input schemas, schema-v1 behavior, v2 Plan/Apply guards, and production
+adapter boundaries. The compatible runtime and generated external provenance
+advance to `0.3.2`; v0.3.0 and v0.3.1 external evidence with matching
+base/build pairs remain readable, while mismatched pairs fail closed.
+
+`tools/call` accepts only required string `name`, optional object `arguments`,
+and optional object `_meta`. Scalar, array, or null `_meta` and every unknown
+outer field return `-32602`. Request metadata is ignored after outer transport
+validation and is never merged into, substituted for, or forwarded as tool
+arguments.
+
+The selected-plugin app-server validator is catalog-only by default and reports
+`toolCallCount: 0`. Its explicit mock smoke derives an isolated plugin copy,
+sets mock/test mode and state paths inside the selected MCP child, and calls
+only `inspect_host` and `list_vms`. The first response must be successful,
+`changed=false`, and contain `TEST_ONLY_MOCK_ADAPTER` before the second call is
+sent. Both calls must meet the same conditions and real-operation counts remain
+zero.
+
+During harness development, one earlier app-server attempt set mock variables
+only on the parent and therefore made one unintended production
+`inspect_host` call. Its returned envelope was successful with `changed=false`;
+no mutation occurred. That result is a separately recorded safety deviation,
+is not acceptance evidence, and does not authorize or prove any real-host
+operation. No production `list_vms` call and no later real adapter call occurs
+in this gate.
+
+The only build is `0.3.2+codex.20260731014242`, generated once before commit.
+The final protected `master`, annotated `v0.3.2` peeled commit, source-only
+Release target, and installed `sourceCommit` must be identical. The v0.3.2
+readback freezes the immutable v0.1.1, v0.2.0, v0.3.0, and v0.3.1 release
+identities. The external production typed read-only smoke and every real
+Hyper-V/VM/guest/package/UI/evidence mutation remain `notPerformed`.
 
 ### Protected packaging amendment and G6.2 source result
 

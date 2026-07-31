@@ -45,9 +45,10 @@ EXPECTED_TOOLS = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--plugin-root", type=Path, required=True)
-    parser.add_argument("--expected-version", default="0.3.1")
+    parser.add_argument("--expected-version", default="0.3.2")
     parser.add_argument("--environment-id", default="local")
     parser.add_argument("--timeout-seconds", type=int, default=45)
+    parser.add_argument("--mock-tool-call-smoke", action="store_true")
     return parser.parse_args()
 
 
@@ -63,6 +64,10 @@ def send(process: subprocess.Popen[str], message: dict[str, Any]) -> None:
     assert process.stdin is not None
     process.stdin.write(json.dumps(message, separators=(",", ":")) + "\n")
     process.stdin.flush()
+
+
+def powershell_single_quote(value: Path) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
 
 
 def receive_response(
@@ -171,6 +176,81 @@ def main() -> int:
     )
     process_environment = dict(os.environ)
     process_environment["CODEX_HOME"] = str(isolated_codex_home)
+    selected_plugin_root = plugin_root
+    if args.mock_tool_call_smoke:
+        selected_plugin_root = isolated_codex_home / "selected-plugin"
+        shutil.copytree(plugin_root, selected_plugin_root)
+        mock_adapter_path = isolated_codex_home / "mock-adapter.json"
+        mock_adapter_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "host": {
+                        "computerName": "MOCK-HOST",
+                        "windowsEdition": "Windows 11 Pro",
+                        "windowsBuild": "26100",
+                        "architecture": "AMD64",
+                        "hyperVCommandsAvailable": True,
+                        "hypervisorPresent": True,
+                        "elevated": True,
+                        "processorCount": 8,
+                        "memoryBytes": 17179869184,
+                        "switches": [],
+                        "targetVolumes": [],
+                    },
+                    "vms": [],
+                    "credentialProfiles": [],
+                    "guest": {},
+                    "stepResults": {},
+                    "cleanupResults": {},
+                },
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
+        mock_server_path = selected_plugin_root / "mock-server.ps1"
+        mock_server_path.write_text(
+            "\n".join(
+                (
+                    "$ErrorActionPreference = 'Stop'",
+                    "$env:HCR_TEST_MODE = '1'",
+                    "$env:HCR_ADAPTER_MODE = 'mock'",
+                    (
+                        "$env:HCR_MOCK_ADAPTER_PATH = "
+                        f"{powershell_single_quote(mock_adapter_path)}"
+                    ),
+                    (
+                        "$env:HCR_STATE_ROOT = "
+                        f"{powershell_single_quote(isolated_codex_home / 'state')}"
+                    ),
+                    (
+                        "$env:HCR_CREDENTIAL_ROOT = "
+                        f"{powershell_single_quote(isolated_codex_home / 'credentials')}"
+                    ),
+                    "& (Join-Path $PSScriptRoot 'mcp\\server.ps1')",
+                    "exit $LASTEXITCODE",
+                    "",
+                )
+            ),
+            encoding="utf-8",
+        )
+        isolated_mcp_manifest_path = selected_plugin_root / ".mcp.json"
+        isolated_mcp_manifest = json.loads(
+            isolated_mcp_manifest_path.read_text(encoding="utf-8")
+        )
+        isolated_mcp_manifest["mcpServers"]["hyperv-clean-room"]["args"] = [
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "./mock-server.ps1",
+        ]
+        isolated_mcp_manifest_path.write_text(
+            json.dumps(isolated_mcp_manifest, indent=2) + "\n",
+            encoding="utf-8",
+        )
     try:
         process = subprocess.Popen(
             app_server_command(),
@@ -268,7 +348,7 @@ def main() -> int:
                 "method": "thread/start",
                 "id": 4,
                 "params": {
-                    "cwd": str(plugin_root),
+                    "cwd": str(selected_plugin_root),
                     "approvalPolicy": "never",
                     "sandbox": "read-only",
                     "ephemeral": True,
@@ -278,7 +358,7 @@ def main() -> int:
                             "location": {
                                 "type": "environment",
                                 "environmentId": args.environment_id,
-                                "path": str(plugin_root),
+                                "path": str(selected_plugin_root),
                             },
                         }
                     ],
@@ -375,12 +455,106 @@ def main() -> int:
                 f"extra={sorted(unique_tools - EXPECTED_TOOLS)}."
             )
 
-        if any(
+        tool_call_count = 0
+        mock_tool_calls: list[dict[str, Any]] = []
+        if args.mock_tool_call_smoke:
+            for tool_name, arguments in (
+                ("inspect_host", {}),
+                ("list_vms", {"managedOnly": False}),
+            ):
+                request_id += 1
+                send(
+                    process,
+                    {
+                        "method": "mcpServer/tool/call",
+                        "id": request_id,
+                        "params": {
+                            "threadId": thread_id,
+                            "server": "hyperv-clean-room",
+                            "tool": tool_name,
+                            "arguments": arguments,
+                            "_meta": {
+                                "progressToken": f"metadata-smoke-{tool_name}"
+                            },
+                        },
+                    },
+                )
+                tool_result = receive_response(
+                    process,
+                    stdout_lines,
+                    stderr_lines,
+                    request_id,
+                    notifications,
+                    deadline,
+                )
+                tool_call_count += 1
+                if tool_result.get("isError") is True:
+                    raise RuntimeError(
+                        f"Mock {tool_name} returned MCP isError=true: "
+                        f"{json.dumps(tool_result, separators=(',', ':'))}"
+                    )
+                text_items = [
+                    item
+                    for item in tool_result.get("content", [])
+                    if isinstance(item, dict)
+                    and item.get("type") == "text"
+                    and isinstance(item.get("text"), str)
+                ]
+                if len(text_items) != 1:
+                    raise RuntimeError(
+                        f"Mock {tool_name} did not return one text envelope."
+                    )
+                envelope = json.loads(text_items[0]["text"])
+                if envelope.get("ok") is not True or envelope.get("changed") is not False:
+                    raise RuntimeError(
+                        f"Mock {tool_name} was not successful and read-only: "
+                        f"{json.dumps(envelope, separators=(',', ':'))}"
+                    )
+                warnings = envelope.get("warnings")
+                if (
+                    not isinstance(warnings, list)
+                    or not any(
+                        isinstance(warning, str)
+                        and warning.startswith("TEST_ONLY_MOCK_ADAPTER:")
+                        for warning in warnings
+                    )
+                ):
+                    raise RuntimeError(
+                        f"Mock {tool_name} lacks the mandatory TEST_ONLY warning."
+                    )
+                if tool_name == "inspect_host":
+                    if (
+                        envelope.get("data", {})
+                        .get("host", {})
+                        .get("computerName")
+                        != "MOCK-HOST"
+                    ):
+                        raise RuntimeError(
+                            "Mock inspect_host did not return the isolated mock host."
+                        )
+                elif (
+                    envelope.get("data", {}).get("managedOnly") is not False
+                    or envelope.get("data", {}).get("vms") != []
+                ):
+                    raise RuntimeError(
+                        "Mock list_vms did not preserve managedOnly=false "
+                        "with the empty mock inventory."
+                    )
+                mock_tool_calls.append(
+                    {
+                        "tool": tool_name,
+                        "ok": True,
+                        "changed": False,
+                        "testOnlyWarning": True,
+                    }
+                )
+
+        if not args.mock_tool_call_smoke and any(
             notification.get("method")
             in {"mcpServer/tool/call", "mcp_tool_call"}
             for notification in notifications
         ):
-            raise RuntimeError("Catalog validation observed an MCP tool call.")
+            raise RuntimeError("Catalog-only validation observed an MCP tool call.")
         ready_deadline = min(deadline, time.monotonic() + 3)
         while time.monotonic() < ready_deadline:
             if any(
@@ -422,6 +596,7 @@ def main() -> int:
                     "status": "passed",
                     "validation": "selected-plugin-codex-app-server-catalog",
                     "pluginRoot": str(plugin_root),
+                    "isolatedMockPlugin": args.mock_tool_call_smoke,
                     "pluginVersion": plugin_manifest["version"],
                     "unselectedThreadId": unselected_thread_id,
                     "unselectedServerCount": len(unselected_servers),
@@ -432,7 +607,14 @@ def main() -> int:
                     "startupStatus": "ready",
                     "observedToolCount": len(observed_tools),
                     "uniqueToolCount": len(unique_tools),
-                    "toolCallCount": 0,
+                    "mockToolCallSmoke": args.mock_tool_call_smoke,
+                    "toolCallCount": tool_call_count,
+                    "mockAdapterOperationCount": tool_call_count,
+                    "realAdapterOperationCount": 0,
+                    "realOperationCount": 0,
+                    "realHyperVMutationCount": 0,
+                    "realGuestOperationCount": 0,
+                    "mockToolCalls": mock_tool_calls,
                     "tools": sorted(unique_tools),
                 },
                 indent=2,

@@ -2091,12 +2091,15 @@ Assert-Equal (@($modernListResponse.result.tools).Count) 20 `
 foreach ($invalidToolCallMessage in @(
     '{"jsonrpc":"2.0","id":38,"method":"tools/call","params":"scalar"}',
     '{"jsonrpc":"2.0","id":39,"method":"tools/call","params":{"name":"inspect_host","arguments":{},"unexpected":true}}',
-    '{"jsonrpc":"2.0","id":40,"method":"tools/call","params":{"name":"inspect_host","arguments":"scalar"}}'
+    '{"jsonrpc":"2.0","id":40,"method":"tools/call","params":{"name":"inspect_host","arguments":"scalar"}}',
+    '{"jsonrpc":"2.0","id":44,"method":"tools/call","params":{"name":"inspect_host","arguments":{},"_meta":"scalar"}}',
+    '{"jsonrpc":"2.0","id":45,"method":"tools/call","params":{"name":"inspect_host","arguments":{},"_meta":[]}}',
+    '{"jsonrpc":"2.0","id":46,"method":"tools/call","params":{"name":"inspect_host","arguments":{},"_meta":null}}'
 )) {
     $server.StandardInput.WriteLine($invalidToolCallMessage)
     $invalidToolCallResponse = $server.StandardOutput.ReadLine() | ConvertFrom-Json
     Assert-Equal $invalidToolCallResponse.error.code -32602 `
-        'tools/call accepted scalar, unknown, or unstructured parameters.'
+        'tools/call accepted scalar, unknown, or unstructured parameters or metadata.'
 }
 $server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"inspect_host","arguments":{}}}')
 $inspectResponse = $server.StandardOutput.ReadLine() | ConvertFrom-Json
@@ -2104,6 +2107,22 @@ Assert-True (-not $inspectResponse.result.isError) 'MCP inspect_host returned is
 $inspectEnvelope = $inspectResponse.result.content[0].text | ConvertFrom-Json
 Assert-True $inspectEnvelope.ok 'MCP inspect_host envelope failed.'
 Assert-Equal $inspectEnvelope.data.host.computerName 'MOCK-HOST' 'MCP returned wrong mock host.'
+$server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":47,"method":"tools/call","params":{"name":"inspect_host","arguments":{},"_meta":{"progressToken":"inspect-mock"}}}')
+$inspectMetadataResponse = $server.StandardOutput.ReadLine() | ConvertFrom-Json
+Assert-True (-not $inspectMetadataResponse.result.isError) `
+    'MCP inspect_host rejected object-shaped request metadata.'
+$inspectMetadataEnvelope = $inspectMetadataResponse.result.content[0].text | ConvertFrom-Json
+Assert-True ($inspectMetadataEnvelope.ok -and -not [bool]$inspectMetadataEnvelope.changed) `
+    'MCP inspect_host request metadata changed tool behavior.'
+$server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":48,"method":"tools/call","params":{"name":"list_vms","arguments":{"managedOnly":false},"_meta":{"progressToken":"list-mock"}}}')
+$listMetadataResponse = $server.StandardOutput.ReadLine() | ConvertFrom-Json
+Assert-True (-not $listMetadataResponse.result.isError) `
+    'MCP list_vms rejected object-shaped request metadata.'
+$listMetadataEnvelope = $listMetadataResponse.result.content[0].text | ConvertFrom-Json
+Assert-True ($listMetadataEnvelope.ok -and -not [bool]$listMetadataEnvelope.changed) `
+    'MCP list_vms request metadata changed tool behavior.'
+Assert-True (-not [bool]$listMetadataEnvelope.data.managedOnly) `
+    'MCP list_vms request metadata leaked into or replaced tool arguments.'
 $server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"delete_vm","arguments":{}}}')
 $unknownToolResponse = $server.StandardOutput.ReadLine() | ConvertFrom-Json
 Assert-True $unknownToolResponse.result.isError 'Unknown tool did not set MCP isError.'

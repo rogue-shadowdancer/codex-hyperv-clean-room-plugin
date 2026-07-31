@@ -6,20 +6,25 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: 0.3.1 selected-plugin catalog and provenance recovery
+### Status: 0.3.2 tool-call metadata compatibility
 
-The `0.3.1` patch keeps the frozen `0.3.0` capability target, all 20 public
-tool names and schemas, and all runtime safety behavior. It accepts the
-MCP-standard `_meta` and `cursor` fields used by current Codex `tools/list`
-requests and adds a real Codex app-server catalog-only acceptance path. That
-path binds `plugin://hyperv-clean-room@personal` through
-`selectedCapabilityRoots`, requires 20/20 unique tools, and sends no tool call.
+The `0.3.2` patch keeps the frozen `0.3.0` capability target, all 20 public
+tool names and schemas, and every Plan/Apply and fail-closed boundary. It
+accepts optional object-shaped MCP `_meta` on `tools/call`, ignores that
+transport metadata when validating tool `arguments`, and still rejects
+mistyped metadata and unknown outer fields.
 
-The only v0.3.1 personal build is
-`0.3.1+codex.20260729184240`. Release acceptance requires protected `master`,
-annotated tag `v0.3.1`, the source-only GitHub Release, and installed
-`sourceCommit` to identify one exact commit. The immutable v0.3.0 release is
-historical and is not moved or overwritten.
+The selected-plugin Codex app-server validator remains catalog-only by default
+with 20/20 unique tools and `toolCallCount: 0`. An explicit test-only mode
+launches an isolated selected MCP child with the mock adapter, calls only
+`inspect_host` and `list_vms`, requires `changed=false` plus the mandatory
+`TEST_ONLY_MOCK_ADAPTER` warning, and reports zero real-operation counts.
+
+The only v0.3.2 personal build is
+`0.3.2+codex.20260731014242`. Release acceptance requires protected `master`,
+annotated tag `v0.3.2`, the source-only GitHub Release, and installed
+`sourceCommit` to identify one exact commit. Immutable v0.1.1 through v0.3.1
+are historical and are not moved or overwritten.
 
 Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,
 profile, evidence, plan, and credential contracts. The first public release
@@ -216,17 +221,22 @@ checkpoint success.
 `hyperv-clean-room` 是一个仅面向 Windows 的 Codex plugin 设计，用于受保护的
 Hyper-V VM 操作、声明式 current-user package lifecycle 测试和结构化 evidence。
 
-### 状态：0.3.1 selected-plugin catalog 与 provenance 修复
+### 状态：0.3.2 tool-call metadata 兼容修复
 
-`0.3.1` patch 保留冻结的 `0.3.0` capability target、精确 20 个公开工具及其
-schema，并只为当前 Codex `tools/list` 接受 MCP 标准 `_meta` / `cursor` 字段。
-新增的 Codex app-server 验收通过 `selectedCapabilityRoots` 真正绑定
-`plugin://hyperv-clean-room@personal`，要求 20/20 unique tools，且不发送任何
-tool call。
+`0.3.2` patch 保留冻结的 `0.3.0` capability target、精确 20 个公开工具及其
+schema，以及全部 Plan/Apply 与 fail-closed 边界。`tools/call` 现在接受可选的
+object `_meta`，但不会把 transport metadata 传入工具 `arguments`；类型错误或
+未知 outer field 仍以 `-32602` 失败。
 
-唯一 v0.3.1 personal build 为 `0.3.1+codex.20260729184240`。只有 protected
-`master`、annotated `v0.3.1` tag、source-only GitHub Release 与 installed
-`sourceCommit` 指向同一提交时，发布才可接受；历史 v0.3.0 不移动、不覆盖。
+Codex app-server 验收默认仍只检查 20/20 unique tools，并保持
+`toolCallCount: 0`。显式 test-only 模式只在隔离的 selected MCP child 中启用
+mock adapter，依次验证 `inspect_host` / `list_vms` 的 `changed=false` 与强制
+`TEST_ONLY_MOCK_ADAPTER` warning，并要求真实操作计数为零。
+
+唯一 v0.3.2 personal build 为 `0.3.2+codex.20260731014242`。只有 protected
+`master`、annotated `v0.3.2` tag、source-only GitHub Release 与 installed
+`sourceCommit` 指向同一提交时，发布才可接受；历史 v0.1.1 至 v0.3.1
+不移动、不覆盖。
 
 Gate 2 已依据冻结的 v1 cleanup、profile、evidence、plan 和 credential 合同实现
 PowerShell 5.1 MCP runtime。首个 public release 使用 plugin base version

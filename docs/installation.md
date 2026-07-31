@@ -4,15 +4,15 @@
 
 Gate 4 established the local personal-install mechanism for the 16-tool v1
 runtime. Gate 9/H4 applied that fail-closed mechanism to the release-derived
-plugin `0.2.0` source. G7/P3.3-R1 applies it once to the reviewed compatible
-patch plugin `0.3.1` source and copies the payload to
+plugin `0.2.0` source. G7/P3.3-R2 applies it once to the reviewed compatible
+patch plugin `0.3.2` source and copies the payload to
 `%USERPROFILE%\plugins\hyperv-clean-room`, creates or updates exactly one entry
 in the default personal marketplace through the `plugin-creator` helper, and
 runs:
 
-G7/P3.3-R1 publishes immutable source-only `v0.3.1` from the final protected
+G7/P3.3-R2 publishes immutable source-only `v0.3.2` from the final protected
 `master` commit and uses exactly one precommitted personal build,
-`0.3.1+codex.20260729184240`. The protected commit, annotated tag, GitHub
+`0.3.2+codex.20260731014242`. The protected commit, annotated tag, GitHub
 Release target, and installed `sourceCommit` must be identical. The installer
 and readback require all 31 tracked payloads, the two installed-state records,
 exact per-file size/SHA-256, source commit, version, cachebuster, one canonical
@@ -25,11 +25,14 @@ codex plugin add hyperv-clean-room@personal
 
 The installed MCP server is then started from the installed directory, not the
 repository. Current acceptance requires server identity/version
-`hyperv-clean-room` / `0.3.1`, MCP protocol `2025-11-25`, and exactly 20 tools
+`hyperv-clean-room` / `0.3.2`, MCP protocol `2025-11-25`, and exactly 20 tools
 (all unique) through a fresh Codex app-server thread with an explicit
 `selectedCapabilityRoots` binding and thread-scoped `mcpServerStatus/list`.
-P3.3-R1 calls no MCP tool. Raw prompt text naming the plugin is not a plugin
-selection and is not acceptance evidence. This
+The default P3.3-R2 check calls no MCP tool. A separate explicit mock mode
+launches an isolated selected MCP child, requires the test-only warning and
+`changed=false`, and calls only `inspect_host` and `list_vms`; it is mock
+transport acceptance, not real-host evidence. Raw prompt text naming the plugin
+is not a plugin selection and is not acceptance evidence. This
 proves local installation, marketplace visibility, cache pickup, and catalog
 discovery only. It does not prove a real host, VM or checkpoint mutation,
 credential enrollment, PowerShell Direct guest behavior, package execution,
@@ -60,11 +63,11 @@ From the repository root, run:
 Validation rejects reparse points, untracked or missing payload files,
 reserved install-state files, forbidden VM/credential/evidence file types,
 unsafe relative paths, oversized files, an unexpected manifest name or path,
-and any version outside base `0.3.1` with at most one
+and any version outside base `0.3.2` with at most one
 `+codex.<cachebuster>` suffix. The integrated source payload contains exactly
 31 Git-tracked ordinary files: five public schema-v1 files and seven schema-v2
-files are included. G7/P3.3-R1 uses the single build
-`0.3.1+codex.20260729184240`; immutable historical tags, including `v0.3.0`,
+files are included. G7/P3.3-R2 uses the single build
+`0.3.2+codex.20260731014242`; immutable historical tags through `v0.3.1`
 remain unchanged.
 
 ## Install the personal copy
@@ -133,7 +136,7 @@ The JSON report includes:
 - `marketplaceError` — the bounded marketplace/CLI visibility reason, or
   `null`.
 
-P3.3-R1 is acceptable only when all four booleans are `true`, the marketplace
+P3.3-R2 is acceptable only when all four booleans are `true`, the marketplace
 entry count is one, and every paired metadata field matches.
 
 Historical H4/G9 installed-copy acceptance uses the retained command:
@@ -142,11 +145,14 @@ Historical H4/G9 installed-copy acceptance uses the retained command:
 .\scripts\validate-gate4.ps1
 ```
 
-P3.3-R1 does not run that historical smoke because it calls `inspect_host` and
-a missing-ISO plan. P3.3-R1 instead pairs `check_install.ps1` with
-`validate-codex-app-server-catalog.ps1` and requires 31/31 payload hashes,
-exactly 20 unique tool names, zero tool calls, and zero adapter operations in
-that session. The
+P3.3-R2 does not run that historical smoke because it calls `inspect_host` and
+a missing-ISO plan against the production adapter. P3.3-R2 instead pairs
+`check_install.ps1` with the default
+`validate-codex-app-server-catalog.ps1` catalog session and its explicit
+`-MockToolCallSmoke` session. The former requires 31/31 payload hashes,
+exactly 20 unique tool names, zero tool calls, and zero adapter operations; the
+latter requires two mock calls, two mandatory test-only warnings,
+`changed=false`, and zero real-operation counts. The
 separately run local publication aggregate did invoke the inherited Gate 2
 bounded read-only `inspect_host` and missing-ISO plan rejection outside the
 declared P3.3 no-host boundary; it performed no mutation.

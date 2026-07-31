@@ -51,6 +51,16 @@ requires `hyperv-clean-room` / `0.3.1` with exactly 20 unique tools, and sends
 no MCP tool call. The only build is `0.3.1+codex.20260729184240`; protected
 `master`, annotated `v0.3.1`, its source-only Release, and installed
 `sourceCommit` must be one commit. Immutable earlier tags remain unchanged.
+G7/P3.3-R2 advances the compatible runtime to `0.3.2` without changing that
+capability target, the 20-tool surface, or tool input schemas. `tools/call`
+accepts optional object `_meta`, rejects mistyped metadata and unknown outer
+fields, and never forwards transport metadata as tool arguments. The
+selected-plugin validator remains catalog-only by default and adds an explicit
+isolated-child mock smoke for `inspect_host` and `list_vms`, requiring
+`changed=false`, the mandatory test-only warning, and zero real-operation
+counts. The only build is `0.3.2+codex.20260731014242`; protected `master`,
+annotated `v0.3.2`, the zero-asset Release, and installed `sourceCommit` must
+be one commit while v0.1.1 through v0.3.1 remain immutable.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.

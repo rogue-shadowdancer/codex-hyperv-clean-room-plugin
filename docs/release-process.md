@@ -80,7 +80,7 @@ Save full output only below ignored `.artifacts`. Require all of the following:
 - strict UTF-8, no BOM, no mojibake, JSON, Draft 2020-12 schema, YAML,
   Markdown/link, Python compile, and `git diff --check` validation;
 - plugin-creator `validate_plugin.py` and skill-creator `quick_validate.py`;
-- `validate-gate1.ps1`, no-argument `validate-gate2.ps1`,
+- `validate-gate1.ps1`, `validate-gate2.ps1 -SkipRealHostSmoke`,
   `validate-docs.ps1`, and `validate-gate4-ci.ps1`;
 - `publication_hygiene_policy_tests.py`,
   `publication_hygiene_tests.py`, and
@@ -303,3 +303,52 @@ The compatible validator continues to accept externally produced v0.3.0
 evidence when `pluginBaseVersion` and `pluginBuildVersion` agree, while the
 v0.3.1 runtime generates only v0.3.1 provenance. Cross-version base/build
 pairs fail closed.
+
+## G7/P3.3-R2 `v0.3.2` tool-call metadata compatibility
+
+The immutable v0.1.1, v0.2.0, v0.3.0, and v0.3.1 tags and Releases are
+historical and must not be moved, deleted, replaced, or reissued. The compatible
+`v0.3.2` patch changes only the MCP-standard `tools/call` outer request
+handshake and the validation needed to prove that path.
+
+Before commit, invoke the plugin-creator cachebuster helper exactly once and
+freeze `0.3.2+codex.20260731014242`. All status and release-process text belongs
+in the same candidate before review; no post-tag closeout commit is permitted.
+After the protected PR merges, create annotated tag `v0.3.2` at the exact
+protected `master` SHA and publish one non-draft, non-prerelease, source-only
+Release with zero uploaded assets. Install the already-frozen build from that
+same checkout without rerunning the helper.
+
+Acceptance requires:
+
+- protected `master` SHA = annotated v0.3.2 peeled SHA = Release tag target =
+  install-manifest `sourceCommit`;
+- `validate-v032-release-readback.ps1` passes against the exact protected
+  commit, accepts only `0.3.2+codex.20260731014242`, rehashes all 31 payloads
+  plus ownership/manifest state, and proves the exact v0.1.1 through v0.3.1
+  tag objects, peeled commits, Release identities, flags, and zero-asset state
+  did not change;
+- the selected app-server default reports `hyperv-clean-room` / `0.3.2`,
+  exactly 20 unique tools, and `toolCallCount: 0`;
+- explicit `-MockToolCallSmoke` derives an isolated selected plugin, launches
+  a child-local test-only mock adapter, and calls only `inspect_host` and
+  `list_vms`; `inspect_host` must be successful, `changed=false`, and contain
+  `TEST_ONLY_MOCK_ADAPTER` before `list_vms` is sent, and both calls must meet
+  those conditions with zero real-operation counts; and
+- the exact staged/committed candidate passes the complete repository checks,
+  substantive review with zero actionable findings, hosted protected check,
+  resolved review threads, and the required fresh unchanged-head review
+  window.
+
+The first source-iteration app-server harness attempt set mock variables only
+on the parent, not the selected MCP child. It therefore made one unintended
+production `inspect_host` call. The returned envelope was successful with
+`changed=false`, so no mutation occurred. This deviation is not acceptance
+evidence, does not satisfy the later external production typed read-only smoke,
+and authorizes no follow-up real adapter call. The corrected child-local mock
+harness is the only tool-call acceptance path in this release gate.
+
+The external production typed read-only smoke remains a fresh separate gate.
+No production `list_vms` call and no real Hyper-V, VM, checkpoint, credential,
+guest, package, portable, WebDriver, UI, network, evidence, or manual-attestation
+operation is authorized here.
