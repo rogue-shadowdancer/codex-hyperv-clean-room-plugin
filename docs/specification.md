@@ -19,6 +19,10 @@ object `_meta` on `tools/call` without passing transport metadata into tool
 arguments. Its only personal build is `0.3.2+codex.20260731014242`; protected
 `master`, annotated `v0.3.2`, the source-only Release, and installed
 `sourceCommit` must be one commit.
+The v0.4.0 least-privilege gate retains that target and exact public tool input
+surface while authorizing production Hyper-V through either an enabled
+`Hyper-V Administrators` token or elevated Administrator token. Non-elevated
+group membership is preferred; elevation is compatible but explicitly warned.
 Its default catalog readback invokes no MCP tool or adapter operation. The local
 publication aggregate did invoke inherited Gate 2 bounded read-only
 `inspect_host` and missing-ISO `plan_vm_create` rejection outside the declared
@@ -86,7 +90,7 @@ attachment, `effectState: confirmed`, and whether recovery is now required.
 Planning success has `changed: false`; apply success has `changed: true`.
 
 The frozen stable failure codes are the applicable subset of the existing
-`INVALID_ARGUMENT`, `HYPERV_UNAVAILABLE`, `ELEVATION_REQUIRED`, `VM_NOT_FOUND`,
+`INVALID_ARGUMENT`, `HYPERV_UNAVAILABLE`, `HYPERV_AUTHORIZATION_REQUIRED`, `VM_NOT_FOUND`,
 `VM_STATE_UNSUPPORTED`, `OWNERSHIP_UNVERIFIED`, `STATE_BUSY`,
 `PLAN_NOT_FOUND`, `PLAN_ALREADY_CONSUMED`, `PLAN_INVALID`,
 `PLAN_KIND_MISMATCH`, `PLAN_EXPIRED`, and `PLAN_DRIFT`, plus the new typed
@@ -120,8 +124,9 @@ mutation and requires a fresh plan.
 
 For schema-v2 power and network plans, the host fingerprint covers stable host
 identity and Hyper-V availability but excludes the caller process's transient
-elevation state. Planning remains read-only and may run without elevation;
-apply independently requires elevation before drift validation or mutation.
+elevation and authorization state. Planning remains read-only but now requires
+Hyper-V authorization; apply independently revalidates authorization before
+drift validation or mutation.
 
 The sole consumption exception is the paired network recovery plan: its stored
 record shape and live VM, ownership, adapter, baseline, and attachment recovery
@@ -1461,3 +1466,46 @@ transition, manual attestation, or clean-room evidence. P3.1 consumes only the
 protected contract and immutable source identities; it does not read or reuse
 the upstream ignored artifact directory or copy real release identities into
 synthetic fixtures.
+
+## v0.4.0 least-privilege authorization boundary
+
+Runtime v0.4.0 preserves the frozen v0.3.0 capability target, exactly 20 public
+tool names and closed inputs, five schema-v1 files, seven schema-v2 paths and
+IDs, exact integer schemaVersion dispatch, and existing Plan/Apply consumption,
+expiry, drift, ownership, fingerprint, and recovery semantics. The evidence-v2
+runtime provenance accepts the matching v0.4.0 base/build pair while retaining
+matching v0.3.0, v0.3.1, and v0.3.2 pairs.
+
+The production authorization decision is derived only from the current MCP
+server process token. `hyperVAuthorized` is true when that token is an elevated
+Administrator or has enabled local built-in SID `S-1-5-32-578` (`Hyper-V
+Administrators`). `authorizationMode` uses exact precedence
+`elevatedAdministrator`, `hyperVAdministrators`, then `none`. The diagnostic
+host projection also contains `elevated` and
+`hyperVAdministratorsTokenEnabled`; it exposes no user name or user SID.
+
+`inspect_host` remains available without authorization. `list_vms`,
+`inspect_vm`, and every host Plan/Apply path require authorization and otherwise
+fail with `HYPERV_AUTHORIZATION_REQUIRED`. Successful mock envelopes retain the
+test-only warning. Successful elevated envelopes additionally contain exactly:
+
+`BROADER_PRIVILEGE_CONTEXT: MCP server is elevated; Hyper-V Administrators is the preferred least-privilege authorization mode.`
+
+VM-create, checkpoint-create, checkpoint-restore, power, and network
+production adapters recompute live token authorization before entering their
+mutation boundary. New authorization projection fields do not enter v1 or v2
+host fingerprints: v1 retains its historical `elevated` component and v2
+continues excluding transient privilege state. Plan consumption order,
+including the pre-consume network-recovery exception, is unchanged.
+
+Planning and apply revalidation distinguish ordinary invalid paths from access
+denial. ISO read denial is `ISO_ACCESS_DENIED`, existing VM-root enumeration
+denial is `VM_ROOT_ACCESS_DENIED`, and state-root initialization/access denial
+is `STATE_ROOT_ACCESS_DENIED`. These checks do not change ACLs, create a caller
+VM root, add group membership, elevate the process, or retry an operation.
+
+The source/release gate uses mock, parser, schema, static, installation, and
+selected-child mock evidence only. All production host and Hyper-V operation
+counters remain zero. Production typed read-only acceptance belongs to a fresh
+non-elevated selected-plugin task after exact protected publication and install;
+it authorizes no mutation.

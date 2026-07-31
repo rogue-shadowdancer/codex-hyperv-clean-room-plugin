@@ -50,10 +50,24 @@ function Initialize-HcrLocalDirectoryPath {
 
 function Initialize-HcrStateStore {
     $root = Get-HcrStateRoot
-    [void](Initialize-HcrLocalDirectoryPath $root)
-    foreach ($relative in @('plans', 'operations', 'ownership', 'evidence-staging', 'locks')) {
-        $path = Join-Path $root $relative
-        [void](Initialize-HcrLocalDirectoryPath $path)
+    try {
+        [void](Initialize-HcrLocalDirectoryPath $root)
+        foreach ($relative in @('plans', 'operations', 'ownership', 'evidence-staging', 'locks')) {
+            $path = Join-Path $root $relative
+            [void](Initialize-HcrLocalDirectoryPath $path)
+        }
+        [void](Assert-HcrAccessibleLocalDirectory `
+            $root `
+            'INVALID_STATE_ROOT' `
+            'STATE_ROOT_ACCESS_DENIED')
+    }
+    catch {
+        if (Test-HcrAccessDeniedException $_.Exception) {
+            Throw-HcrError `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'The current MCP server token cannot initialize or access the state root.'
+        }
+        throw
     }
     $script:HcrStateRoot = $root
     return $root

@@ -11,11 +11,24 @@ param(
     [string]$InstallRoot = (Join-Path $HOME 'plugins\hyperv-clean-room'),
 
     [ValidateNotNullOrEmpty()]
-    [string]$MarketplacePath = (Join-Path $HOME '.agents\plugins\marketplace.json')
+    [string]$MarketplacePath = (Join-Path $HOME '.agents\plugins\marketplace.json'),
+
+    [ValidateSet('0.3.2', '0.4.0')]
+    [string]$ReleaseVersion = '0.3.2',
+
+    [ValidatePattern('^0\.(?:3\.2|4\.0)\+codex\.[0-9]{14}$')]
+    [string]$ExpectedBuildVersion = '0.3.2+codex.20260731014242'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if (-not $ExpectedBuildVersion.StartsWith(
+        "$ReleaseVersion+codex.",
+        [StringComparison]::Ordinal
+    )) {
+    throw 'ExpectedBuildVersion does not match ReleaseVersion.'
+}
 
 function Assert-HcrReadback {
     param(
@@ -185,25 +198,26 @@ Assert-HcrReadback ([bool]$branch.protected) `
 Assert-HcrReadback ($masterCommit -ceq $ExpectedMasterCommit) `
     "Protected master $masterCommit does not equal expected $ExpectedMasterCommit."
 
-$currentTag = Get-HcrAnnotatedTagIdentity 'v0.3.2'
+$currentTagName = "v$ReleaseVersion"
+$currentTag = Get-HcrAnnotatedTagIdentity $currentTagName
 Assert-HcrReadback ($currentTag.peeledCommit -ceq $masterCommit) `
-    'Annotated v0.3.2 does not peel to protected master.'
+    "Annotated $currentTagName does not peel to protected master."
 
-$currentRelease = Invoke-HcrGhApi "repos/$Repository/releases/tags/v0.3.2"
-Assert-HcrReadback ([string]$currentRelease.tag_name -ceq 'v0.3.2') `
-    'The v0.3.2 Release tag is incorrect.'
-Assert-HcrReadback ([string]$currentRelease.name -ceq 'v0.3.2') `
-    'The v0.3.2 Release name is incorrect.'
+$currentRelease = Invoke-HcrGhApi "repos/$Repository/releases/tags/$currentTagName"
+Assert-HcrReadback ([string]$currentRelease.tag_name -ceq $currentTagName) `
+    "The $currentTagName Release tag is incorrect."
+Assert-HcrReadback ([string]$currentRelease.name -ceq $currentTagName) `
+    "The $currentTagName Release name is incorrect."
 Assert-HcrReadback ([string]$currentRelease.target_commitish -ceq $masterCommit) `
-    'The v0.3.2 Release target does not equal protected master.'
+    "The $currentTagName Release target does not equal protected master."
 Assert-HcrReadback (-not [bool]$currentRelease.draft -and
         -not [bool]$currentRelease.prerelease) `
-    'The v0.3.2 Release is draft or prerelease.'
+    "The $currentTagName Release is draft or prerelease."
 Assert-HcrReadback (-not [string]::IsNullOrWhiteSpace(
         [string]$currentRelease.published_at)) `
-    'The v0.3.2 Release is not published.'
+    "The $currentTagName Release is not published."
 Assert-HcrReadback (@($currentRelease.assets).Count -eq 0) `
-    'The v0.3.2 source-only Release has uploaded assets.'
+    "The $currentTagName source-only Release has uploaded assets."
 
 $historicalBaselines = @(
     [pscustomobject]@{
@@ -245,8 +259,21 @@ $historicalBaselines = @(
         targetCommitish = '8c97145c8c629f393c8411d84bd7e180b39ff339'
         createdAt = '2026-07-29T20:32:52Z'
         publishedAt = '2026-07-29T20:34:59Z'
+    },
+    [pscustomobject]@{
+        tag = 'v0.3.2'
+        tagObject = '957b1ed1861737164b88bce5c10bad9460e9637b'
+        peeledCommit = 'd4598c4c49b8fc8500aea321190870288bcaa4ee'
+        releaseId = 362826782
+        name = 'v0.3.2'
+        targetCommitish = 'd4598c4c49b8fc8500aea321190870288bcaa4ee'
+        createdAt = '2026-07-31T02:57:56Z'
+        publishedAt = '2026-07-31T03:00:18Z'
     }
 )
+$historicalBaselines = @($historicalBaselines | Where-Object {
+        [string]$_.tag -cne $currentTagName
+    })
 $historical = @($historicalBaselines | ForEach-Object {
         Assert-HcrHistoricalRelease $_
     })
@@ -291,8 +318,8 @@ try {
             $ExpectedMasterCommit) `
         'The reviewed source checkout does not equal ExpectedMasterCommit.'
     Assert-HcrReadback ([string]$sourceInventory.sourceVersion -ceq
-            '0.3.2+codex.20260731014242') `
-        'The reviewed source checkout is not the single frozen v0.3.2 build.'
+            $ExpectedBuildVersion) `
+        "The reviewed source checkout is not the single frozen $ReleaseVersion build."
     foreach ($payload in @($sourceInventory.files)) {
         $payloadPath = [string]$payload.path
         $repositoryPath = "hyperv-clean-room/$payloadPath"
@@ -313,7 +340,7 @@ try {
             $expectedBytes = $committedBytes
         }
         else {
-            throw "Unsupported v0.3.2 payload type: $repositoryPath"
+            throw "Unsupported $currentTagName payload type: $repositoryPath"
         }
         $workingBytes = [IO.File]::ReadAllBytes($workingPath)
         $expectedHash = Get-HcrSha256Bytes $expectedBytes
@@ -357,8 +384,8 @@ Assert-HcrReadback ([string]$installManifest.pluginName -ceq 'hyperv-clean-room'
 Assert-HcrReadback ([string]$installManifest.sourceCommit -ceq $masterCommit) `
     'Installed sourceCommit does not equal protected master.'
 Assert-HcrReadback ([string]$installManifest.sourceVersion -ceq
-        '0.3.2+codex.20260731014242') `
-    'Installed sourceVersion is not the frozen v0.3.2 build.'
+        $ExpectedBuildVersion) `
+    "Installed sourceVersion is not the frozen $ReleaseVersion build."
 Assert-HcrReadback (@($installManifest.files).Count -eq 31) `
     'Installed manifest payload count is not 31.'
 $ordinaryInstallFiles = @(Get-ChildItem -LiteralPath $resolvedInstallRoot `

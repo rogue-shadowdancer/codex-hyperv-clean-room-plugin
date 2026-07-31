@@ -4,20 +4,20 @@
 
 Gate 4 established the local personal-install mechanism for the 16-tool v1
 runtime. Gate 9/H4 applied that fail-closed mechanism to the release-derived
-plugin `0.2.0` source. G7/P3.3-R2 applies it once to the reviewed compatible
-patch plugin `0.3.2` source and copies the payload to
+plugin `0.2.0` source. The v0.4.0 gate applies it once to the reviewed
+least-privilege source and copies the payload to
 `%USERPROFILE%\plugins\hyperv-clean-room`, creates or updates exactly one entry
 in the default personal marketplace through the `plugin-creator` helper, and
 runs:
 
-G7/P3.3-R2 publishes immutable source-only `v0.3.2` from the final protected
-`master` commit and uses exactly one precommitted personal build,
-`0.3.2+codex.20260731014242`. The protected commit, annotated tag, GitHub
+The gate publishes immutable source-only `v0.4.0` from the final protected
+`master` commit and uses exactly one precommitted
+`0.4.0+codex.20260731141404` personal build. The protected commit, annotated tag, GitHub
 Release target, and installed `sourceCommit` must be identical. The installer
 and readback require all 31 tracked payloads, the two installed-state records,
 exact per-file size/SHA-256, source commit, version, cachebuster, one canonical
 marketplace entry, and Codex installed/enabled state to agree. Historical
-`v0.3.0` remains unchanged.
+releases through `v0.3.2` remain unchanged.
 
 ```powershell
 codex plugin add hyperv-clean-room@personal
@@ -25,7 +25,7 @@ codex plugin add hyperv-clean-room@personal
 
 The installed MCP server is then started from the installed directory, not the
 repository. Current acceptance requires server identity/version
-`hyperv-clean-room` / `0.3.2`, MCP protocol `2025-11-25`, and exactly 20 tools
+`hyperv-clean-room` / `0.4.0`, MCP protocol `2025-11-25`, and exactly 20 tools
 (all unique) through a fresh Codex app-server thread with an explicit
 `selectedCapabilityRoots` binding and thread-scoped `mcpServerStatus/list`.
 The default P3.3-R2 check calls no MCP tool. A separate explicit mock mode
@@ -63,12 +63,12 @@ From the repository root, run:
 Validation rejects reparse points, untracked or missing payload files,
 reserved install-state files, forbidden VM/credential/evidence file types,
 unsafe relative paths, oversized files, an unexpected manifest name or path,
-and any version outside base `0.3.2` with at most one
+and any version outside base `0.4.0` with at most one
 `+codex.<cachebuster>` suffix. The integrated source payload contains exactly
 31 Git-tracked ordinary files: five public schema-v1 files and seven schema-v2
-files are included. G7/P3.3-R2 uses the single build
-`0.3.2+codex.20260731014242`; immutable historical tags through `v0.3.1`
-remain unchanged.
+files are included. The v0.4.0 gate freezes one build only after the source
+candidate is stable; immutable historical tags through `v0.3.2` remain
+unchanged.
 
 ## Install the personal copy
 

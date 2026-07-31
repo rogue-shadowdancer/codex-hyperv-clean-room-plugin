@@ -25,6 +25,12 @@ clean-room, guest, portable, driver, network, or UI run.
 ## Required workflow
 
 1. Call `inspect_host` before proposing any VM operation.
+   Prefer `elevated=false`, `hyperVAdministratorsTokenEnabled=true`,
+   `hyperVAuthorized=true`, and `authorizationMode=hyperVAdministrators`.
+   `authorizationMode=elevatedAdministrator` remains compatible but is broader
+   and must carry `BROADER_PRIVILEGE_CONTEXT`. If authorization mode is `none`,
+   stop after diagnostics; do not use shell, WMI, direct cmdlets, ACL changes,
+   self-elevation, or another transport as a substitute.
 2. Validate a test profile before staging an artifact or starting a test.
    Require one first-position `stageArtifact`, explicit `cleanupSteps` (use
    `[]` when empty), globally unique execution/assertion IDs, declared

@@ -28,7 +28,7 @@ try {
     $inventory = Get-HcrSourceInventory -SourceRoot $sourceRoot
     Assert-Gate4 ($inventory.pluginName -ceq 'hyperv-clean-room') `
         'Source validation returned the wrong plugin name.'
-    Assert-Gate4 ($inventory.baseVersion -ceq '0.3.2') `
+    Assert-Gate4 ($inventory.baseVersion -ceq '0.4.0') `
         'Source validation returned the wrong base version.'
     Assert-Gate4 ($inventory.fileCount -eq 31) `
         'Source validation did not freeze the 31-file schema-v2 payload.'

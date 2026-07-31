@@ -63,11 +63,10 @@ file decode.
 Run `scripts\validate-install-source.ps1` and use its bounded error. Do not
 install a payload with untracked files, reparse points, forbidden machine-state
 extensions, an unexpected folder/manifest name, or a version outside base
-`0.3.2` plus one optional Codex cachebuster. P3.3-R2 publishes immutable
-source-only `v0.3.2` and accepts the single personal build
-`0.3.2+codex.20260731014242`. The immutable historical `v0.1.1`, `v0.2.0`,
-`v0.3.0`, and `v0.3.1`
-Releases remain separate accepted artifacts.
+`0.4.0` plus one optional Codex cachebuster. The v0.4.0 gate publishes one
+immutable source-only release and accepts exactly one frozen personal build.
+The immutable historical `v0.1.1`, `v0.2.0`, `v0.3.0`, `v0.3.1`, and
+`v0.3.2` Releases remain separate accepted artifacts.
 
 ### A portable launch reports `PORTABLE_DEPLOYMENT_DRIFT`
 
@@ -162,11 +161,22 @@ Run `inspect_host`. Check `hyperVCommandsAvailable` and `hypervisorPresent`.
 The plugin does not enable Windows features or alter firmware settings. Repair
 host prerequisites outside the plugin and inspect again.
 
-### `ELEVATION_REQUIRED`
+### `HYPERV_AUTHORIZATION_REQUIRED`
 
-Read-only tools can run without elevation, but VM creation and checkpoint
-mutations require an elevated MCP server. Restart through an explicitly
-approved elevated workflow. Do not disable the elevation check.
+Run `inspect_host` and read `elevated`,
+`hyperVAdministratorsTokenEnabled`, `hyperVAuthorized`, and
+`authorizationMode`. Prefer a normal non-elevated Codex process whose current
+token has enabled local `Hyper-V Administrators` membership. Group changes take
+effect only after a complete sign-out/sign-in. An elevated Administrator token
+is compatible but intentionally emits `BROADER_PRIVILEGE_CONTEXT`. Do not
+disable the authorization check or grant unrelated administrator rights.
+
+### `ISO_ACCESS_DENIED`, `VM_ROOT_ACCESS_DENIED`, or `STATE_ROOT_ACCESS_DENIED`
+
+The current MCP token cannot read the ISO, enumerate the chosen existing VM
+root, or initialize/access the local plugin state root. Correct the path or
+access outside the plugin, then create a fresh plan. The plugin does not change
+ACLs, create a replacement VM root, elevate itself, or retry a consumed plan.
 
 ### `INVALID_ISO`
 

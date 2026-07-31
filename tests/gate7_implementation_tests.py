@@ -80,18 +80,18 @@ def main() -> int:
     catalog = load(CONTRACT / "tool-catalog.json")
     manifest = load(PLUGIN / ".codex-plugin" / "plugin.json")
     if not re.fullmatch(
-        r"0\.3\.2(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?",
+        r"0\.4\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?",
         str(manifest["version"]),
     ):
         raise AssertionError(
-            "the integrated plugin version must expose base 0.3.2 with at "
+            "the integrated plugin version must expose base 0.4.0 with at "
             "most one Codex cachebuster"
         )
     if (
         catalog["targetPluginVersion"] != "0.3.0"
         or compatibility["targetPluginVersion"] != "0.3.0"
-        or catalog["currentRuntimeVersion"] != "0.3.2"
-        or compatibility["currentRuntimeVersion"] != "0.3.2"
+        or catalog["currentRuntimeVersion"] != "0.4.0"
+        or compatibility["currentRuntimeVersion"] != "0.4.0"
     ):
         raise AssertionError("P3.2 target/runtime integration metadata drifted")
     if len(catalog["tools"]) != 20:
@@ -110,6 +110,7 @@ def main() -> int:
     common = read(PLUGIN / "mcp" / "lib" / "Common.ps1")
     runtime = read(PLUGIN / "mcp" / "lib" / "Runtime.ps1")
     server = read(PLUGIN / "mcp" / "server.ps1")
+    host_v1 = read(PLUGIN / "mcp" / "lib" / "Tools.Host.ps1")
     host_v2 = read(PLUGIN / "mcp" / "lib" / "Tools.Host.V2.ps1")
     guest_v1 = read(PLUGIN / "mcp" / "lib" / "Tools.Guest.ps1")
     guest_v2 = read(PLUGIN / "mcp" / "lib" / "Tools.Guest.V2.ps1")
@@ -119,7 +120,7 @@ def main() -> int:
     adapters = read(PLUGIN / "mcp" / "lib" / "Adapters.ps1")
     migration = read(PLUGIN / "mcp" / "Migrate-TestProfile.ps1")
 
-    for token in ("$script:HcrPluginVersion = '0.3.2'", "plan_vm_power", "apply_vm_power", "plan_vm_network", "apply_vm_network"):
+    for token in ("$script:HcrPluginVersion = '0.4.0'", "plan_vm_power", "apply_vm_power", "plan_vm_network", "apply_vm_network"):
         if token not in common:
             raise AssertionError(f"integrated runtime token is missing: {token}")
     for token in ("Validation.V2.ps1", "Tools.Host.V2.ps1", "Tools.Guest.V2.ps1", "$script:HcrPluginVersion"):
@@ -130,6 +131,32 @@ def main() -> int:
             raise AssertionError(f"guarded host transition seam is missing: {token}")
     if runtime.count("New-HcrEnvelope") < 2 or "$envelopeSchemaVersion" not in runtime:
         raise AssertionError("runtime does not route v1/v2 result envelopes explicitly")
+    for token in (
+        "S-1-5-32-578",
+        "hyperVAdministratorsTokenEnabled",
+        "hyperVAuthorized",
+        "authorizationMode",
+        "HYPERV_AUTHORIZATION_REQUIRED",
+        "BROADER_PRIVILEGE_CONTEXT",
+    ):
+        if token not in common + runtime + host_v1 + host_v2 + adapters:
+            raise AssertionError(f"least-privilege authorization seam is missing: {token}")
+    if adapters.count("[void](Assert-HcrCurrentProcessHyperVAuthorized)") != 5:
+        raise AssertionError(
+            "real VM create, checkpoint create/restore, power, and network "
+            "mutation boundaries do not all recompute token authorization"
+        )
+    if "$identity.Dispose()" not in adapters:
+        raise AssertionError("current-token authorization leaks its Windows identity handle")
+    if "ELEVATION_REQUIRED" in host_v1 + host_v2 + adapters:
+        raise AssertionError("a host path still requires elevation instead of Hyper-V authorization")
+    for token in (
+        "ISO_ACCESS_DENIED",
+        "VM_ROOT_ACCESS_DENIED",
+        "STATE_ROOT_ACCESS_DENIED",
+    ):
+        if token not in common + host_v1 + read(PLUGIN / "mcp" / "lib" / "State.ps1"):
+            raise AssertionError(f"least-privilege path preflight is missing: {token}")
 
     for token in (
         "ZipArchive", "4096", "8GB", "200", "portable-manifest.json",

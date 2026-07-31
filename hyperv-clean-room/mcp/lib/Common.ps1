@@ -1,10 +1,11 @@
 Set-StrictMode -Version Latest
 
-$script:HcrPluginVersion = '0.3.2'
+$script:HcrPluginVersion = '0.4.0'
 $script:HcrSchemaVersion = 1
 $script:HcrSchemaVersionV2 = 2
 $script:HcrPlanLifetimeMinutes = 15
 $script:HcrMockWarning = 'TEST_ONLY_MOCK_ADAPTER: no result in this operation proves real Hyper-V behavior.'
+$script:HcrBroaderPrivilegeWarning = 'BROADER_PRIVILEGE_CONTEXT: MCP server is elevated; Hyper-V Administrators is the preferred least-privilege authorization mode.'
 $script:HcrSupportedProtocolVersions = @(
     '2024-11-05',
     '2025-03-26',
@@ -687,6 +688,94 @@ function Assert-HcrLocalDirectory {
         Throw-HcrError $ErrorCode 'Reparse-point directories are not accepted.'
     }
     return $item
+}
+
+function Test-HcrAccessDeniedException {
+    param([Parameter(Mandatory = $true)][Exception]$Exception)
+
+    $current = $Exception
+    while ($null -ne $current) {
+        if ($current -is [UnauthorizedAccessException] -or
+            $current -is [Security.SecurityException] -or
+            (($current.HResult -band 0xffff) -in @(5, 32))) {
+            return $true
+        }
+        $current = $current.InnerException
+    }
+    return $false
+}
+
+function Assert-HcrReadableRegularLocalFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$InvalidErrorCode,
+        [Parameter(Mandatory = $true)][string]$AccessErrorCode
+    )
+
+    try {
+        $item = Assert-HcrRegularLocalFile $Path $InvalidErrorCode
+        $stream = [IO.File]::Open(
+            $item.FullName,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::Read
+        )
+        try {
+            if ($item.Length -gt 0) { [void]$stream.ReadByte() }
+        }
+        finally { $stream.Dispose() }
+        return $item
+    }
+    catch {
+        if (Test-HcrAccessDeniedException $_.Exception) {
+            Throw-HcrError $AccessErrorCode 'The current MCP server token cannot read the requested file.'
+        }
+        throw
+    }
+}
+
+function Get-HcrSha256AccessibleFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$InvalidErrorCode,
+        [Parameter(Mandatory = $true)][string]$AccessErrorCode
+    )
+
+    try { return Get-HcrSha256File $Path }
+    catch {
+        if (Test-HcrAccessDeniedException $_.Exception) {
+            Throw-HcrError $AccessErrorCode 'The current MCP server token cannot read the requested file.'
+        }
+        if ($_.Exception -is [IO.FileNotFoundException] -or
+            $_.Exception -is [IO.DirectoryNotFoundException]) {
+            Throw-HcrError $InvalidErrorCode 'The requested file disappeared before its identity could be read.'
+        }
+        throw
+    }
+}
+
+function Assert-HcrAccessibleLocalDirectory {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$InvalidErrorCode,
+        [Parameter(Mandatory = $true)][string]$AccessErrorCode
+    )
+
+    try {
+        $item = Assert-HcrLocalDirectory $Path $InvalidErrorCode
+        $enumerator = [IO.Directory]::EnumerateFileSystemEntries($item.FullName).GetEnumerator()
+        try { [void]$enumerator.MoveNext() }
+        finally {
+            if ($enumerator -is [IDisposable]) { $enumerator.Dispose() }
+        }
+        return $item
+    }
+    catch {
+        if (Test-HcrAccessDeniedException $_.Exception) {
+            Throw-HcrError $AccessErrorCode 'The current MCP server token cannot access the requested directory.'
+        }
+        throw
+    }
 }
 
 function Test-HcrPathWithin {

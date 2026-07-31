@@ -112,16 +112,18 @@ function Get-HcrVmNetworkInvariantFingerprint {
 }
 
 function Assert-HcrV2HostAvailable {
-    param([switch]$RequireElevation)
+    param([switch]$RequireAuthorization)
 
     $hostSnapshot = Invoke-HcrAdapter 'GetHostSnapshot'
     if (-not [bool](Get-HcrPropertyValue $hostSnapshot 'hyperVCommandsAvailable' $false) -or
         -not [bool](Get-HcrPropertyValue $hostSnapshot 'hypervisorPresent' $false)) {
         Throw-HcrError 'HYPERV_UNAVAILABLE' 'Hyper-V host prerequisites are unavailable.'
     }
-    if ($RequireElevation -and
-        -not [bool](Get-HcrPropertyValue $hostSnapshot 'elevated' $false)) {
-        Throw-HcrError 'ELEVATION_REQUIRED' 'The guarded host transition requires elevation.'
+    if ($RequireAuthorization -and
+        -not [bool](Get-HcrPropertyValue $hostSnapshot 'hyperVAuthorized' $false)) {
+        Throw-HcrError `
+            'HYPERV_AUTHORIZATION_REQUIRED' `
+            'The guarded host transition requires an enabled Hyper-V Administrators token or an elevated Administrator token.'
     }
     return $hostSnapshot
 }
@@ -138,7 +140,7 @@ function Invoke-HcrPlanVmPower {
     param([Parameter(Mandatory = $true)][object]$Arguments)
 
     $action = [string](Get-HcrPropertyValue $Arguments 'action')
-    $hostSnapshot = Assert-HcrV2HostAvailable
+    $hostSnapshot = Assert-HcrV2HostAvailable -RequireAuthorization
     $owned = Get-HcrRequiredOwnedVm ([string](Get-HcrPropertyValue $Arguments 'vmName'))
     $state = [string](Get-HcrPropertyValue $owned.vm 'state')
     $expected = if ($action -eq 'start') {
@@ -192,7 +194,7 @@ function Invoke-HcrPlanVmPower {
 function Assert-HcrVmPowerPlanDriftFree {
     param([Parameter(Mandatory = $true)][object]$Plan)
 
-    $hostSnapshot = Assert-HcrV2HostAvailable -RequireElevation
+    $hostSnapshot = Assert-HcrV2HostAvailable -RequireAuthorization
     if ((Get-HcrV2HostInvariantFingerprint $hostSnapshot) -ne
         [string](Get-HcrPropertyValue $Plan 'hostFingerprint')) {
         Throw-HcrError 'PLAN_DRIFT' 'The host fingerprint changed after power planning.'
@@ -480,7 +482,7 @@ function Consume-HcrNetworkPlanRecord {
 function Invoke-HcrPlanVmNetwork {
     param([Parameter(Mandatory = $true)][object]$Arguments)
 
-    $hostSnapshot = Assert-HcrV2HostAvailable
+    $hostSnapshot = Assert-HcrV2HostAvailable -RequireAuthorization
     $owned = Get-HcrRequiredOwnedVm ([string](Get-HcrPropertyValue $Arguments 'vmName'))
     $primary = Get-HcrVerifiedPrimaryAdapter $owned.vm
     $baseline = Get-HcrOwnedNetworkBaseline $owned $primary
@@ -535,7 +537,7 @@ function Invoke-HcrPlanVmNetwork {
 function Assert-HcrVmNetworkPlanDriftFree {
     param([Parameter(Mandatory = $true)][object]$Plan)
 
-    $hostSnapshot = Assert-HcrV2HostAvailable -RequireElevation
+    $hostSnapshot = Assert-HcrV2HostAvailable -RequireAuthorization
     if ((Get-HcrV2HostInvariantFingerprint $hostSnapshot) -ne
         [string](Get-HcrPropertyValue $Plan 'hostFingerprint')) {
         Throw-HcrError 'PLAN_DRIFT' 'The host fingerprint changed after network planning.'

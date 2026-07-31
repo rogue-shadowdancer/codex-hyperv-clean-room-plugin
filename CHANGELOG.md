@@ -4,6 +4,38 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
+## 0.4.0 - Least-privilege Hyper-V authorization - 2026-07-31
+
+### Changed
+
+- Authorize production Hyper-V access from either an enabled local
+  `Hyper-V Administrators` token or an elevated Administrator token, preferring
+  the non-elevated group context.
+- Keep `inspect_host` diagnostic and add closed authorization facts without
+  emitting a user name or SID. Require authorization for VM inventory,
+  inspection, and all host Plan/Apply paths.
+- Recompute the live process-token authorization at every real VM-create,
+  checkpoint-create/restore, power, and network mutation boundary.
+- Emit `BROADER_PRIVILEGE_CONTEXT` for successful elevated compatibility-mode
+  results and use `HYPERV_AUTHORIZATION_REQUIRED` for missing authorization.
+- Add non-mutating ISO, VM-root, and state-root access preflights with exact
+  access-denied errors. The plugin does not change ACLs or elevate itself.
+- Advance runtime provenance to v0.4.0 while retaining matching v0.3.0,
+  v0.3.1, and v0.3.2 external evidence.
+
+### Compatibility and safety boundary
+
+- The v0.3.0 capability target, exact 20 public tool names and closed inputs,
+  schemaVersion 1/2 dispatch, and Plan/Apply consumption/fingerprint semantics
+  remain unchanged.
+- Source validation, selected-plugin catalog, and tool-call acceptance remain
+  mock/static during this gate. Production typed host/VM readback is a fresh
+  post-install task, and every mutation still requires separate action-time
+  confirmation.
+- One v0.4.0 cachebuster is frozen only after the source candidate is stable;
+  protected master, annotated tag, Release target, and installed source commit
+  must be identical. Immutable v0.1.1 through v0.3.2 remain unchanged.
+
 ## 0.3.2 - Tool-call metadata compatibility - 2026-07-31
 
 ### Fixed

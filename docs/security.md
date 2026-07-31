@@ -22,6 +22,24 @@ The primary security properties are:
   deletion tool;
 - keep evidence provenance and cleanup state immutable.
 
+### Least-privilege host authorization
+
+Runtime `0.4.0` authorizes production Hyper-V access from the current MCP
+server token only. An enabled local `Hyper-V Administrators` SID
+`S-1-5-32-578` is sufficient and preferred. An elevated Administrator token
+remains compatible, but successful envelopes include the exact
+`BROADER_PRIVILEGE_CONTEXT` warning so a broader context cannot be mistaken
+for least privilege. `inspect_host` is always diagnostic; it emits only the
+closed authorization booleans/mode and never a user name or user SID.
+
+VM inventory, VM inspection, and all host Plan/Apply paths require
+authorization. The production adapter recomputes the current token immediately
+before VM create, checkpoint create/restore, power, and network mutation. No
+plan, mock state, caller argument, or earlier snapshot can substitute for that
+live check. ISO, VM-root, and state-root access preflights are read-only and
+fail closed; the plugin never changes ACLs, adds group membership, or elevates
+itself.
+
 Gate 6/H1 freezes additional schema-v2 controls and Gate 7/H2 integrates them
 into plugin `0.2.0`: exact-version routing, four guarded power/network tools,
 atomic portable slots and data preservation, fixed-driver verification, the

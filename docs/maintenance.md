@@ -39,6 +39,13 @@ after merge, tagging, Release publication, or reinstall. The protected
 `sourceCommit` must remain one commit. Immutable v0.1.1 through v0.3.1 remain
 unchanged.
 
+The v0.4.0 least-privilege gate invokes the same helper exactly once only after
+the source candidate is stable. That one resulting `0.4.0+codex.20260731141404` value is
+then committed, tested, reviewed, published, and installed without rerunning
+the helper. Protected `master`, annotated `v0.4.0`, the source-only Release,
+and installed `sourceCommit` must remain one commit. Immutable v0.1.1 through
+v0.3.2 remain unchanged.
+
 The historical `v0.1.1` release used the helper exactly once and produced
 `0.1.1+codex.20260715064728`. Release verification must preserve that value;
 do not run the helper again merely to reinstall the accepted source commit.

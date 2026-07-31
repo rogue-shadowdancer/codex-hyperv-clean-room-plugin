@@ -152,7 +152,7 @@ function Invoke-HcrMockAdapter {
     }
     switch ($Operation) {
         'GetHostSnapshot' {
-            return Copy-HcrObject (Get-HcrPropertyValue $state 'host')
+            return Add-HcrHostAuthorizationProjection (Copy-HcrObject (Get-HcrPropertyValue $state 'host'))
         }
         'GetTargetVolume' {
             $path = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Arguments 'path'))
@@ -711,15 +711,88 @@ function Invoke-HcrMockAdapter {
     }
 }
 
-function Test-HcrCurrentProcessElevated {
+function Get-HcrCurrentProcessHyperVAuthorization {
+    $identity = $null
     try {
         $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
         $principal = New-Object Security.Principal.WindowsPrincipal($identity)
-        return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        $elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        $hyperVAdministrators = $principal.IsInRole(
+            (New-Object Security.Principal.SecurityIdentifier('S-1-5-32-578'))
+        )
+        return [pscustomobject][ordered]@{
+            elevated = [bool]$elevated
+            hyperVAdministratorsTokenEnabled = [bool]$hyperVAdministrators
+            hyperVAuthorized = [bool]($elevated -or $hyperVAdministrators)
+            authorizationMode = if ($elevated) {
+                'elevatedAdministrator'
+            }
+            elseif ($hyperVAdministrators) { 'hyperVAdministrators' }
+            else { 'none' }
+        }
     }
     catch {
-        return $false
+        return [pscustomobject][ordered]@{
+            elevated = $false
+            hyperVAdministratorsTokenEnabled = $false
+            hyperVAuthorized = $false
+            authorizationMode = 'none'
+        }
     }
+    finally {
+        if ($null -ne $identity) { $identity.Dispose() }
+    }
+}
+
+function Test-HcrCurrentProcessElevated {
+    return [bool](Get-HcrCurrentProcessHyperVAuthorization).elevated
+}
+
+function Add-HcrHostAuthorizationProjection {
+    param([Parameter(Mandatory = $true)][object]$HostSnapshot)
+
+    $elevated = [bool](Get-HcrPropertyValue $HostSnapshot 'elevated' $false)
+    $hyperVAdministrators = [bool](Get-HcrPropertyValue `
+        $HostSnapshot `
+        'hyperVAdministratorsTokenEnabled' `
+        $false)
+    $HostSnapshot | Add-Member -NotePropertyName elevated -NotePropertyValue $elevated -Force
+    $HostSnapshot | Add-Member `
+        -NotePropertyName hyperVAdministratorsTokenEnabled `
+        -NotePropertyValue $hyperVAdministrators `
+        -Force
+    $HostSnapshot | Add-Member `
+        -NotePropertyName hyperVAuthorized `
+        -NotePropertyValue ([bool]($elevated -or $hyperVAdministrators)) `
+        -Force
+    $HostSnapshot | Add-Member `
+        -NotePropertyName authorizationMode `
+        -NotePropertyValue $(if ($elevated) {
+            'elevatedAdministrator'
+        }
+        elseif ($hyperVAdministrators) { 'hyperVAdministrators' }
+        else { 'none' }) `
+        -Force
+    return $HostSnapshot
+}
+
+function Get-HcrRuntimeHyperVAuthorization {
+    if ((Get-HcrAdapterMode) -eq 'mock') {
+        $state = Read-HcrMockAdapterState
+        return Add-HcrHostAuthorizationProjection `
+            (Copy-HcrObject (Get-HcrPropertyValue $state 'host'))
+    }
+    return Get-HcrCurrentProcessHyperVAuthorization
+}
+
+function Assert-HcrCurrentProcessHyperVAuthorized {
+    $authorization = Get-HcrCurrentProcessHyperVAuthorization
+    if (-not [bool]$authorization.hyperVAuthorized) {
+        Throw-HcrError `
+            'HYPERV_AUTHORIZATION_REQUIRED' `
+            'Hyper-V access requires an enabled Hyper-V Administrators token or an elevated Administrator token.'
+    }
+    return $authorization
 }
 
 function Assert-HcrRealDispatchVm {
@@ -1110,6 +1183,7 @@ function Get-HcrRealHostSnapshot {
         }
         catch { $switches = @() }
     }
+    $authorization = Get-HcrCurrentProcessHyperVAuthorization
     return [pscustomobject][ordered]@{
         computerName = [Environment]::MachineName
         windowsEdition = if ($null -eq $operatingSystem) { [Environment]::OSVersion.VersionString } else { [string]$operatingSystem.Caption }
@@ -1117,7 +1191,10 @@ function Get-HcrRealHostSnapshot {
         architecture = [string]$env:PROCESSOR_ARCHITECTURE
         hyperVCommandsAvailable = $hypervAvailable
         hypervisorPresent = if ($null -eq $computerSystem) { $false } else { [bool]$computerSystem.HypervisorPresent }
-        elevated = Test-HcrCurrentProcessElevated
+        elevated = [bool]$authorization.elevated
+        hyperVAdministratorsTokenEnabled = [bool]$authorization.hyperVAdministratorsTokenEnabled
+        hyperVAuthorized = [bool]$authorization.hyperVAuthorized
+        authorizationMode = [string]$authorization.authorizationMode
         processorCount = [Environment]::ProcessorCount
         memoryBytes = if ($null -eq $computerSystem) { 0 } else { [int64]$computerSystem.TotalPhysicalMemory }
         switches = $switches
@@ -2636,9 +2713,7 @@ function Invoke-HcrRealSetVmPower {
     $mutationEntered = $false
     $verifiedVm = $null
     try {
-        if (-not (Test-HcrCurrentProcessElevated)) {
-            Throw-HcrError 'ELEVATION_REQUIRED' 'The VM power transition requires an elevated host process.'
-        }
+        [void](Assert-HcrCurrentProcessHyperVAuthorized)
         $verifiedVm = Assert-HcrRealDispatchVm $Arguments
         $boundary = ConvertTo-HcrRealVmSnapshot $verifiedVm
         if ((Get-HcrVmFingerprint $boundary) -ne
@@ -2712,9 +2787,7 @@ function Invoke-HcrRealSetVmNetwork {
     }
     else { [pscustomobject][ordered]@{ recoveryPlanId = $recoveryPlanId } }
     try {
-        if (-not (Test-HcrCurrentProcessElevated)) {
-            Throw-HcrError 'ELEVATION_REQUIRED' 'The VM network transition requires an elevated host process.'
-        }
+        [void](Assert-HcrCurrentProcessHyperVAuthorized)
         $verifiedVm = Assert-HcrRealDispatchVm $Arguments
         $boundary = ConvertTo-HcrRealVmSnapshot $verifiedVm
         if ((Get-HcrVmNetworkInvariantFingerprint $boundary) -ne
@@ -2828,6 +2901,7 @@ function Invoke-HcrRealAdapter {
             $mutationEntered = $false
             $boundPlan = $plan
             try {
+                [void](Assert-HcrCurrentProcessHyperVAuthorized)
                 $paths = Get-HcrRevalidatedVmCreatePaths $plan
                 $boundPlan = Copy-HcrObject $plan
                 $boundPlan.vmRoot = [string]$paths.vmRoot
@@ -2911,6 +2985,7 @@ function Invoke-HcrRealAdapter {
             $mutationEntered = $false
             $snapshot = $null
             try {
+                [void](Assert-HcrCurrentProcessHyperVAuthorized)
                 $verifiedVm = Assert-HcrRealDispatchVm $Arguments
                 $mutationEntered = $true
                 $snapshot = Checkpoint-VM `
@@ -2952,6 +3027,7 @@ function Invoke-HcrRealAdapter {
             $mutationEntered = $false
             $restoreReturned = $false
             try {
+                [void](Assert-HcrCurrentProcessHyperVAuthorized)
                 $verifiedVm = Assert-HcrRealDispatchVm $Arguments
                 # The final raw VM and checkpoint objects are acquired once at
                 # the mutation boundary. The projection validated below is

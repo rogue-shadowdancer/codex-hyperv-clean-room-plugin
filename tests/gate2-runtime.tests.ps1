@@ -156,6 +156,30 @@ function Clear-TestMutationFault {
     }
 }
 
+function Invoke-WithCurrentUserDeniedAccess {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][Security.AccessControl.FileSystemRights]$Rights,
+        [Parameter(Mandatory = $true)][scriptblock]$Action
+    )
+
+    $acl = Get-Acl -LiteralPath $Path
+    $originalSddl = $acl.Sddl
+    $rule = New-Object Security.AccessControl.FileSystemAccessRule(
+        [Security.Principal.WindowsIdentity]::GetCurrent().User,
+        $Rights,
+        [Security.AccessControl.AccessControlType]::Deny
+    )
+    [void]$acl.AddAccessRule($rule)
+    Set-Acl -LiteralPath $Path -AclObject $acl
+    try { & $Action }
+    finally {
+        $restoredAcl = Get-Acl -LiteralPath $Path
+        $restoredAcl.SetSecurityDescriptorSddlForm($originalSddl)
+        Set-Acl -LiteralPath $Path -AclObject $restoredAcl
+    }
+}
+
 function Start-TestProcess {
     param(
         [Parameter(Mandatory = $true)][string]$FilePath,
@@ -204,7 +228,8 @@ $mockState = [ordered]@{
         architecture = 'AMD64'
         hyperVCommandsAvailable = $true
         hypervisorPresent = $true
-        elevated = $true
+        elevated = $false
+        hyperVAdministratorsTokenEnabled = $true
         processorCount = 8
         memoryBytes = 17179869184
         switches = @([ordered]@{
@@ -442,6 +467,123 @@ catch {
     Assert-Equal $failure.code 'MOCK_ADAPTER_FORBIDDEN' 'Mock adapter test-mode guard failed.'
 }
 $env:HCR_TEST_MODE = $savedTestMode
+
+$leastPrivilegeHost = Invoke-TestTool 'inspect_host' ([pscustomobject]@{})
+Assert-True $leastPrivilegeHost.ok 'Least-privilege host inspection failed.'
+Assert-True (-not [bool]$leastPrivilegeHost.data.host.elevated) `
+    'The mock least-privilege host unexpectedly reported elevation.'
+Assert-True ([bool]$leastPrivilegeHost.data.host.hyperVAdministratorsTokenEnabled) `
+    'The mock Hyper-V Administrators token was not projected.'
+Assert-True ([bool]$leastPrivilegeHost.data.host.hyperVAuthorized) `
+    'The mock Hyper-V Administrators token was not authorized.'
+Assert-Equal ([string]$leastPrivilegeHost.data.host.authorizationMode) `
+    'hyperVAdministrators' `
+    'The least-privilege authorization mode is incorrect.'
+Assert-True (@(Get-HcrPropertyNames $leastPrivilegeHost.data.host) -notcontains 'userName') `
+    'Host authorization diagnostics exposed a user name.'
+Assert-True (@(Get-HcrPropertyNames $leastPrivilegeHost.data.host) -notcontains 'userSid') `
+    'Host authorization diagnostics exposed a user SID.'
+Assert-True (@($leastPrivilegeHost.warnings) -notcontains $script:HcrBroaderPrivilegeWarning) `
+    'A non-elevated Hyper-V Administrators token emitted the broader-privilege warning.'
+$leastPrivilegeFingerprint = [string]$leastPrivilegeHost.data.hostFingerprint
+
+$authorizationState = Read-HcrMockAdapterState
+$authorizationState.host.hyperVAdministratorsTokenEnabled = $false
+Write-HcrMockAdapterState $authorizationState
+$diagnosticOnlyHost = Invoke-TestTool 'inspect_host' ([pscustomobject]@{})
+Assert-True $diagnosticOnlyHost.ok 'Unauthorised diagnostic inspect_host was blocked.'
+Assert-Equal ([string]$diagnosticOnlyHost.data.host.authorizationMode) 'none' `
+    'Unauthorised inspect_host did not report authorizationMode=none.'
+Assert-True (-not [bool]$diagnosticOnlyHost.data.host.hyperVAuthorized) `
+    'Unauthorised inspect_host reported Hyper-V authorization.'
+$unauthorizedList = Invoke-TestTool 'list_vms' ([pscustomobject]@{ managedOnly = $false })
+Assert-ErrorCode $unauthorizedList 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'list_vms accepted a token without Hyper-V authorization.'
+$unauthorizedInspectVm = Invoke-TestTool 'inspect_vm' ([pscustomobject]@{ vmName = 'missing' })
+Assert-ErrorCode $unauthorizedInspectVm 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'inspect_vm accepted a token without Hyper-V authorization.'
+$unauthorizedPlan = Invoke-TestTool 'plan_vm_create' ([pscustomobject]@{
+    name = 'unauthorized-plan'
+    isoPath = $isoPath
+    vmRoot = $vmRoot
+    switchName = 'Default Switch'
+})
+Assert-ErrorCode $unauthorizedPlan 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'plan_vm_create accepted a token without Hyper-V authorization.'
+
+$authorizationState = Read-HcrMockAdapterState
+$authorizationState.host.elevated = $true
+$authorizationState.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $authorizationState
+$elevatedHost = Invoke-TestTool 'inspect_host' ([pscustomobject]@{})
+Assert-Equal ([string]$elevatedHost.data.host.authorizationMode) `
+    'elevatedAdministrator' `
+    'Elevated Administrator did not take authorization-mode precedence.'
+Assert-True (@($elevatedHost.warnings) -contains $script:HcrBroaderPrivilegeWarning) `
+    'Elevated compatibility mode omitted the broader-privilege warning.'
+
+$authorizationState = Read-HcrMockAdapterState
+$authorizationState.host.elevated = $false
+$authorizationState.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $authorizationState
+$restoredLeastPrivilegeHost = Invoke-TestTool 'inspect_host' ([pscustomobject]@{})
+Assert-Equal ([string]$restoredLeastPrivilegeHost.data.hostFingerprint) `
+    $leastPrivilegeFingerprint `
+    'Authorization projection fields changed the schema-v1 host fingerprint.'
+$leastPrivilegeList = Invoke-TestTool 'list_vms' ([pscustomobject]@{ managedOnly = $false })
+Assert-True $leastPrivilegeList.ok `
+    'list_vms rejected an enabled Hyper-V Administrators token.'
+
+Invoke-WithCurrentUserDeniedAccess `
+    $isoPath `
+    ([Security.AccessControl.FileSystemRights]::ReadData) `
+    {
+        $deniedIsoPlan = Invoke-TestTool 'plan_vm_create' ([pscustomobject]@{
+            name = 'denied-iso-plan'
+            isoPath = $isoPath
+            vmRoot = $vmRoot
+            switchName = 'Default Switch'
+        })
+        Assert-ErrorCode $deniedIsoPlan 'ISO_ACCESS_DENIED' `
+            'An unreadable ISO did not fail with ISO_ACCESS_DENIED.'
+    }
+
+Invoke-WithCurrentUserDeniedAccess `
+    $vmRoot `
+    ([Security.AccessControl.FileSystemRights]::ListDirectory) `
+    {
+        $deniedRootPlan = Invoke-TestTool 'plan_vm_create' ([pscustomobject]@{
+            name = 'denied-root-plan'
+            isoPath = $isoPath
+            vmRoot = $vmRoot
+            switchName = 'Default Switch'
+        })
+        Assert-ErrorCode $deniedRootPlan 'VM_ROOT_ACCESS_DENIED' `
+            'An inaccessible VM root did not fail with VM_ROOT_ACCESS_DENIED.'
+    }
+
+$deniedStateRoot = Join-Path $testRoot 'denied-state-root'
+[void](New-Item -ItemType Directory -Path $deniedStateRoot -Force)
+$savedStateRootEnvironment = $env:HCR_STATE_ROOT
+$savedRuntimeStateRoot = $script:HcrStateRoot
+try {
+    Invoke-WithCurrentUserDeniedAccess `
+        $deniedStateRoot `
+        ([Security.AccessControl.FileSystemRights]::CreateDirectories -bor
+            [Security.AccessControl.FileSystemRights]::ListDirectory) `
+        {
+            $env:HCR_STATE_ROOT = $deniedStateRoot
+            $script:HcrStateRoot = $null
+            Assert-ThrowsHcrCode `
+                { [void](Initialize-HcrStateStore) } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'An inaccessible state root did not fail with STATE_ROOT_ACCESS_DENIED.'
+        }
+}
+finally {
+    $env:HCR_STATE_ROOT = $savedStateRootEnvironment
+    $script:HcrStateRoot = $savedRuntimeStateRoot
+}
 
 $profilePath = Join-Path $repoRoot 'examples\minimal-test-profile.json'
 $validProfile = Invoke-TestTool 'validate_test_profile' ([pscustomobject]@{

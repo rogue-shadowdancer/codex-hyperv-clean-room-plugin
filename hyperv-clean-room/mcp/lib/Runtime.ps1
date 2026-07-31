@@ -63,6 +63,11 @@ function Invoke-HcrToolCall {
         if ((Get-HcrAdapterMode) -eq 'mock' -and $warnings -notcontains $script:HcrMockWarning) {
             $warnings += $script:HcrMockWarning
         }
+        $authorization = Get-HcrRuntimeHyperVAuthorization
+        if ([bool](Get-HcrPropertyValue $authorization 'elevated' $false) -and
+            $warnings -notcontains $script:HcrBroaderPrivilegeWarning) {
+            $warnings += $script:HcrBroaderPrivilegeWarning
+        }
         return New-HcrEnvelope `
             $true `
             $operationId `
