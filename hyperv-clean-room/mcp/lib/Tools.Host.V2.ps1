@@ -115,15 +115,15 @@ function Assert-HcrV2HostAvailable {
     param([switch]$RequireAuthorization)
 
     $hostSnapshot = Invoke-HcrAdapter 'GetHostSnapshot'
-    if (-not [bool](Get-HcrPropertyValue $hostSnapshot 'hyperVCommandsAvailable' $false) -or
-        -not [bool](Get-HcrPropertyValue $hostSnapshot 'hypervisorPresent' $false)) {
-        Throw-HcrError 'HYPERV_UNAVAILABLE' 'Hyper-V host prerequisites are unavailable.'
-    }
     if ($RequireAuthorization -and
         -not [bool](Get-HcrPropertyValue $hostSnapshot 'hyperVAuthorized' $false)) {
         Throw-HcrError `
             'HYPERV_AUTHORIZATION_REQUIRED' `
             'The guarded host transition requires an enabled Hyper-V Administrators token or an elevated Administrator token.'
+    }
+    if (-not [bool](Get-HcrPropertyValue $hostSnapshot 'hyperVCommandsAvailable' $false) -or
+        -not [bool](Get-HcrPropertyValue $hostSnapshot 'hypervisorPresent' $false)) {
+        Throw-HcrError 'HYPERV_UNAVAILABLE' 'Hyper-V host prerequisites are unavailable.'
     }
     return $hostSnapshot
 }
@@ -362,7 +362,7 @@ function Save-HcrNetworkPlanSet {
         recovery = $recoveryRecord
     }
     [void](Invoke-HcrFileLock 'network-plan-pairs' {
-        if (Test-Path -LiteralPath $pairPath) {
+        if (Test-HcrStateFileExists $pairPath) {
             Throw-HcrError 'STATE_BUSY' 'The generated network plan pair already exists.'
         }
         Write-HcrJsonFile $pairPath $pair
@@ -376,7 +376,7 @@ function Get-HcrNetworkPlanRecord {
         Throw-HcrError 'PLAN_NOT_FOUND' 'The requested plan does not exist.'
     }
     $ordinaryPath = Get-HcrStateSubpath 'plans' "$PlanId.json"
-    if (Test-Path -LiteralPath $ordinaryPath -PathType Leaf) {
+    if (Test-HcrStateFileExists $ordinaryPath) {
         $record = Get-HcrPlanRecord $PlanId
         if ([bool](Get-HcrPropertyValue $record 'consumed' $false) -or
             $null -ne (Get-HcrPropertyValue $record 'consumedAt')) {
@@ -386,7 +386,7 @@ function Get-HcrNetworkPlanRecord {
     }
     return Invoke-HcrFileLock 'network-plan-pairs' {
         $plansRoot = Split-Path -Parent $ordinaryPath
-        $pairFiles = @(Get-ChildItem -LiteralPath $plansRoot -File -Filter 'network-pair-*.json')
+        $pairFiles = @(Get-HcrStateFiles $plansRoot 'network-pair-*.json')
         if ($pairFiles.Count -gt 4096) {
             Throw-HcrError 'PLAN_INVALID' 'The network plan-pair store exceeds its fixed bound.'
         }
@@ -426,7 +426,7 @@ function Consume-HcrNetworkPlanRecord {
         Throw-HcrError 'PLAN_INVALID' 'The expected network plan digest is invalid.'
     }
     $ordinaryPath = Get-HcrStateSubpath 'plans' "$PlanId.json"
-    if (Test-Path -LiteralPath $ordinaryPath -PathType Leaf) {
+    if (Test-HcrStateFileExists $ordinaryPath) {
         return Invoke-HcrFileLock "plan-$PlanId" {
             $record = Read-HcrJsonFile $ordinaryPath 'PLAN_NOT_FOUND'
             if ([bool](Get-HcrPropertyValue $record 'consumed' $false) -or
@@ -445,7 +445,7 @@ function Consume-HcrNetworkPlanRecord {
     }
     return Invoke-HcrFileLock 'network-plan-pairs' {
         $plansRoot = Split-Path -Parent $ordinaryPath
-        $pairFiles = @(Get-ChildItem -LiteralPath $plansRoot -File -Filter 'network-pair-*.json')
+        $pairFiles = @(Get-HcrStateFiles $plansRoot 'network-pair-*.json')
         if ($pairFiles.Count -gt 4096) {
             Throw-HcrError 'PLAN_INVALID' 'The network plan-pair store exceeds its fixed bound.'
         }

@@ -1500,9 +1500,12 @@ including the pre-consume network-recovery exception, is unchanged.
 
 Planning and apply revalidation distinguish ordinary invalid paths from access
 denial. ISO read denial is `ISO_ACCESS_DENIED`, existing VM-root enumeration
-denial is `VM_ROOT_ACCESS_DENIED`, and state-root initialization/access denial
-is `STATE_ROOT_ACCESS_DENIED`. These checks do not change ACLs, create a caller
-VM root, add group membership, elevate the process, or retry an operation.
+denial is `VM_ROOT_ACCESS_DENIED`, and state-root initialization/I/O denial is
+`STATE_ROOT_ACCESS_DENIED`. State initialization validates the root plus
+`plans`, `operations`, `ownership`, `evidence-staging`, and `locks` with
+bounded delete-on-close probes and maps later state read/write/lock access
+denial consistently. These checks do not change ACLs, create a caller VM root,
+add group membership, elevate the process, or retry an operation.
 
 The source/release gate uses mock, parser, schema, static, installation, and
 selected-child mock evidence only. All production host and Hyper-V operation

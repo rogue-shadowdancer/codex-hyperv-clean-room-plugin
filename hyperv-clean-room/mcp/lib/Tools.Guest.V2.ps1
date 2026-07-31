@@ -557,7 +557,7 @@ function Invoke-HcrRunTestProfileV2 {
             ([string](Get-HcrPropertyValue $artifactDeclaration 'portableManifestSha256'))
     }
     $evidenceRoot = Get-HcrEvidenceStagingRoot $OperationId
-    [void](New-Item -ItemType Directory -Path $evidenceRoot -Force)
+    [void](Initialize-HcrStateManagedDirectory $evidenceRoot)
     $operation = [pscustomobject][ordered]@{
         schemaVersion = 2; operationId = $OperationId; operationType = 'runTestProfile'; createdAt = Get-HcrUtcTimestamp
         vmId = [string](Get-HcrPropertyValue $owned.vm 'id'); vmName = $vmName; profileId = [string](Get-HcrPropertyValue $profile 'id')

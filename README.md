@@ -22,8 +22,9 @@ closed `authorizationMode`; it never returns a user name or user SID.
 `list_vms`, `inspect_vm`, and host Plan/Apply paths fail with
 `HYPERV_AUTHORIZATION_REQUIRED` when neither authorization is present. Real VM
 create, checkpoint create/restore, power, and network adapters independently
-re-read the live process token at the mutation boundary. ISO, VM-root, and
-state-root access failures remain non-mutating and use precise fail-closed
+re-read the live process token at the mutation boundary. ISO/VM-root checks are
+read-only; state initialization validates every required state child with
+bounded delete-on-close probes. All access failures use precise fail-closed
 errors.
 
 The selected-plugin Codex app-server validator remains catalog-only by default

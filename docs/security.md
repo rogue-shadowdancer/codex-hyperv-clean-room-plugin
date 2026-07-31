@@ -36,9 +36,11 @@ VM inventory, VM inspection, and all host Plan/Apply paths require
 authorization. The production adapter recomputes the current token immediately
 before VM create, checkpoint create/restore, power, and network mutation. No
 plan, mock state, caller argument, or earlier snapshot can substitute for that
-live check. ISO, VM-root, and state-root access preflights are read-only and
-fail closed; the plugin never changes ACLs, adds group membership, or elevates
-itself.
+live check. ISO and VM-root access preflights are read-only. State
+initialization creates missing required state directories and validates the
+root plus every required child with a bounded delete-on-close file probe;
+state I/O maps later access denial to the same fail-closed error. The plugin
+never changes ACLs, adds group membership, or elevates itself.
 
 Gate 6/H1 freezes additional schema-v2 controls and Gate 7/H2 integrates them
 into plugin `0.2.0`: exact-version routing, four guarded power/network tools,

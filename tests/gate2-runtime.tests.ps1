@@ -285,6 +285,12 @@ foreach ($runtimeFile in @(
     . (Join-Path (Join-Path (Join-Path $pluginRoot 'mcp') 'lib') $runtimeFile)
 }
 Initialize-HcrRuntime $pluginRoot
+Assert-Equal (@(Get-ChildItem `
+        -LiteralPath $stateRoot `
+        -Recurse `
+        -Force `
+        -Filter '.hcr-access-*.tmp').Count) 0 `
+    'State-root writable probes left a temporary file behind.'
 
 $junctionTarget = Join-Path $testRoot 'junction-target'
 $junctionPath = Join-Path $testRoot 'junction-link'
@@ -510,6 +516,19 @@ $unauthorizedPlan = Invoke-TestTool 'plan_vm_create' ([pscustomobject]@{
 })
 Assert-ErrorCode $unauthorizedPlan 'HYPERV_AUTHORIZATION_REQUIRED' `
     'plan_vm_create accepted a token without Hyper-V authorization.'
+$authorizationState = Read-HcrMockAdapterState
+$authorizationState.host.hyperVCommandsAvailable = $false
+$authorizationState.host.hypervisorPresent = $false
+Write-HcrMockAdapterState $authorizationState
+$unauthorizedUnavailableList = Invoke-TestTool 'list_vms' ([pscustomobject]@{
+    managedOnly = $false
+})
+Assert-ErrorCode $unauthorizedUnavailableList 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'An unavailable host masked the current-token authorization failure.'
+$authorizationState = Read-HcrMockAdapterState
+$authorizationState.host.hyperVCommandsAvailable = $true
+$authorizationState.host.hypervisorPresent = $true
+Write-HcrMockAdapterState $authorizationState
 
 $authorizationState = Read-HcrMockAdapterState
 $authorizationState.host.elevated = $true
@@ -578,6 +597,94 @@ try {
                 { [void](Initialize-HcrStateStore) } `
                 'STATE_ROOT_ACCESS_DENIED' `
                 'An inaccessible state root did not fail with STATE_ROOT_ACCESS_DENIED.'
+        }
+}
+finally {
+    $env:HCR_STATE_ROOT = $savedStateRootEnvironment
+    $script:HcrStateRoot = $savedRuntimeStateRoot
+}
+
+$restrictedChildStateRoot = Join-Path $testRoot 'restricted-child-state-root'
+$savedStateRootEnvironment = $env:HCR_STATE_ROOT
+$savedRuntimeStateRoot = $script:HcrStateRoot
+try {
+    $env:HCR_STATE_ROOT = $restrictedChildStateRoot
+    $script:HcrStateRoot = $null
+    [void](Initialize-HcrStateStore)
+
+    Invoke-WithCurrentUserDeniedAccess `
+        (Join-Path $restrictedChildStateRoot 'plans') `
+        ([Security.AccessControl.FileSystemRights]::ListDirectory) `
+        {
+            $script:HcrStateRoot = $null
+            Assert-ThrowsHcrCode `
+                { [void](Initialize-HcrStateStore) } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'A non-enumerable state child did not fail during initialization.'
+        }
+
+    Invoke-WithCurrentUserDeniedAccess `
+        (Join-Path $restrictedChildStateRoot 'operations') `
+        ([Security.AccessControl.FileSystemRights]::CreateFiles) `
+        {
+            $script:HcrStateRoot = $null
+            Assert-ThrowsHcrCode `
+                { [void](Initialize-HcrStateStore) } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'A non-writable state child did not fail during initialization.'
+        }
+
+    $script:HcrStateRoot = $restrictedChildStateRoot
+    Invoke-WithCurrentUserDeniedAccess `
+        (Join-Path $restrictedChildStateRoot 'ownership') `
+        ([Security.AccessControl.FileSystemRights]::CreateFiles) `
+        {
+            Assert-ThrowsHcrCode `
+                {
+                    Write-HcrJsonFile `
+                        (Join-Path $restrictedChildStateRoot 'ownership\probe.json') `
+                        ([pscustomobject]@{ probe = $true })
+                } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'A post-start state write denial escaped as a generic error.'
+        }
+
+    $restrictedReadPath = Join-Path $restrictedChildStateRoot 'ownership\read-probe.json'
+    Write-HcrJsonFile $restrictedReadPath ([pscustomobject]@{ probe = $true })
+    Invoke-WithCurrentUserDeniedAccess `
+        $restrictedReadPath `
+        ([Security.AccessControl.FileSystemRights]::ReadData) `
+        {
+            Assert-ThrowsHcrCode `
+                { [void](Read-HcrJsonFile $restrictedReadPath) } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'A post-start state read denial escaped as a generic integrity error.'
+        }
+
+    $evidenceStagingRoot = Join-Path $restrictedChildStateRoot 'evidence-staging'
+    $restrictedOperationRoot = Join-Path $evidenceStagingRoot ([Guid]::NewGuid().ToString())
+    Invoke-WithCurrentUserDeniedAccess `
+        $evidenceStagingRoot `
+        ([Security.AccessControl.FileSystemRights]::CreateDirectories) `
+        {
+            Assert-ThrowsHcrCode `
+                { [void](Initialize-HcrStateManagedDirectory $restrictedOperationRoot) } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'A post-start evidence-staging create denial escaped as a generic error.'
+        }
+
+    [void](Initialize-HcrStateManagedDirectory $restrictedOperationRoot)
+    Write-HcrJsonFile `
+        (Join-Path $restrictedOperationRoot 'evidence.json') `
+        ([pscustomobject]@{ probe = $true })
+    Invoke-WithCurrentUserDeniedAccess `
+        $restrictedOperationRoot `
+        ([Security.AccessControl.FileSystemRights]::ListDirectory) `
+        {
+            Assert-ThrowsHcrCode `
+                { [void](Get-HcrStateItems $restrictedOperationRoot -Recurse) } `
+                'STATE_ROOT_ACCESS_DENIED' `
+                'A post-start evidence-staging enumeration denial escaped as a generic error.'
         }
 }
 finally {
@@ -680,6 +787,37 @@ Assert-Equal ([string]$mock.host.targetVolumes[0].root) $plannedVolumeRoot `
     'The same-root volume replacement fixture changed the drive root.'
 $mock.host.targetVolumes[0].uniqueId = $stableVolumeId
 Write-HcrMockAdapterState $mock
+
+$authorizationConsumptionPlan = Invoke-TestTool 'plan_vm_create' ([pscustomobject]@{
+    name = 'authorization-consumption-vm'
+    isoPath = $isoPath
+    vmRoot = $vmRoot
+    switchName = 'Default Switch'
+    diskSizeGb = 40
+})
+Assert-True $authorizationConsumptionPlan.ok `
+    'The authorization-consumption VM-create plan failed.'
+$mock = Read-HcrMockAdapterState
+$mock.host.elevated = $false
+$mock.host.hyperVAdministratorsTokenEnabled = $false
+Write-HcrMockAdapterState $mock
+$global:HcrMockHostSnapshotCallCount = 0
+$unauthorizedVmCreateApply = Invoke-TestTool 'apply_vm_create' ([pscustomobject]@{
+    planId = [string]$authorizationConsumptionPlan.data.plan.planId
+})
+Assert-ErrorCode $unauthorizedVmCreateApply 'HYPERV_AUTHORIZATION_REQUIRED' `
+    'VM-create apply ran drift probes before checking current authorization.'
+Assert-Equal $global:HcrMockHostSnapshotCallCount 0 `
+    'VM-create apply probed the host snapshot before checking current authorization.'
+Remove-Variable -Name HcrMockHostSnapshotCallCount -Scope Global -ErrorAction SilentlyContinue
+$mock = Read-HcrMockAdapterState
+$mock.host.hyperVAdministratorsTokenEnabled = $true
+Write-HcrMockAdapterState $mock
+$authorizationConsumptionReplay = Invoke-TestTool 'apply_vm_create' ([pscustomobject]@{
+    planId = [string]$authorizationConsumptionPlan.data.plan.planId
+})
+Assert-ErrorCode $authorizationConsumptionReplay 'PLAN_ALREADY_CONSUMED' `
+    'A VM-create authorization failure did not preserve plan consumption ordering.'
 
 $vmPlan = Invoke-TestTool 'plan_vm_create' ([pscustomobject]@{
     name = 'cleanroom-test'

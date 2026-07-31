@@ -268,6 +268,13 @@ replacement. Per-record exclusive locks coordinate server processes. Plans,
 operations, and ownership records are separate so consuming a plan cannot
 silently rewrite resource ownership or evidence.
 
+Initialization validates the root and all five required children as ordinary,
+enumerable directories and opens one unique file in each with
+`DeleteOnClose`. This proves the current server token can perform the bounded
+state writes and cleanup required by the runtime without changing ACLs. Later
+state read, write, enumeration, and lock access denials use the same
+`STATE_ROOT_ACCESS_DENIED` boundary.
+
 Credential storage is deliberately outside this tree. Exported evidence is
 also outside this tree and must be placed in an existing caller-selected
 directory that is not under Windows, Program Files, plugin, credential,

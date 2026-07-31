@@ -118,6 +118,7 @@ def main() -> int:
     validation_v1 = read(PLUGIN / "mcp" / "lib" / "Validation.ps1")
     validation = read(PLUGIN / "mcp" / "lib" / "Validation.V2.ps1")
     adapters = read(PLUGIN / "mcp" / "lib" / "Adapters.ps1")
+    state = read(PLUGIN / "mcp" / "lib" / "State.ps1")
     migration = read(PLUGIN / "mcp" / "Migrate-TestProfile.ps1")
 
     for token in ("$script:HcrPluginVersion = '0.4.0'", "plan_vm_power", "apply_vm_power", "plan_vm_network", "apply_vm_network"):
@@ -146,6 +147,10 @@ def main() -> int:
             "real VM create, checkpoint create/restore, power, and network "
             "mutation boundaries do not all recompute token authorization"
         )
+    if "Assert-HcrRuntimeHyperVAuthorized" not in adapters or "Assert-HcrRuntimeHyperVAuthorized" not in host_v1:
+        raise AssertionError(
+            "VM-create apply does not check current authorization before host drift probes"
+        )
     if "$identity.Dispose()" not in adapters:
         raise AssertionError("current-token authorization leaks its Windows identity handle")
     if "ELEVATION_REQUIRED" in host_v1 + host_v2 + adapters:
@@ -155,8 +160,28 @@ def main() -> int:
         "VM_ROOT_ACCESS_DENIED",
         "STATE_ROOT_ACCESS_DENIED",
     ):
-        if token not in common + host_v1 + read(PLUGIN / "mcp" / "lib" / "State.ps1"):
+        if token not in common + host_v1 + state:
             raise AssertionError(f"least-privilege path preflight is missing: {token}")
+    for token in (
+        "Assert-HcrWritableStateDirectory",
+        "Get-HcrStateFiles",
+        "Initialize-HcrStateManagedDirectory",
+        "Get-HcrStateItems",
+        "Assert-HcrStateRegularFile",
+        "Copy-HcrStateFile",
+        "DeleteOnClose",
+    ):
+        if token not in state:
+            raise AssertionError(f"state-root access seam is missing: {token}")
+    for token in (
+        "Initialize-HcrStateManagedDirectory",
+        "Get-HcrStateItems",
+        "Assert-HcrStateRegularFile",
+        "Get-HcrStateFileSha256",
+        "Copy-HcrStateFile",
+    ):
+        if token not in guest_v1 + guest_v2:
+            raise AssertionError(f"evidence-staging state access seam is missing: {token}")
 
     for token in (
         "ZipArchive", "4096", "8GB", "200", "portable-manifest.json",

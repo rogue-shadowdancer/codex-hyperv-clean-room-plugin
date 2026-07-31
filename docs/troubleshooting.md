@@ -174,9 +174,12 @@ disable the authorization check or grant unrelated administrator rights.
 ### `ISO_ACCESS_DENIED`, `VM_ROOT_ACCESS_DENIED`, or `STATE_ROOT_ACCESS_DENIED`
 
 The current MCP token cannot read the ISO, enumerate the chosen existing VM
-root, or initialize/access the local plugin state root. Correct the path or
-access outside the plugin, then create a fresh plan. The plugin does not change
-ACLs, create a replacement VM root, elevate itself, or retry a consumed plan.
+root, or enumerate/write the plugin state root and one of its required
+`plans`, `operations`, `ownership`, `evidence-staging`, or `locks` children.
+Correct the path or access outside the plugin, then create a fresh plan. State
+initialization uses bounded delete-on-close probes but does not change ACLs.
+The plugin does not create a replacement VM root, elevate itself, or retry a
+consumed plan.
 
 ### `INVALID_ISO`
 

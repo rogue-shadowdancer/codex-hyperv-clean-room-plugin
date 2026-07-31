@@ -16,14 +16,14 @@ function Get-HcrHostFingerprint {
 function Assert-HcrHyperVAuthorizedHostSnapshot {
     param([Parameter(Mandatory = $true)][object]$HostSnapshot)
 
-    if (-not [bool](Get-HcrPropertyValue $HostSnapshot 'hyperVCommandsAvailable' $false) -or
-        -not [bool](Get-HcrPropertyValue $HostSnapshot 'hypervisorPresent' $false)) {
-        Throw-HcrError 'HYPERV_UNAVAILABLE' 'Hyper-V host prerequisites are unavailable.'
-    }
     if (-not [bool](Get-HcrPropertyValue $HostSnapshot 'hyperVAuthorized' $false)) {
         Throw-HcrError `
             'HYPERV_AUTHORIZATION_REQUIRED' `
             'Hyper-V access requires an enabled Hyper-V Administrators token or an elevated Administrator token.'
+    }
+    if (-not [bool](Get-HcrPropertyValue $HostSnapshot 'hyperVCommandsAvailable' $false) -or
+        -not [bool](Get-HcrPropertyValue $HostSnapshot 'hypervisorPresent' $false)) {
+        Throw-HcrError 'HYPERV_UNAVAILABLE' 'Hyper-V host prerequisites are unavailable.'
     }
     return $HostSnapshot
 }
@@ -635,7 +635,8 @@ function Get-HcrRevalidatedVmCreatePaths {
 function Assert-HcrVmCreatePlanDriftFree {
     param([Parameter(Mandatory = $true)][object]$Plan)
 
-    $hostSnapshot = Invoke-HcrAdapter 'GetHostSnapshot'
+    [void](Assert-HcrRuntimeHyperVAuthorized)
+    $hostSnapshot = Assert-HcrHyperVAuthorizedHostSnapshot (Invoke-HcrAdapter 'GetHostSnapshot')
     if ((Get-HcrHostFingerprint $hostSnapshot) -ne (Get-HcrPropertyValue $Plan 'hostFingerprint')) {
         Throw-HcrError 'PLAN_DRIFT' 'The host fingerprint changed after planning.'
     }

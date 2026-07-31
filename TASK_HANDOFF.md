@@ -44,10 +44,12 @@ SID `S-1-5-32-578` is `Hyper-V Administrators`.
 - Production VM create, checkpoint create/restore, power, and network adapters
   independently recompute live token authorization before mutation entry.
 
-ISO read, existing VM-root enumeration, and state-root initialization/access
-fail respectively with `ISO_ACCESS_DENIED`, `VM_ROOT_ACCESS_DENIED`, and
-`STATE_ROOT_ACCESS_DENIED`. The runtime never changes ACLs, adds group
-membership, creates a caller VM root, or elevates itself.
+ISO read, existing VM-root enumeration, and state-root initialization/I/O fail
+respectively with `ISO_ACCESS_DENIED`, `VM_ROOT_ACCESS_DENIED`, and
+`STATE_ROOT_ACCESS_DENIED`. State initialization validates the root and all
+five required children with bounded delete-on-close probes. The runtime never
+changes ACLs, adds group membership, creates a caller VM root, or elevates
+itself.
 
 ## Version and release invariant
 
@@ -128,6 +130,12 @@ as `notPerformed`; never represent it as success.
   `d4598c4c49b8fc8500aea321190870288bcaa4ee`.
 - Exactly 20 typed tools were loaded in the coordinating task. No typed tool
   was called during this source gate.
+- PR #32 initially reviewed commit
+  `d612fb3c80d4fa2e73168149a77631fe39c2e36c`; hosted push/PR validation
+  succeeded. Codex review then identified VM-create authorization ordering and
+  required state-child access gaps. The additive successor candidate addresses
+  both without changing the frozen `0.4.0+codex.20260731141404` build; it must
+  receive new exact-head CI, review, and unchanged-head evidence before merge.
 
 ## Next gate
 

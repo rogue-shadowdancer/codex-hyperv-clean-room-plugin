@@ -18,8 +18,11 @@ the local plugin cache.
   checkpoint-create/restore, power, and network mutation boundary.
 - Emit `BROADER_PRIVILEGE_CONTEXT` for successful elevated compatibility-mode
   results and use `HYPERV_AUTHORIZATION_REQUIRED` for missing authorization.
-- Add non-mutating ISO, VM-root, and state-root access preflights with exact
-  access-denied errors. The plugin does not change ACLs or elevate itself.
+- Add read-only ISO/VM-root preflights and exact state-root initialization/I/O
+  access errors. Validate every required state child with bounded
+  delete-on-close probes; the plugin does not change ACLs or elevate itself.
+- Preserve Apply plan consumption while checking current authorization before
+  any VM-create drift probe.
 - Advance runtime provenance to v0.4.0 while retaining matching v0.3.0,
   v0.3.1, and v0.3.2 external evidence.
 

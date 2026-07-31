@@ -152,6 +152,17 @@ function Invoke-HcrMockAdapter {
     }
     switch ($Operation) {
         'GetHostSnapshot' {
+            if ($env:HCR_TEST_MODE -eq '1') {
+                $count = Get-Variable `
+                    -Name HcrMockHostSnapshotCallCount `
+                    -Scope Global `
+                    -ValueOnly `
+                    -ErrorAction SilentlyContinue
+                Set-Variable `
+                    -Name HcrMockHostSnapshotCallCount `
+                    -Scope Global `
+                    -Value ([int]$count + 1)
+            }
             return Add-HcrHostAuthorizationProjection (Copy-HcrObject (Get-HcrPropertyValue $state 'host'))
         }
         'GetTargetVolume' {
@@ -783,6 +794,16 @@ function Get-HcrRuntimeHyperVAuthorization {
             (Copy-HcrObject (Get-HcrPropertyValue $state 'host'))
     }
     return Get-HcrCurrentProcessHyperVAuthorization
+}
+
+function Assert-HcrRuntimeHyperVAuthorized {
+    $authorization = Get-HcrRuntimeHyperVAuthorization
+    if (-not [bool]$authorization.hyperVAuthorized) {
+        Throw-HcrError `
+            'HYPERV_AUTHORIZATION_REQUIRED' `
+            'Hyper-V access requires an enabled Hyper-V Administrators token or an elevated Administrator token.'
+    }
+    return $authorization
 }
 
 function Assert-HcrCurrentProcessHyperVAuthorized {
