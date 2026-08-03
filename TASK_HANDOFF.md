@@ -136,7 +136,8 @@ candidate and require a later separately authorized Gate.
 
 `blockers: []`
 
-After complete local validation and ZERO ACTIONABLE FINDINGS, this Gate may
-create one additive commit, push this `codex/` branch, and open a ready pull
-request. It must not merge that PR. Any production typed retry remains a later
-separately authorized Gate after candidate acceptance and installation.
+The implementation, review-fix, validation, and GitHub synchronization work is
+published in ready PR [#34](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/pull/34)
+from this `codex/` branch. The PR is open and must not be merged by this Gate.
+Any production typed retry remains a later separately authorized Gate after
+candidate acceptance and installation.
