@@ -133,6 +133,94 @@ Use the default `plugin-creator` cachebuster helper documented in
 cachebusters, and start a new Codex task. Do not append multiple suffixes or
 increment the numeric version merely to bypass cache behavior.
 
+## Codex Desktop capability discovery
+
+### The selected plugin catalog is ready but the task has no callable tools
+
+Treat installation, catalog discovery, model-side injection, and typed tool
+execution as separate evidence lanes. A plugin row, readable skill, running MCP
+child, or selected catalog does not prove that the current task's model registry
+contains the plugin tools. Likewise, a 20-tool model registry does not prove
+that a standalone selected-catalog protocol check was performed or that a
+production VM was successfully read.
+
+Use this diagnostic order, record unavailable lanes as `notPerformed`, and keep
+their conclusions independent. Do not start production typed calls unless the
+current task's model registry contains the required tools; during a typed smoke,
+stop at the first failed call.
+
+| Lane | Check | What it proves |
+| --- | --- | --- |
+| Installation | `codex plugin list` reports `hyperv-clean-room@personal` installed and enabled at the intended build. | Codex knows the installed personal plugin; it does not prove startup or injection. |
+| Skill path | Resolve the current versioned cache path before reading `skills/manage-hyperv-clean-room/SKILL.md`. | The selected version's guidance exists; an old versioned path may be only stale task context. |
+| MCP startup | Verify the installed manifest, `.mcp.json`, and declared `server.ps1` launch path; use bounded process diagnostics only when needed. | The MCP child can be launched; a running process still does not prove catalog or model injection. |
+| Selected catalog | In a supported selected-plugin app-server session, require ready status, exactly 20 unique tools, and `toolCallCount: 0`. | The selected child advertised the catalog without calling a tool. |
+| Model registry | In a fresh Desktop task where **Hyper-V Clean Room (personal)** was selected before the first message, require exactly 20 unique `mcp__hyperv_clean_room__*` tools and the required `inspect_host`, `list_vms`, and `inspect_vm` names. | The model can make typed plugin calls in that task. |
+| Production typed calls | Call only the separately authorized typed tools, preserving `ok`, `changed`, warnings, and error codes. | Only successful typed results prove the corresponding production read. |
+
+The capability-discovery incident had the following bounded evidence:
+
+- The plugin was installed and enabled at
+  `0.4.0+codex.20260731141404`. A stale task referenced the absent
+  `0.3.2+codex.20260731014242` skill cache, while the current v0.4.0 skill was
+  present. The paths are under the user's versioned `.codex\plugins\cache`
+  tree; do not copy a machine-specific absolute path into evidence.
+- Before the Desktop update/restart, a selected app-server catalog-only check
+  reached ready state with exactly 20 unique tools and `toolCallCount: 0`, yet
+  affected task registries still contained no callable Hyper-V tools after the
+  older `tool_search` path was removed. This isolated model-side capability
+  discovery from installation and MCP startup.
+- After the update/restart, a fresh Desktop task selected through the UI had
+  exactly 20 unique model-callable Hyper-V tools, the three required tools, and
+  the current v0.4.0 skill path.
+- A separate post-update standalone `selectedCapabilityRoots` plus turn/start
+  catalog-only protocol recheck was `notPerformed`. The packaged Desktop
+  executable could not be safely invoked from the external shell and this
+  repository had no equivalent Desktop harness. Do not substitute the fresh
+  task's 20-tool model inventory for that unperformed catalog-only lane.
+
+The minimal persistent repair is one line inside the existing `[features]`
+table in `%USERPROFILE%\.codex\config.toml`:
+
+```toml
+executor_capability_discovery = true
+```
+
+Before editing, create a timestamped copy below
+`%USERPROFILE%\.codex\backups`. The incident backup leaf was
+`config.toml.executor-capability-discovery-20260801-023158.bak`. Add the key
+exactly once, do not create a duplicate `[features]` table or MCP registration,
+and do not enable or add `deferred_tool_world_state`. Completely exit and
+restart Codex Desktop, then create a fresh task and select the personal plugin
+before the first message. Existing tasks are not acceptance evidence for a
+restart-sensitive discovery change.
+
+To roll back, first preserve the current file, then prefer removing only the
+single `executor_capability_discovery = true` line. Restore the whole
+timestamped backup only after a diff proves that doing so will not discard any
+later unrelated configuration change. Confirm the `[features]` table is still
+valid TOML and restart Codex Desktop completely. Rollback removes this
+environment's discovery repair; it does not uninstall the plugin, alter the
+installed cache, or change Hyper-V.
+
+### Capability discovery passes but production VM enumeration fails
+
+Keep CLI and Desktop evidence separate. In this incident, stable CLI `0.144.1`
+and the fresh Desktop task each exposed the exact 20-tool registry. Their typed
+production smokes then matched:
+
+| Surface | `inspect_host` | `list_vms(managedOnly=false)` | `inspect_vm` |
+| --- | --- | --- | --- |
+| CLI | `passed`: `ok=true`, `changed=false`, non-elevated `hyperVAdministrators` authorization, no mock warning | `failed`: `ok=false`, `changed=false`, `INTERNAL_ERROR`, no mock warning | `notPerformed` because enumeration returned no VM name |
+| Desktop | `passed`: `ok=true`, `changed=false`, non-elevated `hyperVAdministrators` authorization, no mock warning | `failed`: `ok=false`, `changed=false`, `INTERNAL_ERROR`, no mock warning | `notPerformed` because enumeration returned no VM name |
+
+The discovery repair is therefore proven for model-side typed-tool injection,
+but real VM enumeration and inspection are not proven. Stop on the typed
+`list_vms` failure. Do not substitute shell, WMI, direct Hyper-V cmdlets,
+hand-written JSON-RPC, another plugin registration, or mock/static evidence.
+No VM or host mutation occurred, and guest, package, portable, UI, evidence,
+and Birdsgone clean-room acceptance remain `notPerformed`.
+
 ## MCP transport
 
 ### `SERVER_NOT_INITIALIZED`
