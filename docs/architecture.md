@@ -27,8 +27,9 @@ inspection. `ListVms` enumerates once and projects only ID, name, state,
 generation, Notes, and configuration path. Ownership then performs a keyed
 state lookup by VM ID. Unmanaged entries stop there; only a matching record and
 ID/name/Notes marker can request the internal expected-ID/name storage
-projection. That second projection reads only the primary attached-disk path
-and, when necessary, the bounded VHD chain needed to compare the recorded base.
+projection. That second projection revalidates the live Notes marker and reads
+only the primary attached-disk path and, when necessary, the bounded VHD chain
+needed to compare the recorded base.
 It never reads NICs, switches, checkpoints, firmware, security, or the full VM
 configuration. `inspect_vm` and guarded mutation paths retain the full snapshot.
 

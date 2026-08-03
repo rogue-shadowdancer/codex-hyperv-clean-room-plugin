@@ -264,8 +264,9 @@ WMI, direct Hyper-V cmdlets, handwritten JSON-RPC, or another transport.
 only VM ID, name, state, generation, Notes, and configuration path; Notes and
 path are internal ownership-screening fields and are not returned in public VM
 summaries. It does not inspect adapters, switches, checkpoints, firmware,
-security, or full VM configuration. `inspect_vm` remains the separately
-authorized deep read.
+security, or full VM configuration. A candidate storage projection rebinds the
+expected ID/name and revalidates the live Notes marker before verification.
+`inspect_vm` remains the separately authorized deep read.
 
 - `INTERNAL_ERROR` with `error.details.stage: vmSummaryProjection` means at
   least one required minimal summary could not be read. The failure remains

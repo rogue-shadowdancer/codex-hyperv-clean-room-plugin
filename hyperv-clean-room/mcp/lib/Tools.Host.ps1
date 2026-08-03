@@ -345,6 +345,9 @@ function Get-HcrListVmOwnershipStatus {
         $unverified.ownershipProjectionUnavailable = $true
         return $unverified
     }
+    if ([string](Get-HcrPropertyValue $storageVm 'notes') -ne $marker) {
+        return $unverified
+    }
     try {
         $storageVmPath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $storageVm 'vmPath'))
         $storageBinding = Get-HcrVmStorageOwnershipBinding $storageVm $recordVhdxPath

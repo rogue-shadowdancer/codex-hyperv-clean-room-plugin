@@ -223,6 +223,7 @@ function Invoke-HcrMockAdapter {
                 vm = [pscustomobject][ordered]@{
                     id = [string](Get-HcrPropertyValue $vm 'id')
                     name = [string](Get-HcrPropertyValue $vm 'name')
+                    notes = [string](Get-HcrPropertyValue $vm 'notes')
                     vmPath = [string](Get-HcrPropertyValue $vm 'vmPath')
                     vhdxPath = [string](Get-HcrPropertyValue $vm 'vhdxPath')
                     vhdxChainVerified = [bool](Get-HcrPropertyValue $vm 'vhdxChainVerified' $false)
@@ -1193,6 +1194,7 @@ function Get-HcrRealVmOwnershipProjection {
             vm = [pscustomobject][ordered]@{
                 id = [string]$vm.Id
                 name = [string]$vm.Name
+                notes = [string]$vm.Notes
                 vmPath = [string]$vm.Path
                 vhdxPath = $activePath
                 vhdxChainVerified = ($activePath -ne $recordedBase)

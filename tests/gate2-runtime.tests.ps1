@@ -1540,6 +1540,8 @@ $minimalOwnershipProjection = Invoke-HcrMockAdapter `
     })
 Assert-True ([bool]$minimalOwnershipProjection.complete) `
     'The matching ownership projection was unavailable.'
+Assert-Equal ([string]$minimalOwnershipProjection.vm.notes) ([string]$candidateVm.notes) `
+    'The ownership projection did not re-read the live Notes marker.'
 foreach ($deepOwnershipField in @(
     'networkAdapters',
     'checkpoints',
@@ -1562,6 +1564,25 @@ Assert-True (-not [bool]$mismatchedOwnershipProjection.complete) `
     'Ownership projection accepted an expected VM-name mismatch.'
 Assert-Equal ([string]$mismatchedOwnershipProjection.stage) 'ownershipProjection' `
     'Ownership projection mismatch lost its bounded stage.'
+$staleCandidateSummary = ConvertTo-HcrVmListSummary $candidateVm
+$mock = Read-HcrMockAdapterState
+$liveCandidateVm = @($mock.vms | Where-Object { [string]$_.id -eq [string]$candidateVm.id })[0]
+$liveCandidateVm.notes = 'marker-changed-after-inventory'
+Write-HcrMockAdapterState $mock
+$global:HcrMockOwnershipProjectionCallCount = 0
+$staleMarkerOwnership = Get-HcrListVmOwnershipStatus $staleCandidateSummary
+Assert-Equal $global:HcrMockOwnershipProjectionCallCount 1 `
+    'The stale-marker TOCTOU test did not enter the rebound ownership projection.'
+Assert-True (-not [bool]$staleMarkerOwnership.verified) `
+    'A changed live Notes marker retained verified ownership.'
+Assert-Equal ([string]$staleMarkerOwnership.status) 'OWNERSHIP_UNVERIFIED' `
+    'A changed live Notes marker did not fail closed.'
+Assert-True (-not [bool]$staleMarkerOwnership.ownershipProjectionUnavailable) `
+    'A complete live projection with a changed marker emitted an unavailable-storage warning.'
+$mock = Read-HcrMockAdapterState
+$liveCandidateVm = @($mock.vms | Where-Object { [string]$_.id -eq [string]$candidateVm.id })[0]
+$liveCandidateVm.notes = [string]$candidateVm.notes
+Write-HcrMockAdapterState $mock
 Remove-Variable -Name HcrMockOwnershipProjectionCallCount -Scope Global -ErrorAction SilentlyContinue
 
 $mock = Read-HcrMockAdapterState
@@ -2359,6 +2380,7 @@ foreach ($requiredOwnershipSeam in @(
     'expectedVmId',
     'expectedVmName',
     'Get-VM -Id $parsedVmId',
+    'notes = [string]$vm.Notes',
     'Get-VMHardDiskDrive',
     'ownershipProjection'
 )) {

@@ -487,8 +487,9 @@ is public.
 - Resolve ownership state by VM ID before storage enrichment. A missing keyed
   record is `unmanaged` and causes no disk or VHD read. Only a record whose VM
   ID/name and Notes marker match may request an internal minimal storage
-  projection bound again to the expected VM ID and name. Incomplete storage
-  projection never establishes ownership: `managedOnly=true` skips it and
+  projection bound again to the expected VM ID and name. That bound projection
+  must revalidate the live Notes marker. Incomplete storage projection never
+  establishes ownership: `managedOnly=true` skips it and
   `managedOnly=false` retains the reduced summary as `OWNERSHIP_UNVERIFIED`
   with one bounded identity-free warning.
 - A provider inventory failure is `HYPERV_UNAVAILABLE` with bounded
@@ -1552,7 +1553,8 @@ operations and list ownership classification.
 Acceptance must prove through mock/runtime/static tests that unmanaged VMs do
 not enter storage enrichment; deep getters cannot break their reduced summary;
 zero, multiple, and Unicode-named VMs preserve the list contract; only screened
-managed candidates enter the expected-ID/name storage seam; both
+managed candidates enter the expected-ID/name and live-Notes-recheck storage
+seam; both
 `managedOnly` modes handle storage-unverified candidates safely; and provider,
 summary, state-access, and state-integrity failures remain bounded with
 `changed: false`. Catalog/tool/schema, `inspect_vm`, guest, Plan/Apply, warning,

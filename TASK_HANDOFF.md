@@ -50,9 +50,10 @@ handwritten JSON-RPC, alternate-registration, or mock/static substitution.
 - Ownership first reads the keyed record by VM ID. No record means unmanaged
   and causes no disk/VHD projection. Only matching record ID/name and Notes
   marker candidates enter the new internal storage projection.
-- The storage projection rebinds expected VM ID/name before reading the first
-  attached-disk path and only the VHD-chain identity needed for the recorded
-  base. Incomplete projection cannot establish ownership.
+- The storage projection rebinds expected VM ID/name, revalidates the live
+  Notes marker, and then reads the first attached-disk path plus only the
+  VHD-chain identity needed for the recorded base. Incomplete projection cannot
+  establish ownership.
 - `managedOnly=true` skips storage-unverified candidates.
   `managedOnly=false` retains their reduced summary as
   `OWNERSHIP_UNVERIFIED` and emits one bounded identity-free warning naming
@@ -88,7 +89,7 @@ added.
 
 The candidate passes the required local validation on 2026-08-03:
 
-- `tests/gate2-runtime.tests.ps1`: `passed`, 1,682 assertions, exactly 20
+- `tests/gate2-runtime.tests.ps1`: `passed`, 1,688 assertions, exactly 20
   tools, four protocol versions, and `realHyperVMutations=0`.
 - `prepare-test-python.ps1`: `passed`; Python 3.10.11 and the pinned isolated
   dependency set were prepared below ignored `.artifacts`.
@@ -106,10 +107,12 @@ Commands:
 .\scripts\validate-public-release.ps1
 ```
 
-The exact staged diff received substantive scope, compatibility, privacy,
-error-boundary, test, documentation, and safety review with ZERO ACTIONABLE
-FINDINGS. The final zero-VM assertions were also reviewed after they were added;
-no candidate change remains outside this result.
+The initial exact staged diff received local substantive review with ZERO
+ACTIONABLE FINDINGS. Remote review then identified a live-Notes TOCTOU gap in
+the rebound ownership projection. The additive fix re-reads and validates the
+marker and adds a stale-summary regression. The resulting exact staged diff
+received the same scope, compatibility, privacy, error-boundary, test,
+documentation, and safety review with ZERO ACTIONABLE FINDINGS.
 
 The historical H4/G9 production-adapter `validate-gate4.ps1` smoke is not run
 by this source Gate because it reads the real host. It is not a substitute for
