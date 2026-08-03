@@ -187,7 +187,50 @@ function Invoke-HcrMockAdapter {
             return Copy-HcrObject $switch[0]
         }
         'ListVms' {
-            return @(@((Get-HcrPropertyValue $state 'vms' @())) | ForEach-Object { Copy-HcrObject $_ })
+            $failureStage = [string](Get-HcrPropertyValue $state 'listVmFailureStage')
+            if ($failureStage -eq 'vmInventory' -or
+                $failureStage -eq 'vmSummaryProjection') {
+                Throw-HcrVmListStageError $failureStage
+            }
+            return ConvertTo-HcrVmListSummaries @((Get-HcrPropertyValue $state 'vms' @()))
+        }
+        'GetVmOwnershipProjection' {
+            if ($env:HCR_TEST_MODE -eq '1') {
+                $count = Get-Variable `
+                    -Name HcrMockOwnershipProjectionCallCount `
+                    -Scope Global `
+                    -ValueOnly `
+                    -ErrorAction SilentlyContinue
+                Set-Variable `
+                    -Name HcrMockOwnershipProjectionCallCount `
+                    -Scope Global `
+                    -Value ([int]$count + 1)
+            }
+            $expectedVmId = [string](Get-HcrPropertyValue $Arguments 'expectedVmId')
+            $expectedVmName = [string](Get-HcrPropertyValue $Arguments 'expectedVmName')
+            $matches = @(@((Get-HcrPropertyValue $state 'vms' @())) | Where-Object {
+                [string](Get-HcrPropertyValue $_ 'id') -eq $expectedVmId
+            })
+            if ($matches.Count -ne 1 -or
+                [string](Get-HcrPropertyValue $matches[0] 'name') -ne $expectedVmName -or
+                [bool](Get-HcrPropertyValue $matches[0] 'ownershipProjectionUnavailable' $false)) {
+                return New-HcrUnavailableOwnershipProjection
+            }
+            $vm = $matches[0]
+            return [pscustomobject][ordered]@{
+                complete = $true
+                stage = 'ownershipProjection'
+                vm = [pscustomobject][ordered]@{
+                    id = [string](Get-HcrPropertyValue $vm 'id')
+                    name = [string](Get-HcrPropertyValue $vm 'name')
+                    vmPath = [string](Get-HcrPropertyValue $vm 'vmPath')
+                    vhdxPath = [string](Get-HcrPropertyValue $vm 'vhdxPath')
+                    vhdxChainVerified = [bool](Get-HcrPropertyValue $vm 'vhdxChainVerified' $false)
+                    vhdxChain = Copy-HcrObject @((Get-HcrPropertyValue $vm 'vhdxChain' @()))
+                    baseVhdxPath = [string](Get-HcrPropertyValue $vm 'baseVhdxPath')
+                    vhdxChainFingerprint = [string](Get-HcrPropertyValue $vm 'vhdxChainFingerprint')
+                }
+            }
         }
         'GetVm' {
             $vm = Get-HcrMockVm $state ([string](Get-HcrPropertyValue $Arguments 'name'))
@@ -1014,6 +1057,153 @@ function Get-HcrRealVhdChainSnapshot {
             basePath = $null
             fingerprint = $null
         }
+    }
+}
+
+function Throw-HcrVmListStageError {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('vmInventory', 'vmSummaryProjection')]
+        [string]$Stage
+    )
+
+    $details = [pscustomobject][ordered]@{ stage = $Stage }
+    if ($Stage -eq 'vmInventory') {
+        Throw-HcrError `
+            'HYPERV_UNAVAILABLE' `
+            'The Hyper-V VM inventory is unavailable.' `
+            $details
+    }
+    Throw-HcrError `
+        'INTERNAL_ERROR' `
+        'The Hyper-V VM inventory could not be projected safely.' `
+        $details
+}
+
+function ConvertTo-HcrVmListSummary {
+    param([Parameter(Mandatory = $true)][object]$Vm)
+
+    $id = [string](Get-HcrPropertyValue $Vm 'Id')
+    if ([string]::IsNullOrWhiteSpace($id)) {
+        $id = [string](Get-HcrPropertyValue $Vm 'id')
+    }
+    $name = [string](Get-HcrPropertyValue $Vm 'Name')
+    if ([string]::IsNullOrWhiteSpace($name)) {
+        $name = [string](Get-HcrPropertyValue $Vm 'name')
+    }
+    $state = [string](Get-HcrPropertyValue $Vm 'State')
+    if ([string]::IsNullOrWhiteSpace($state)) {
+        $state = [string](Get-HcrPropertyValue $Vm 'state')
+    }
+    $generation = Get-HcrPropertyValue $Vm 'Generation'
+    if ($null -eq $generation) {
+        $generation = Get-HcrPropertyValue $Vm 'generation'
+    }
+    if ([string]::IsNullOrWhiteSpace($id) -or
+        [string]::IsNullOrWhiteSpace($name) -or
+        [string]::IsNullOrWhiteSpace($state) -or
+        $null -eq $generation) {
+        throw 'A required VM summary field is unavailable.'
+    }
+    $notes = Get-HcrPropertyValue $Vm 'Notes'
+    if ($null -eq $notes) { $notes = Get-HcrPropertyValue $Vm 'notes' }
+    $vmPath = Get-HcrPropertyValue $Vm 'Path'
+    if ($null -eq $vmPath) { $vmPath = Get-HcrPropertyValue $Vm 'vmPath' }
+    return [pscustomobject][ordered]@{
+        id = $id
+        name = $name
+        state = $state
+        generation = [int]$generation
+        notes = [string]$notes
+        vmPath = [string]$vmPath
+    }
+}
+
+function ConvertTo-HcrVmListSummaries {
+    param([AllowNull()][object[]]$Inventory)
+
+    $summaries = New-Object System.Collections.Generic.List[object]
+    foreach ($vm in @($Inventory)) {
+        try {
+            $summaries.Add((ConvertTo-HcrVmListSummary $vm))
+        }
+        catch {
+            Throw-HcrVmListStageError 'vmSummaryProjection'
+        }
+    }
+    return @($summaries | ForEach-Object { $_ })
+}
+
+function New-HcrUnavailableOwnershipProjection {
+    return [pscustomobject][ordered]@{
+        complete = $false
+        stage = 'ownershipProjection'
+        vm = $null
+    }
+}
+
+function Get-HcrRealVmOwnershipProjection {
+    param([Parameter(Mandatory = $true)][object]$Arguments)
+
+    $unavailable = New-HcrUnavailableOwnershipProjection
+    $expectedVmId = [string](Get-HcrPropertyValue $Arguments 'expectedVmId')
+    $expectedVmName = [string](Get-HcrPropertyValue $Arguments 'expectedVmName')
+    $recordedBaseVhdxPath = [string](Get-HcrPropertyValue $Arguments 'recordedBaseVhdxPath')
+    $parsedVmId = [Guid]::Empty
+    if ([string]::IsNullOrWhiteSpace($expectedVmName) -or
+        [string]::IsNullOrWhiteSpace($recordedBaseVhdxPath) -or
+        -not [Guid]::TryParse($expectedVmId, [ref]$parsedVmId) -or
+        $parsedVmId -eq [Guid]::Empty -or
+        -not (Get-Command Get-VM -ErrorAction SilentlyContinue) -or
+        -not (Get-Command Get-VMHardDiskDrive -ErrorAction SilentlyContinue)) {
+        return $unavailable
+    }
+
+    try {
+        $matches = @(Get-VM -Id $parsedVmId -ErrorAction Stop)
+        if ($matches.Count -ne 1) { return $unavailable }
+        $vm = $matches[0]
+        if ([string]$vm.Id -ne $expectedVmId -or
+            [string]$vm.Name -ne $expectedVmName) {
+            return $unavailable
+        }
+        $hardDrives = @(Get-VMHardDiskDrive -VM $vm -ErrorAction Stop |
+            Sort-Object ControllerType, ControllerNumber, ControllerLocation, Path)
+        if ($hardDrives.Count -lt 1 -or
+            [string]::IsNullOrWhiteSpace([string]$hardDrives[0].Path)) {
+            return $unavailable
+        }
+        $activePath = Get-HcrNormalizedPath ([string]$hardDrives[0].Path)
+        $recordedBase = Get-HcrNormalizedPath $recordedBaseVhdxPath
+        $chain = if ($activePath -eq $recordedBase) {
+            [pscustomobject][ordered]@{
+                verified = $true
+                entries = @()
+                basePath = $recordedBase
+                fingerprint = $null
+            }
+        }
+        else {
+            Get-HcrRealVhdChainSnapshot $activePath
+        }
+        if (-not [bool]$chain.verified) { return $unavailable }
+        return [pscustomobject][ordered]@{
+            complete = $true
+            stage = 'ownershipProjection'
+            vm = [pscustomobject][ordered]@{
+                id = [string]$vm.Id
+                name = [string]$vm.Name
+                vmPath = [string]$vm.Path
+                vhdxPath = $activePath
+                vhdxChainVerified = ($activePath -ne $recordedBase)
+                vhdxChain = @($chain.entries)
+                baseVhdxPath = [string]$chain.basePath
+                vhdxChainFingerprint = Get-HcrPropertyValue $chain 'fingerprint'
+            }
+        }
+    }
+    catch {
+        return $unavailable
     }
 }
 
@@ -2898,9 +3088,18 @@ function Invoke-HcrRealAdapter {
         }
         'ListVms' {
             if (-not (Get-Command Get-VM -ErrorAction SilentlyContinue)) {
-                Throw-HcrError 'HYPERV_UNAVAILABLE' 'The Hyper-V PowerShell module is unavailable.'
+                Throw-HcrVmListStageError 'vmInventory'
             }
-            return @(Get-VM -ErrorAction Stop | ForEach-Object { ConvertTo-HcrRealVmSnapshot $_ })
+            try {
+                $inventory = @(Get-VM -ErrorAction Stop)
+            }
+            catch {
+                Throw-HcrVmListStageError 'vmInventory'
+            }
+            return ConvertTo-HcrVmListSummaries $inventory
+        }
+        'GetVmOwnershipProjection' {
+            return Get-HcrRealVmOwnershipProjection $Arguments
         }
         'GetVm' {
             if (-not (Get-Command Get-VM -ErrorAction SilentlyContinue)) {

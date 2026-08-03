@@ -22,6 +22,16 @@ power-transition, and network-transition adapters recompute authorization at
 the final mutation boundary so a mock snapshot or earlier plan cannot confer
 authority.
 
+Production VM listing has a separate shallow adapter seam from deep VM
+inspection. `ListVms` enumerates once and projects only ID, name, state,
+generation, Notes, and configuration path. Ownership then performs a keyed
+state lookup by VM ID. Unmanaged entries stop there; only a matching record and
+ID/name/Notes marker can request the internal expected-ID/name storage
+projection. That second projection reads only the primary attached-disk path
+and, when necessary, the bounded VHD chain needed to compare the recorded base.
+It never reads NICs, switches, checkpoints, firmware, security, or the full VM
+configuration. `inspect_vm` and guarded mutation paths retain the full snapshot.
+
 Implementation is therefore not the same as clean-machine validation. A real
 operator must treat guest transfer and lifecycle actions as state-changing and
 obtain explicit authorization for the named VM and operation before use.
@@ -99,7 +109,7 @@ independently rebound.
 | `mcp/lib/Validation.ps1` | Native profile and evidence contract validation | None beyond PowerShell |
 | `mcp/lib/Tools.Host.ps1` | Host/VM/checkpoint inspection, plan, apply, drift guards | Hyper-V module for real operations |
 | `mcp/lib/Tools.Guest.ps1` | Guest inspection, staging, test orchestration, attestations, export | Adapter boundary |
-| `mcp/lib/Adapters.ps1` | Test-only mock adapter and production Hyper-V/PowerShell Direct adapter | Hyper-V module and PowerShell Direct |
+| `mcp/lib/Adapters.ps1` | Test-only mock adapter; shallow VM-list and candidate-only storage projections; deep production Hyper-V/PowerShell Direct paths | Hyper-V module and PowerShell Direct |
 | `mcp/lib/GuestWorker.ps1` | Fixed standard-user dispatcher copied and hash-verified per operation | Windows PowerShell in the guest |
 | `mcp/Initialize-GuestCredential.ps1` | Interactive two-role credential enrollment | DPAPI and PowerShell Direct |
 | `schemas/*.json` | Portable Draft 2020-12 result/profile contracts | Development and CI validation only |
@@ -166,6 +176,18 @@ Read-only inspection may observe unmanaged VMs in a reduced projection. A
 mutation requires both an exact Hyper-V Notes marker and a matching ownership
 record containing VM ID, name, paths, creation operation, and ownership ID.
 Any disagreement is `OWNERSHIP_UNVERIFIED`.
+
+The reduced list path has three bounded stages. `vmInventory` covers provider
+enumeration and fails with `HYPERV_UNAVAILABLE`; `vmSummaryProjection` covers
+the required shallow fields and fails with `INTERNAL_ERROR`; and
+`ownershipProjection` is the internal candidate-only storage boundary. The
+first two are unrecoverable list failures with identity-free `error.details`.
+An incomplete ownership projection is recoverable for enumeration but never
+for trust: the VM remains `OWNERSHIP_UNVERIFIED`, the all-VM view retains only
+its public summary, and one bounded warning reports the stage without an
+identity. State-root access and integrity failures propagate instead of being
+reclassified. Every path is read-only and returns or preserves
+`changed: false`.
 
 ### Host process to credential storage
 

@@ -135,65 +135,49 @@ increment the numeric version merely to bypass cache behavior.
 
 ## Codex Desktop capability discovery
 
-### The selected plugin catalog is ready but the task has no callable tools
+### Reusable diagnostic workflow
 
-Treat installation, catalog discovery, model-side injection, and typed tool
-execution as separate evidence lanes. A plugin row, readable skill, running MCP
-child, or selected catalog does not prove that the current task's model registry
-contains the plugin tools. Likewise, a 20-tool model registry does not prove
-that a standalone selected-catalog protocol check was performed or that a
-production VM was successfully read.
+An **evidence lane** is one independently verified boundary; success in one
+lane cannot substitute for another. In this repository's acceptance harness,
+`selectedCapabilityRoots` is the local-environment list whose plugin ID entry
+binds the selected personal plugin to a fresh app-server thread; see
+[installation.md](installation.md#proven-boundary). This describes
+the current harness contract, not a promise that the app-server field is a
+public stable API.
 
-Use this diagnostic order, record unavailable lanes as `notPerformed`, and keep
-their conclusions independent. Do not start production typed calls unless the
-current task's model registry contains the required tools; during a typed smoke,
-stop at the first failed call.
+Diagnose a selected plugin that has no callable tools in this order:
 
-| Lane | Check | What it proves |
+| Lane | Reusable check | Stop condition and conclusion |
 | --- | --- | --- |
-| Installation | `codex plugin list` reports `hyperv-clean-room@personal` installed and enabled at the intended build. | Codex knows the installed personal plugin; it does not prove startup or injection. |
-| Skill path | Resolve the current versioned cache path before reading `skills/manage-hyperv-clean-room/SKILL.md`. | The selected version's guidance exists; an old versioned path may be only stale task context. |
-| MCP startup | Verify the installed manifest, `.mcp.json`, and declared `server.ps1` launch path; use bounded process diagnostics only when needed. | The MCP child can be launched; a running process still does not prove catalog or model injection. |
-| Selected catalog | In a supported selected-plugin app-server session, require ready status, exactly 20 unique tools, and `toolCallCount: 0`. | The selected child advertised the catalog without calling a tool. |
-| Model registry | In a fresh Desktop task where **Hyper-V Clean Room (personal)** was selected before the first message, require exactly 20 unique `mcp__hyperv_clean_room__*` tools and the required `inspect_host`, `list_vms`, and `inspect_vm` names. | The model can make typed plugin calls in that task. |
-| Production typed calls | Call only the separately authorized typed tools, preserving `ok`, `changed`, warnings, and error codes. | Only successful typed results prove the corresponding production read. |
+| Installation | `codex plugin list` reports the intended personal plugin installed and enabled. | A missing or wrong build stops the workflow. A passing row proves installation only. |
+| Current skill path | Resolve the installed version before reading `skills/manage-hyperv-clean-room/SKILL.md`. | An absent current path stops the workflow. A stale path in task context is not the installed authority. |
+| MCP startup | Verify the installed manifest, `.mcp.json`, and declared `server.ps1` launch path; use bounded process diagnostics only when needed. | A launch failure stops catalog checks. A running child does not prove catalog or model injection. |
+| Selected catalog | In a supported fresh app-server thread with the explicit selected-plugin binding, require ready status, exactly 20 unique tools, and `toolCallCount: 0`. | Failure stops catalog acceptance. Success proves only the selected child catalog. |
+| Model registry | In a fresh Desktop task where **Hyper-V Clean Room (personal)** was selected before the first message, require exactly 20 unique `mcp__hyperv_clean_room__*` tools and the required `inspect_host`, `list_vms`, and `inspect_vm` names. | Missing tools stop production calls. Success proves model-callable injection only. |
+| Production typed call | Use only separately authorized typed tools and preserve `ok`, `changed`, warnings, and error codes. | Stop at the first error, mock marker, or `changed=true`; only each successful call proves its own production read. |
 
-The capability-discovery incident had the following bounded evidence:
+Record any unavailable lane as `notPerformed`. Do not infer a selected catalog
+from model inventory, or real-VM access from installation, catalog, registry,
+mock, parser, schema, or static evidence.
 
-- The plugin was installed and enabled at
-  `0.4.0+codex.20260731141404`. A stale task referenced the absent
-  `0.3.2+codex.20260731014242` skill cache, while the current v0.4.0 skill was
-  present. The paths are under the user's versioned `.codex\plugins\cache`
-  tree; do not copy a machine-specific absolute path into evidence.
-- Before the Desktop update/restart, a selected app-server catalog-only check
-  reached ready state with exactly 20 unique tools and `toolCallCount: 0`, yet
-  affected task registries still contained no callable Hyper-V tools after the
-  older `tool_search` path was removed. This isolated model-side capability
-  discovery from installation and MCP startup.
-- After the update/restart, a fresh Desktop task selected through the UI had
-  exactly 20 unique model-callable Hyper-V tools, the three required tools, and
-  the current v0.4.0 skill path.
-- A separate post-update standalone `selectedCapabilityRoots` plus turn/start
-  catalog-only protocol recheck was `notPerformed`. The packaged Desktop
-  executable could not be safely invoked from the external shell and this
-  repository had no equivalent Desktop harness. Do not substitute the fresh
-  task's 20-tool model inventory for that unperformed catalog-only lane.
+### Minimal repair, restart, and rollback
 
-The minimal persistent repair is one line inside the existing `[features]`
-table in `%USERPROFILE%\.codex\config.toml`:
+When installation, current skill, MCP startup, and selected catalog pass but a
+fresh task still lacks the callable registry, first preserve a timestamped copy
+of `%USERPROFILE%\.codex\config.toml` below
+`%USERPROFILE%\.codex\backups`. Add exactly one line inside the existing
+`[features]` table:
 
 ```toml
 executor_capability_discovery = true
 ```
 
-Before editing, create a timestamped copy below
-`%USERPROFILE%\.codex\backups`. The incident backup leaf was
-`config.toml.executor-capability-discovery-20260801-023158.bak`. Add the key
-exactly once, do not create a duplicate `[features]` table or MCP registration,
-and do not enable or add `deferred_tool_world_state`. Completely exit and
-restart Codex Desktop, then create a fresh task and select the personal plugin
-before the first message. Existing tasks are not acceptance evidence for a
-restart-sensitive discovery change.
+Do not create a duplicate `[features]` table or MCP registration.
+`deferred_tool_world_state` is a separate Codex feature key; this repair does
+not enable, add, or depend on it, and this document makes no stability claim
+about that key. Completely exit and restart Codex Desktop, then create a fresh
+task and select the personal plugin before the first message. Existing tasks
+are not acceptance evidence for a restart-sensitive discovery change.
 
 To roll back, first preserve the current file, then prefer removing only the
 single `executor_capability_discovery = true` line. Restore the whole
@@ -203,7 +187,26 @@ valid TOML and restart Codex Desktop completely. Rollback removes this
 environment's discovery repair; it does not uninstall the plugin, alter the
 installed cache, or change Hyper-V.
 
-### Capability discovery passes but production VM enumeration fails
+### Incident evidence: 2026-08-03 closeout
+
+- Installed/enabled build: `0.4.0+codex.20260731141404`. The stale task path
+  named the absent `0.3.2+codex.20260731014242` skill cache; the current v0.4.0
+  skill was present. Do not copy a machine-specific absolute cache path into
+  evidence.
+- Preserved backup leaf:
+  `config.toml.executor-capability-discovery-20260801-023158.bak`.
+- Before the Desktop update/restart, a selected catalog-only check reached
+  ready state with exactly 20 unique tools and `toolCallCount: 0`, while task
+  registries still had no callable Hyper-V tools after the older `tool_search`
+  path was removed.
+- After restart, a fresh Desktop task selected through the UI had exactly 20
+  unique model-callable Hyper-V tools, the three required tools, and the current
+  v0.4.0 skill path.
+- A separate post-update standalone selected-catalog protocol recheck using
+  `selectedCapabilityRoots` and turn/start was `notPerformed`. The packaged
+  Desktop executable could not be safely invoked from the external shell and
+  this repository had no equivalent Desktop harness. The fresh task's model
+  inventory is not a substitute for that lane.
 
 Keep CLI and Desktop evidence separate. In this incident, stable CLI `0.144.1`
 and the fresh Desktop task each exposed the exact 20-tool registry. Their typed
@@ -248,6 +251,40 @@ older than the minimum is rejected.
 Run `inspect_host`. Check `hyperVCommandsAvailable` and `hypervisorPresent`.
 The plugin does not enable Windows features or alter firmware settings. Repair
 host prerequisites outside the plugin and inspect again.
+
+For `list_vms`, bounded `error.details.stage: vmInventory` means the required
+`Get-VM` provider inventory itself was unavailable. It does not prove that the
+host has no VMs, and the response deliberately omits the provider exception,
+VM identity, paths, token facts, and environment. Do not retry through shell,
+WMI, direct Hyper-V cmdlets, handwritten JSON-RPC, or another transport.
+
+### `list_vms` projection boundaries
+
+`list_vms` uses a list-specific minimal projection. The inventory path reads
+only VM ID, name, state, generation, Notes, and configuration path; Notes and
+path are internal ownership-screening fields and are not returned in public VM
+summaries. It does not inspect adapters, switches, checkpoints, firmware,
+security, or full VM configuration. `inspect_vm` remains the separately
+authorized deep read.
+
+- `INTERNAL_ERROR` with `error.details.stage: vmSummaryProjection` means at
+  least one required minimal summary could not be read. The failure remains
+  `changed=false` and exposes no raw exception or VM identity.
+- A successful result warning ending in `stage ownershipProjection` means an
+  existing ownership candidate passed the keyed state-record and ID/name/Notes
+  marker screen, but its separately rebound minimal storage projection was
+  unavailable. The VM is never reported as verified: `managedOnly=true` skips
+  it, while `managedOnly=false` retains the reduced summary with
+  `ownershipStatus: OWNERSHIP_UNVERIFIED`. Multiple affected candidates produce
+  one bounded warning without names, IDs, paths, SIDs, or token information.
+- `STATE_ROOT_ACCESS_DENIED` and `STATE_INTEGRITY_ERROR` remain hard list
+  failures. They are not converted to unmanaged or ownership-projection
+  warnings; restore the state root's bounded access/integrity outside the
+  plugin before a separately authorized typed retry.
+
+An unmanaged VM has no keyed ownership record and therefore never enters disk
+or VHD enrichment. Do not create or edit an ownership record merely to make a
+VM appear managed.
 
 ### `HYPERV_AUTHORIZATION_REQUIRED`
 
