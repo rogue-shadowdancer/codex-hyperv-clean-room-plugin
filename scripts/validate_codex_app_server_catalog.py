@@ -45,7 +45,7 @@ EXPECTED_TOOLS = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--plugin-root", type=Path, required=True)
-    parser.add_argument("--expected-version", default="0.4.0")
+    parser.add_argument("--expected-version", default="0.4.1")
     parser.add_argument("--environment-id", default="local")
     parser.add_argument("--timeout-seconds", type=int, default=45)
     parser.add_argument("--mock-tool-call-smoke", action="store_true")

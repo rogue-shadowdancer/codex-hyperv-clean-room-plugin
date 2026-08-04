@@ -453,7 +453,7 @@ $runtimeInstallPluginPath = Join-Path $runtimeInstallPluginDirectory 'plugin.jso
 $runtimeInstallPayloadPath = Join-Path $runtimeInstallMcpDirectory 'runtime.ps1'
 Write-Gate7Json $runtimeInstallPluginPath ([ordered]@{
     name = 'hyperv-clean-room'
-    version = '0.4.0+codex.20260729090000'
+    version = '0.4.1+codex.20260804090000'
 })
 [IO.File]::WriteAllText(
     $runtimeInstallPayloadPath,
@@ -495,9 +495,9 @@ Write-Gate7Json (
     installationId = $runtimeInstallationId
     sourceRoot = $runtimeInstallRoot
     targetRoot = $runtimeInstallRoot
-    sourceVersion = '0.4.0+codex.20260729090000'
+    sourceVersion = '0.4.1+codex.20260804090000'
     sourceCommit = ('e' * 40)
-    cachebuster = '20260729090000'
+    cachebuster = '20260804090000'
     installedAtUtc = [DateTime]::UtcNow.ToString('o')
     files = @($runtimeInstallRows)
 })
@@ -573,11 +573,11 @@ finally {
 
 $pluginManifest = Get-Content -LiteralPath (Join-Path $pluginRoot '.codex-plugin\plugin.json') `
     -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
-Assert-Gate7 ([string]$pluginManifest.version -match '^0\.4\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') `
-    'The loaded Gate 7 runtime does not expose the 0.4.0 least-privilege version.'
+Assert-Gate7 ([string]$pluginManifest.version -match '^0\.4\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') `
+    'The loaded Gate 7 runtime does not expose the 0.4.1 list-repair version.'
 $runtimeCatalog = Get-Content -LiteralPath (Join-Path $repoRoot 'contracts\v2\tool-catalog.json') `
     -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
-Assert-Gate7Equal ([string]$runtimeCatalog.currentRuntimeVersion) '0.4.0' `
+Assert-Gate7Equal ([string]$runtimeCatalog.currentRuntimeVersion) '0.4.1' `
     'The tool catalog did not advance with the loaded runtime.'
 foreach ($schemaName in @(
         'evidence.schema.json', 'operation-envelope.schema.json',
@@ -1469,8 +1469,8 @@ $externalOperation = Get-HcrOperationRecord ([string]$externalRun.data.testOpera
 $externalEvidence = Read-HcrJsonFile ([string]$externalOperation.evidenceFile) 'EVIDENCE_NOT_READY'
 Assert-Gate7Equal ([string]$externalEvidence.evidenceKind) 'externalPortable' `
     'The external evidence structural discriminator is missing.'
-Assert-Gate7Equal ([string]$externalEvidence.runtime.pluginBaseVersion) '0.4.0' `
-    'External evidence did not bind the 0.4.0 runtime base.'
+Assert-Gate7Equal ([string]$externalEvidence.runtime.pluginBaseVersion) '0.4.1' `
+    'External evidence did not bind the 0.4.1 runtime base.'
 Assert-Gate7Equal ([string]$externalEvidence.candidate.packagingCommit) ('b' * 40) `
     'External evidence fabricated or lost the manifest packaging commit.'
 Assert-Gate7Equal ([string]$externalEvidence.candidate.portableZipSourceSha256) `
@@ -1521,8 +1521,19 @@ $v032ExternalOperation.evidenceSha256 = Get-HcrEvidenceDocumentDigest `
 $v032ExternalValidation = Test-HcrEvidenceDocumentV2 `
     $v032ExternalEvidence $v032ExternalOperation
 Assert-Gate7 $v032ExternalValidation.valid `
-    ('The v0.4.0 runtime rejected immutable v0.3.2 external evidence: ' +
+    ('The v0.4.1 runtime rejected immutable v0.3.2 external evidence: ' +
         (@($v032ExternalValidation.errors) -join '; '))
+$v040ExternalEvidence = Copy-HcrObject $externalEvidence
+$v040ExternalEvidence.runtime.pluginBaseVersion = '0.4.0'
+$v040ExternalEvidence.runtime.pluginBuildVersion = '0.4.0+codex.20260731141404'
+$v040ExternalOperation = Copy-HcrObject $externalOperation
+$v040ExternalOperation.evidenceSha256 = Get-HcrEvidenceDocumentDigest `
+    $v040ExternalEvidence
+$v040ExternalValidation = Test-HcrEvidenceDocumentV2 `
+    $v040ExternalEvidence $v040ExternalOperation
+Assert-Gate7 $v040ExternalValidation.valid `
+    ('The v0.4.1 runtime rejected immutable v0.4.0 external evidence: ' +
+        (@($v040ExternalValidation.errors) -join '; '))
 $mismatchedExternalEvidence = Copy-HcrObject $historicalExternalEvidence
 $mismatchedExternalEvidence.runtime.pluginBuildVersion = '0.3.1+codex.20260729184240'
 $mismatchedExternalOperation = Copy-HcrObject $historicalExternalOperation
@@ -1531,6 +1542,22 @@ $mismatchedExternalOperation.evidenceSha256 = Get-HcrEvidenceDocumentDigest `
 Assert-Gate7 (-not (Test-HcrEvidenceDocumentV2 `
         $mismatchedExternalEvidence $mismatchedExternalOperation).valid) `
     'External evidence accepted mismatched plugin base and build versions.'
+$v040BaseV041Build = Copy-HcrObject $v040ExternalEvidence
+$v040BaseV041Build.runtime.pluginBuildVersion = '0.4.1+codex.20260804090000'
+$v040BaseV041Operation = Copy-HcrObject $v040ExternalOperation
+$v040BaseV041Operation.evidenceSha256 = Get-HcrEvidenceDocumentDigest `
+    $v040BaseV041Build
+Assert-Gate7 (-not (Test-HcrEvidenceDocumentV2 `
+        $v040BaseV041Build $v040BaseV041Operation).valid) `
+    'External evidence accepted a v0.4.0 base with a v0.4.1 build.'
+$v041BaseV040Build = Copy-HcrObject $externalEvidence
+$v041BaseV040Build.runtime.pluginBuildVersion = '0.4.0+codex.20260731141404'
+$v041BaseV040Operation = Copy-HcrObject $externalOperation
+$v041BaseV040Operation.evidenceSha256 = Get-HcrEvidenceDocumentDigest `
+    $v041BaseV040Build
+Assert-Gate7 (-not (Test-HcrEvidenceDocumentV2 `
+        $v041BaseV040Build $v041BaseV040Operation).valid) `
+    'External evidence accepted a v0.4.1 base with a v0.4.0 build.'
 
 $deploymentDriftState = Read-HcrMockAdapterState
 $deploymentDriftState | Add-Member -NotePropertyName portableActiveDeploymentOverride `

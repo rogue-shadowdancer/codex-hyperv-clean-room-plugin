@@ -151,8 +151,8 @@ Assert-SetEqual $protocolVersions @(
 ) 'Frozen MCP protocol versions changed.'
 
 if ([string]$manifest.version -cnotmatch `
-    '^0\.4\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') {
-    throw "Plugin base version 0.4.0 with at most one cachebuster is required: $($manifest.version)"
+    '^0\.4\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?$') {
+    throw "Plugin base version 0.4.1 with at most one cachebuster is required: $($manifest.version)"
 }
 if ($serverScript -match 'not implemented yet' -or $serverScript -match 'exit\s+78\s*$') {
     throw 'MCP entry point still contains the obsolete Gate 1.1 fail-closed stub.'

@@ -382,3 +382,33 @@ non-elevated Codex task must actually select the installed personal plugin and
 separately run typed `inspect_host`, `list_vms(managedOnly=false)`, and one
 typed `inspect_vm` before real-VM read access is accepted. Every Hyper-V or
 guest mutation remains subject to its own action-time authorization.
+
+## v0.4.1 minimal VM inventory projection repair
+
+The immutable v0.1.1 through v0.4.0 tags and Releases remain historical. The
+v0.4.1 patch packages the already-merged list-specific shallow inventory,
+state-first ownership screen, candidate-only storage projection, and stable
+privacy-bounded stage classifications. It preserves exactly 20 public tools,
+all closed inputs, schema paths/IDs, Plan/Apply behavior, and evidence fields;
+the only evidence-schema change is the strict matching v0.4.1 runtime
+provenance pair alongside every accepted historical pair.
+
+After runtime, contracts, tests, and documentation are stable, invoke the
+cachebuster helper exactly once and freeze the resulting
+`0.4.1+codex.20260804074002` value. Run the no-real-host Gate 2 path,
+installation/security tests, schema-v2 compatibility tests, documentation
+validation, and the complete CI-safe public-release aggregate. Review the exact
+staged candidate to zero actionable findings, publish a ready protected PR,
+and complete a fresh unchanged-head 30-minute review window. This source Gate
+does not install, call production tools, merge, tag, or publish a Release.
+
+After a normal protected merge, a separate Gate installs that exact commit and
+requires all 31 payload hashes, source/installed version, source commit,
+cachebuster, one marketplace entry, and installed/enabled state to agree. A
+fresh non-elevated selected-plugin task then calls typed `inspect_host` once and
+`list_vms(managedOnly=false)` once. It calls `inspect_vm` automatically only
+when exactly one returned VM is `verified`; multiple candidates require an
+explicit user selection, and zero candidates remain `notPerformed`. Any typed
+failure stops without retry or alternate transport. Only successful production
+read-only acceptance can unlock a separately authorized annotated `v0.4.1`
+tag and source-only Release at the same tested commit.

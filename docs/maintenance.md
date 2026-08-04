@@ -46,6 +46,14 @@ the helper. Protected `master`, annotated `v0.4.0`, the source-only Release,
 and installed `sourceCommit` must remain one commit. Immutable v0.1.1 through
 v0.3.2 remain unchanged.
 
+The v0.4.1 list-inventory repair Gate invokes the helper exactly once only
+after runtime, contract, tests, and documentation are stable. The resulting
+`0.4.1+codex.20260804074002` value is committed and reviewed without a second
+helper run. Installation occurs only from the later protected merge commit, and
+production typed read-only acceptance occurs only in a fresh non-elevated task.
+The `v0.4.1` tag and source-only Release remain a separate authorization Gate
+after that acceptance. Immutable v0.1.1 through v0.4.0 remain unchanged.
+
 The historical `v0.1.1` release used the helper exactly once and produced
 `0.1.1+codex.20260715064728`. Release verification must preserve that value;
 do not run the helper again merely to reinstall the accepted source commit.

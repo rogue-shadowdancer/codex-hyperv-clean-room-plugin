@@ -24,8 +24,9 @@ The primary security properties are:
 
 ### Least-privilege host authorization
 
-Runtime `0.4.0` authorizes production Hyper-V access from the current MCP
-server token only. An enabled local `Hyper-V Administrators` SID
+Runtime `0.4.1` retains the v0.4.0 authorization model and authorizes
+production Hyper-V access from the current MCP server token only. An enabled
+local `Hyper-V Administrators` SID
 `S-1-5-32-578` is sufficient and preferred. An elevated Administrator token
 remains compatible, but successful envelopes include the exact
 `BROADER_PRIVILEGE_CONTEXT` warning so a broader context cannot be mistaken

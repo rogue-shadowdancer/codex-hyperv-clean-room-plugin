@@ -28,7 +28,7 @@ try {
     $inventory = Get-HcrSourceInventory -SourceRoot $sourceRoot
     Assert-Gate4 ($inventory.pluginName -ceq 'hyperv-clean-room') `
         'Source validation returned the wrong plugin name.'
-    Assert-Gate4 ($inventory.baseVersion -ceq '0.4.0') `
+    Assert-Gate4 ($inventory.baseVersion -ceq '0.4.1') `
         'Source validation returned the wrong base version.'
     Assert-Gate4 ($inventory.fileCount -eq 31) `
         'Source validation did not freeze the 31-file schema-v2 payload.'
@@ -39,6 +39,25 @@ try {
     Assert-Gate4 (@($inventory.files | Where-Object {
                 [long]$_.size -lt 0 -or [string]$_.sha256 -notmatch '^[0-9a-f]{64}$'
             }).Count -eq 0) 'Source inventory contains an invalid size or SHA-256.'
+    $legacyVersion = Get-HcrPluginVersionInfo '0.4.0+codex.20260731141404'
+    Assert-Gate4 ($legacyVersion.baseVersion -ceq '0.4.0' -and
+        $legacyVersion.cachebuster -ceq '20260731141404') `
+        'The version parser cannot classify the immutable v0.4.0 install for drift reporting.'
+    $currentVersion = Get-HcrPluginVersionInfo '0.4.1+codex.20260804090000'
+    Assert-Gate4 ($currentVersion.baseVersion -ceq '0.4.1' -and
+        $currentVersion.cachebuster -ceq '20260804090000') `
+        'The version parser cannot classify the current v0.4.1 source.'
+    foreach ($invalidVersion in @(
+            '0.4.2+codex.20260804090000',
+            '0.4.1+codex.first+codex.second',
+            '0.4.1+codex.UPPERCASE'
+        )) {
+        $invalidVersionRejected = $false
+        try { [void](Get-HcrPluginVersionInfo $invalidVersion) }
+        catch { $invalidVersionRejected = $true }
+        Assert-Gate4 $invalidVersionRejected `
+            "The version parser accepted an unsupported identity: $invalidVersion"
+    }
     $caseCollisionRejected = $false
     try { Assert-HcrUniqueRelativePaths -Paths @('Path/File.json', 'path/file.json') }
     catch { $caseCollisionRejected = $true }
@@ -96,6 +115,70 @@ try {
                 [long]$_.size -lt 0 -or
                 [string]$_.sha256 -notmatch '^[0-9a-f]{64}$'
             }).Count -eq 0) 'Serialized install manifest is not relative-path/size/SHA-256 bounded.'
+
+    foreach ($metadataMismatch in @(
+            [pscustomobject]@{
+                property = 'sourceVersion'
+                value = '0.4.0+codex.20260731141404'
+            },
+            [pscustomobject]@{
+                property = 'sourceCommit'
+                value = ('f' * 40)
+            },
+            [pscustomobject]@{
+                property = 'cachebuster'
+                value = '20260731141404'
+            }
+        )) {
+        $propertyName = [string]$metadataMismatch.property
+        $originalValue = $installedManifest.$propertyName
+        $installedManifest.$propertyName = $metadataMismatch.value
+        Write-HcrInstallJson `
+            -Path (Join-Path $owned '.codex-plugin\install-manifest.json') `
+            -Value $installedManifest `
+            -ContainmentRoot $owned
+        $mismatchedState = Get-HcrInstalledPayloadState `
+            -SourceInventory $inventory `
+            -TargetRoot $owned
+        Assert-Gate4 ($mismatchedState.installed -and $mismatchedState.owned -and
+            -not $mismatchedState.matches -and
+            -not [string]::IsNullOrWhiteSpace([string]$mismatchedState.error)) `
+            "Installed $propertyName drift was not reported as a stable mismatch."
+        $installedManifest.$propertyName = $originalValue
+        Write-HcrInstallJson `
+            -Path (Join-Path $owned '.codex-plugin\install-manifest.json') `
+            -Value $installedManifest `
+            -ContainmentRoot $owned
+    }
+
+    $preservedPayloadPath = Join-Path $owned 'mcp\server.ps1'
+    $preservedPayloadHash = (Get-FileHash -LiteralPath $preservedPayloadPath -Algorithm SHA256).Hash
+    $installedPluginManifestPath = Join-Path $owned '.codex-plugin\plugin.json'
+    $installedPluginManifest = Read-HcrInstallJson $installedPluginManifestPath
+    $installedPluginManifest.version = '0.4.0+codex.20260731141404'
+    Write-HcrInstallJson `
+        -Path $installedPluginManifestPath `
+        -Value $installedPluginManifest `
+        -ContainmentRoot $owned
+    $legacyState = Get-HcrInstalledPayloadState -SourceInventory $inventory -TargetRoot $owned
+    Assert-Gate4 ($legacyState.installed -and $legacyState.owned -and
+        -not $legacyState.matches -and
+        [string]$legacyState.installedVersion -ceq '0.4.0+codex.20260731141404' -and
+        -not [string]::IsNullOrWhiteSpace([string]$legacyState.error)) `
+        'A stale installed v0.4.0 payload did not produce a stable v0.4.1 mismatch result.'
+    $legacyCheck = Get-HcrInstallCheck `
+        -SourceInventory $inventory `
+        -TargetRoot $owned `
+        -MarketplacePath (Join-Path $testRoot 'missing-marketplace.json')
+    Assert-Gate4 ($legacyCheck.installed -and $legacyCheck.owned -and
+        -not $legacyCheck.matches -and
+        [string]$legacyCheck.installedVersion -ceq '0.4.0+codex.20260731141404' -and
+        -not [string]::IsNullOrWhiteSpace([string]$legacyCheck.payloadError)) `
+        'Install-check JSON fields did not preserve the stale v0.4.0 mismatch.'
+    Assert-Gate4 ((Get-FileHash -LiteralPath $preservedPayloadPath -Algorithm SHA256).Hash -ceq
+        $preservedPayloadHash) `
+        'Read-only stale-install detection changed an installed payload file.'
+    $null = Install-HcrPluginPayload -SourceInventory $inventory -TargetRoot $owned
 
     Add-Content -LiteralPath (Join-Path $owned '.codex-plugin\plugin.json') -Value 'tamper'
     $tampered = Get-HcrInstalledPayloadState -SourceInventory $inventory -TargetRoot $owned

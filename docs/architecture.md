@@ -3,7 +3,7 @@
 ## Status and assurance boundary
 
 Hyper-V Clean Room is a Windows-only Codex plugin whose product surface is a
-PowerShell 5.1 MCP server. Source version `0.4.0` preserves the exact 16
+PowerShell 5.1 MCP server. Source version `0.4.1` preserves the exact 16
 schema-v1 tools, five public schema-v1 documents, four schema-v2 power/network
 tools, and seven schema-v2 paths. It adds an external portable branch while
 preserving the embedded `0.2.0` branch. Gate 2 implements both the mock adapter and the
@@ -22,7 +22,7 @@ power-transition, and network-transition adapters recompute authorization at
 the final mutation boundary so a mock snapshot or earlier plan cannot confer
 authority.
 
-Production VM listing has a separate shallow adapter seam from deep VM
+The v0.4.1 production VM listing path has a separate shallow adapter seam from deep VM
 inspection. `ListVms` enumerates once and projects only ID, name, state,
 generation, Notes, and configuration path. Ownership then performs a keyed
 state lookup by VM ID. Unmanaged entries stop there; only a matching record and
@@ -33,7 +33,9 @@ needed to compare the recorded base.
 It never reads NICs, switches, checkpoints, firmware, security, or the full VM
 configuration. `inspect_vm` and guarded mutation paths retain the full snapshot.
 
-Implementation is therefore not the same as clean-machine validation. A real
+The v0.4.1 source Gate validates this seam through mock/runtime/static evidence;
+production typed readback remains a later post-install Gate. Implementation is
+therefore not the same as clean-machine validation. A real
 operator must treat guest transfer and lifecycle actions as state-changing and
 obtain explicit authorization for the named VM and operation before use.
 
