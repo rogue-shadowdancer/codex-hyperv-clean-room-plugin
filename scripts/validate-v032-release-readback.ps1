@@ -13,10 +13,10 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$MarketplacePath = (Join-Path $HOME '.agents\plugins\marketplace.json'),
 
-    [ValidateSet('0.3.2', '0.4.0')]
+    [ValidateSet('0.3.2', '0.4.0', '0.4.1')]
     [string]$ReleaseVersion = '0.3.2',
 
-    [ValidatePattern('^0\.(?:3\.2|4\.0)\+codex\.[0-9]{14}$')]
+    [ValidatePattern('^0\.(?:3\.2|4\.[01])\+codex\.[0-9]{14}$')]
     [string]$ExpectedBuildVersion = '0.3.2+codex.20260731014242'
 )
 
@@ -269,6 +269,16 @@ $historicalBaselines = @(
         targetCommitish = 'd4598c4c49b8fc8500aea321190870288bcaa4ee'
         createdAt = '2026-07-31T02:57:56Z'
         publishedAt = '2026-07-31T03:00:18Z'
+    },
+    [pscustomobject]@{
+        tag = 'v0.4.0'
+        tagObject = 'bd2732197ec3d438ec462998335dc39f4b458bb6'
+        peeledCommit = '52f947ce9a46f9a22a339a922042305e1e21a3ad'
+        releaseId = 363210582
+        name = 'v0.4.0'
+        targetCommitish = '52f947ce9a46f9a22a339a922042305e1e21a3ad'
+        createdAt = '2026-07-31T16:49:21Z'
+        publishedAt = '2026-07-31T16:52:38Z'
     }
 )
 $historicalBaselines = @($historicalBaselines | Where-Object {

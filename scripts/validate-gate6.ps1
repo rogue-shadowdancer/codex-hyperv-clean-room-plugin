@@ -67,7 +67,7 @@ try {
     }
     if (-not [bool]$contractResult.ok -or
         [string]$contractResult.targetPluginVersion -cne '0.3.0' -or
-        [string]$contractResult.currentRuntimeVersion -cne '0.4.0' -or
+        [string]$contractResult.currentRuntimeVersion -cne '0.4.1' -or
         [int]$contractResult.v1ToolsPreserved -ne 16 -or
         [int]$contractResult.v2ToolsDeclared -ne 20 -or
         [int]$contractResult.v1SchemasPreserved -ne 5 -or
@@ -76,7 +76,7 @@ try {
         [int]$contractResult.schemaInvalidFixtures -ne 5 -or
         [int]$contractResult.semanticInvalidFixtures -ne 3 -or
         [int]$contractResult.migrationFixtures -ne 2 -or
-        [int]$contractResult.dynamicCompatibilityChecks -ne 15 -or
+        [int]$contractResult.dynamicCompatibilityChecks -ne 19 -or
         [int]$contractResult.p3_1ValidFixtures -ne 6 -or
         [int]$contractResult.p3_1SchemaInvalidFixtures -ne 5 -or
         [int]$contractResult.p3_1NegativeCases -ne 41 -or

@@ -4,6 +4,47 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
+## 0.4.1 - Minimal VM inventory projection - Unreleased
+
+### Fixed
+
+- Use a list-specific production VM summary containing only ID, name, state,
+  generation, and the internal Notes/configuration-path fields needed for the
+  first ownership screen; `list_vms` no longer expands every VM through the
+  deep `inspect_vm` snapshot.
+- Resolve ownership state by VM ID before storage enrichment. Unmanaged VMs
+  perform no disk/VHD read, and only ID/name/Notes-matched candidates enter the
+  expected-identity storage seam with a live Notes recheck.
+- Preserve unverified candidates safely: `managedOnly=true` skips them and
+  `managedOnly=false` retains a reduced `OWNERSHIP_UNVERIFIED` summary with one
+  bounded identity-free warning.
+- Classify provider inventory failures as `HYPERV_UNAVAILABLE` at
+  `vmInventory`, required summary failures as `INTERNAL_ERROR` at
+  `vmSummaryProjection`, and recoverable ownership projection warnings at
+  `ownershipProjection`, always without raw exception or resource identity.
+
+### Compatibility and validation boundary
+
+- Preserve exactly 20 public tools, all closed input schemas, v1/v2 dispatch,
+  Plan/Apply and recovery semantics, and evidence fields. Evidence runtime
+  provenance adds only the strict v0.4.1 base/build pair while retaining all
+  accepted v0.3.x and v0.4.0 pairs.
+- Add stale-installed-v0.4.0 drift coverage, strict cross-version provenance
+  rejection, and an independent v0.4.1 release-readback wrapper without
+  changing historical tags or Releases.
+- Keep legacy v0.4.0 parsing confined to installed-state drift: source
+  inventory and installation fail closed unless the candidate base is v0.4.1.
+  Native evidence validation and runtime identity production now also apply
+  case-sensitive build provenance matching, consistent with the authoritative
+  JSON Schema.
+- Freeze the single candidate build `0.4.1+codex.20260804074002` after the
+  runtime, contracts, tests, and documentation are stable; do not regenerate
+  it during review, merge, installation, or Release.
+- This source Gate uses mock/runtime/schema/static and CI-safe validation only.
+  Installation and production typed `inspect_host`,
+  `list_vms(managedOnly=false)`, and conditional `inspect_vm` remain later,
+  separately bounded gates. No Hyper-V or guest mutation is authorized.
+
 ## 0.4.0 - Least-privilege Hyper-V authorization - 2026-07-31
 
 ### Changed

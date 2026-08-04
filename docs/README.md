@@ -71,6 +71,12 @@ host mutation adapter rechecks the live token at its mutation boundary.
 Elevated compatibility emits `BROADER_PRIVILEGE_CONTEXT`, and inaccessible
 ISO, VM-root, or state-root paths return precise access-denied codes without
 changing ACLs or elevating the process.
+The v0.4.1 compatible patch packages the merged `list_vms` shallow inventory
+and ownership-screen repair without changing that public surface. Its source
+Gate adds only strict v0.4.1 runtime provenance, stale-v0.4.0 install drift
+reporting, regression coverage, and release-readback preparation. Installation
+and production typed read-only acceptance remain later gates; no mock or static
+result is promoted to real-host evidence.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.

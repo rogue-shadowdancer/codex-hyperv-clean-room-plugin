@@ -2,7 +2,8 @@
 
 This directory is the authoritative G7/P3.1 machine-readable target for plugin
 target base version `0.3.0` and public schema version 2. The current
-least-privilege runtime is `0.4.0`. G7/P3.2 implements the original target
+list-repair runtime is `0.4.1` and retains the v0.4.0 least-privilege boundary.
+G7/P3.2 implements the original target
 in the source runtime without changing any MCP tool name or input. P3.2
 performs no package/release/install operation and invokes no real Hyper-V or
 guest operation. G7/P3.3 publishes immutable, source-only `v0.3.0` and accepts
@@ -52,10 +53,10 @@ and exact driver behavior.
 
 `compatibility.json` pins the five byte-identical schema-v1 files and records
 the seven installed/runtime schema-v2 hashes. P3.2 made target and runtime
-`0.3.0`; P3.3-R2 retains target `0.3.0` and advances current runtime to
-`0.4.0`. The evidence schema adds only the matching v0.4.0 runtime-provenance
-pair while retaining all v0.3.x pairs; every source-tree installed schema-v2
-copy is therefore
+`0.3.0`; the compatible patch line retains target `0.3.0` and advances current
+runtime to `0.4.1`. The evidence schema adds only strict matching v0.4.0 and
+v0.4.1 runtime-provenance pairs while retaining all v0.3.x pairs; every
+source-tree installed schema-v2 copy is therefore
 byte-identical to this authoritative directory. P3.3 publishes and installs
 that exact source. Package, portable, guest, driver, UI, network, and
 clean-machine execution remain separate and `notPerformed`.

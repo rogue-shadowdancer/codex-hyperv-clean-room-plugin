@@ -2,11 +2,12 @@
 
 ## Current operating status
 
-The v0.4.0 gate applies the ownership-marked personal install and
-cachebuster-reinstall workflow to the least-privilege runtime. Final
-acceptance requires the clean
-commit/reinstall state recorded in `TASK_HANDOFF.md`. Exactly one
-`0.4.0+codex.20260731141404` build is frozen after the candidate is stable.
+The v0.4.1 source Gate prepares the merged minimal-list repair for the existing
+ownership-marked personal install workflow. It freezes exactly one cachebuster
+after the candidate is stable, `0.4.1+codex.20260804074002`, but performs no
+installation or production typed call. The current installed v0.4.0 payload remains historical input to the
+read-only drift check. Final v0.4.1 acceptance requires the later protected
+merge/install state recorded in `TASK_HANDOFF.md`.
 Catalog-only acceptance starts only from
 `%USERPROFILE%\plugins\hyperv-clean-room`, negotiates MCP `2025-11-25`, and
 discovers exactly 20 unique tools without calling any tool. An explicit
@@ -15,7 +16,9 @@ only `inspect_host` and `list_vms` after verifying the mandatory warning and
 `changed=false`; it reports zero real-operation counts. Neither check inspects
 or mutates a real host, Hyper-V resource, VM, guest, credential,
 package, portable deployment, driver, UI, network, evidence, or manual result.
-It performs no real Hyper-V mutation.
+It performs no real Hyper-V mutation. Production `inspect_host`, one
+`list_vms(managedOnly=false)` call, and conditional `inspect_vm` are a later
+fresh-task Gate and must not be substituted by this source validation.
 
 G7/P3.2 advances the repository source runtime to `0.3.0` and makes the seven
 source-tree installed v2 schemas exact copies of their authorities. G7/P3.3

@@ -265,17 +265,17 @@ function Get-HcrPluginVersionInfo {
 
     $match = [regex]::Match(
         $Version,
-        '^0\.4\.0(?:\+codex\.(?<cachebuster>[a-z0-9]+(?:-[a-z0-9]+)*))?$'
+        '^0\.4\.(?<patch>[01])(?:\+codex\.(?<cachebuster>[a-z0-9]+(?:-[a-z0-9]+)*))?$'
     )
     Assert-HcrInstallCondition $match.Success `
-        "Plugin version must be 0.4.0 with at most one +codex.<cachebuster> suffix: $Version"
+        "Plugin version must be 0.4.0 or 0.4.1 with at most one +codex.<cachebuster> suffix: $Version"
     $cachebuster = if ($match.Groups['cachebuster'].Success) {
         [string]$match.Groups['cachebuster'].Value
     }
     else { $null }
     return [pscustomobject][ordered]@{
         version = $Version
-        baseVersion = '0.4.0'
+        baseVersion = "0.4.$([string]$match.Groups['patch'].Value)"
         cachebuster = $cachebuster
     }
 }
@@ -357,6 +357,8 @@ function Get-HcrSourceInventory {
     Assert-HcrInstallCondition ([string]$manifest.name -ceq $script:HcrPluginName) `
         'Plugin manifest name is not hyperv-clean-room.'
     $versionInfo = Get-HcrPluginVersionInfo ([string]$manifest.version)
+    Assert-HcrInstallCondition ([string]$versionInfo.baseVersion -ceq '0.4.1') `
+        'Plugin source base version must be 0.4.1; v0.4.0 is recognized only for installed-state drift reporting.'
     if ($RequireCachebuster) {
         Assert-HcrInstallCondition (-not [string]::IsNullOrWhiteSpace([string]$versionInfo.cachebuster)) `
             'A Codex cachebuster is required for this validation.'

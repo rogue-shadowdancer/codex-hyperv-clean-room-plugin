@@ -1527,8 +1527,8 @@ def assert_contract_metadata(catalog: dict[str, Any]) -> None:
         raise AssertionError("tool catalog contractVersion must be 2")
     if catalog.get("targetPluginVersion") != "0.3.0":
         raise AssertionError("tool catalog target plugin version must be 0.3.0")
-    if catalog.get("currentRuntimeVersion") != "0.4.0":
-        raise AssertionError("the executable least-privilege runtime must be 0.4.0")
+    if catalog.get("currentRuntimeVersion") != "0.4.1":
+        raise AssertionError("the executable list-repair runtime must be 0.4.1")
     if catalog.get("consumerContract") != "contracts/v2/consumer-contract.json":
         raise AssertionError("tool catalog does not bind the P3.1 consumer contract")
     envelopes = catalog.get("resultEnvelopes", {})
@@ -1546,11 +1546,11 @@ def assert_contract_metadata(catalog: dict[str, Any]) -> None:
         raise AssertionError("tool catalog schema dispatch is not exact and fail closed")
     manifest = load_json(PLUGIN_MANIFEST_PATH)
     if not re.fullmatch(
-        r"0\.4\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?",
+        r"0\.4\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?",
         str(manifest["version"]),
     ):
         raise AssertionError(
-            "the integrated manifest must expose base 0.4.0 with at most "
+            "the integrated manifest must expose base 0.4.1 with at most "
             "one Codex cachebuster"
         )
 
@@ -1559,7 +1559,7 @@ def assert_v1_compatibility(catalog: dict[str, Any]) -> tuple[int, int]:
     compatibility = load_json(CONTRACT_ROOT / "compatibility.json")
     if (
         compatibility.get("targetPluginVersion") != "0.3.0"
-        or compatibility.get("currentRuntimeVersion") != "0.4.0"
+        or compatibility.get("currentRuntimeVersion") != "0.4.1"
     ):
         raise AssertionError("target/runtime compatibility versions drifted")
     live_tools = live_v1_tools()
@@ -3034,6 +3034,20 @@ def main() -> int:
     ] = "0.3.0+codex.20260729122233"
     if list(external_evidence_validator.iter_errors(historical_external_probe)):
         raise AssertionError("schema rejected immutable v0.3.0 external evidence")
+    v040_external_probe = deepcopy(external_evidence_probe)
+    v040_external_probe["runtime"]["pluginBaseVersion"] = "0.4.0"
+    v040_external_probe["runtime"][
+        "pluginBuildVersion"
+    ] = "0.4.0+codex.20260731141404"
+    if list(external_evidence_validator.iter_errors(v040_external_probe)):
+        raise AssertionError("schema rejected immutable v0.4.0 external evidence")
+    v041_external_probe = deepcopy(external_evidence_probe)
+    v041_external_probe["runtime"]["pluginBaseVersion"] = "0.4.1"
+    v041_external_probe["runtime"][
+        "pluginBuildVersion"
+    ] = "0.4.1+codex.20260804090000"
+    if list(external_evidence_validator.iter_errors(v041_external_probe)):
+        raise AssertionError("schema rejected the current v0.4.1 external evidence")
     mismatched_external_probe = deepcopy(historical_external_probe)
     mismatched_external_probe["runtime"][
         "pluginBuildVersion"
@@ -3042,6 +3056,18 @@ def main() -> int:
         raise AssertionError(
             "schema accepted mismatched external plugin base/build versions"
         )
+    v040_base_v041_build = deepcopy(v040_external_probe)
+    v040_base_v041_build["runtime"][
+        "pluginBuildVersion"
+    ] = "0.4.1+codex.20260804090000"
+    if not list(external_evidence_validator.iter_errors(v040_base_v041_build)):
+        raise AssertionError("schema accepted a v0.4.0 base with a v0.4.1 build")
+    v041_base_v040_build = deepcopy(v041_external_probe)
+    v041_base_v040_build["runtime"][
+        "pluginBuildVersion"
+    ] = "0.4.0+codex.20260731141404"
+    if not list(external_evidence_validator.iter_errors(v041_base_v040_build)):
+        raise AssertionError("schema accepted a v0.4.1 base with a v0.4.0 build")
     zip_name_drift_probe = deepcopy(external_evidence_probe)
     zip_name_drift_probe["candidate"][
         "portableZipFileName"
@@ -3183,7 +3209,7 @@ def main() -> int:
             {
                 "ok": True,
                 "targetPluginVersion": "0.3.0",
-                "currentRuntimeVersion": "0.4.0",
+                "currentRuntimeVersion": "0.4.1",
                 "v1ToolsPreserved": v1_tool_count,
                 "v2ToolsDeclared": len(EXPECTED_TOOL_NAMES),
                 "v1SchemasPreserved": v1_schema_count,
@@ -3192,7 +3218,7 @@ def main() -> int:
                 "schemaInvalidFixtures": schema_invalid_count,
                 "semanticInvalidFixtures": semantic_invalid_count,
                 "migrationFixtures": 2,
-                "dynamicCompatibilityChecks": 15,
+                "dynamicCompatibilityChecks": 19,
                 "p3_1ValidFixtures": p3_1_valid_count,
                 "p3_1SchemaInvalidFixtures": p3_1_schema_invalid_count,
                 "p3_1NegativeCases": p3_1_negative_case_count,

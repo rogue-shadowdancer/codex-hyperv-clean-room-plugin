@@ -1,4 +1,4 @@
-# Task handoff: `list_vms` minimal production projection
+# Task handoff: v0.4.1 minimal VM inventory repair candidate
 
 `relayProtocolVersion: 1`
 
@@ -6,138 +6,140 @@
 
 ## Objective and authority
 
-Implement one backward-compatible runtime Gate that removes deep
-`inspect_vm`-level projection from production `list_vms`, layers ownership
-enrichment behind keyed state and marker checks, and adds stable bounded stage
-classification for unrecoverable list failures.
+Package the merged production `list_vms` minimal-projection repair as a
+backward-compatible v0.4.1 candidate, validate its exact source tree, and
+publish a ready protected PR. This source Gate does not install the plugin,
+call a production Hyper-V tool, merge, tag, or create a Release.
 
-- Exact protected base: `f0da5cff3510d152e61bc9e3497adaed72d786a6`,
-  the normal merge commit for documentation PR #33.
-- Base tree: `bc0eff06cdd6f0bc8bf8344582c698cce204cba7`.
-- Task branch: `codex/list-vms-minimal-projection`.
-- This worktree is the Gate's only writer. The stopped PR #33 task, older H5C
-  checkout, Birdsgone, and the preserved documentation-review source remain
-  read-only.
+- PR [#34](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/pull/34)
+  was normally merged at `2026-08-04T06:57:55Z`.
+- Exact protected base:
+  `4ba9cfbe2b75b514740e3e1467cba03b4f094417`.
+- Base tree: `366bc98f02504f846291aa9b5fb81df1536f6cd0`.
+- Task branch: `codex/v041-list-vms-release`.
+- This worktree is the only writer. Older h5 checkouts, the preserved ccdc
+  documentation worktree, and Birdsgone remain read-only.
 
-## Preserved PR #33 review fixes
+## Merged runtime repair
 
-The reusable capability-discovery authority remains
+Production `ListVms` enumerates once and projects only ID, name, state,
+generation, Notes, and VM configuration path. Notes/path remain internal. The
+list path does not call `ConvertTo-HcrRealVmSnapshot` or read NICs, switches,
+checkpoints, firmware, security, or complete VM configuration.
+
+Ownership reads keyed state by VM ID before enrichment. Missing state is
+unmanaged and performs no disk/VHD read. Only matching ID/name/Notes candidates
+enter the expected-identity storage seam, which revalidates the live Notes
+marker. Incomplete storage stays `OWNERSHIP_UNVERIFIED`; it is skipped by
+`managedOnly=true` and retained with one bounded identity-free warning by
+`managedOnly=false`.
+
+Inventory/provider failure is `HYPERV_UNAVAILABLE` at `vmInventory`; required
+summary failure is `INTERNAL_ERROR` at `vmSummaryProjection`; recoverable
+ownership projection is named only by its warning stage. State access and
+integrity errors retain their existing stable codes. Every list failure is
+`changed=false` and omits raw exceptions and sensitive resource identity.
+
+## v0.4.1 candidate changes
+
+- Advance runtime, manifest, catalog, and compatibility current identity to
+  v0.4.1 while retaining exactly 20 public tools, every closed input, v1/v2
+  dispatch, Plan/Apply/recovery semantics, and evidence fields.
+- Add only the strict matching v0.4.1 evidence runtime-provenance pair; retain
+  matching v0.3.0, v0.3.1, v0.3.2, and v0.4.0 pairs and reject cross-pairs.
+- Keep authoritative and installable evidence schemas byte-identical and bind
+  their updated SHA-256 in `contracts/v2/compatibility.json`.
+- Recognize immutable installed v0.4.0 identities so read-only installation
+  checks report stable drift instead of throwing, while the current source
+  Gate requires v0.4.1 and rejects unknown or multiply suffixed versions.
+- Keep that legacy recognition out of the source-install path: source inventory
+  requires v0.4.1, and native evidence validation plus runtime identity
+  production use case-sensitive build matching so they agree with the
+  authoritative JSON Schema.
+- Add a v0.4.1 release-readback wrapper and freeze v0.4.0 as a historical
+  baseline without modifying any historical tag, Release, or wrapper meaning.
+- Freeze exactly one v0.4.1 cachebuster after the candidate is otherwise
+  stable: `0.4.1+codex.20260804074002`. Do not regenerate it during review,
+  merge, installation, or Release.
+
+The reusable capability-discovery, selectedCapabilityRoots, catalog/model
+registry, typed-call, restart, rollback, `deferred_tool_world_state`, and dated
+incident boundaries remain in
 [docs/troubleshooting.md](docs/troubleshooting.md#codex-desktop-capability-discovery).
-This runtime candidate absorbs all four preserved review dispositions:
 
-- use the established `list_vms(managedOnly=false)` signature;
-- separate the reusable installation/current-skill/MCP-startup/selected-
-  catalog/model-registry/production-typed-call workflow from dated incident
-  evidence, with bounded repair, complete restart, and rollback;
-- keep this handoff as a linked Gate summary instead of duplicating the
-  troubleshooting matrix and repair narrative; and
-- define an evidence lane and the current harness role of
-  `selectedCapabilityRoots`, while identifying `deferred_tool_world_state` only
-  as a separate unused feature key with no stability claim.
+## Installed-state boundary
 
-The standalone post-update selected-catalog recheck remains `notPerformed` and
-fresh model inventory is not substituted for that lane. The documentation
-continues to prohibit machine-specific cache paths and shell/WMI/direct-cmdlet,
-handwritten JSON-RPC, alternate-registration, or mock/static substitution.
+At source-Gate start the owned/enabled personal plugin remained immutable
+`0.4.0+codex.20260731141404` from
+`52f947ce9a46f9a22a339a922042305e1e21a3ad`. Read-only
+`check_install.ps1` reported `installed=true`, `owned=true`,
+`marketplaceVisible=true`, `matches=false`, 31 source files, and a payload
+inventory mismatch. That is expected source/install drift and is not v0.4.1
+runtime evidence.
 
-## Runtime design and compatibility
-
-- Production `ListVms` enumerates with `Get-VM` once and uses a list-specific
-  summary containing only ID, name, state, generation, Notes, and VM path.
-  Notes/path are internal and are not returned publicly. The path does not call
-  `ConvertTo-HcrRealVmSnapshot` or read NICs, switches, checkpoints, firmware,
-  security, or complete VM configuration.
-- Ownership first reads the keyed record by VM ID. No record means unmanaged
-  and causes no disk/VHD projection. Only matching record ID/name and Notes
-  marker candidates enter the new internal storage projection.
-- The storage projection rebinds expected VM ID/name, revalidates the live
-  Notes marker, and then reads the first attached-disk path plus only the
-  VHD-chain identity needed for the recorded base. Incomplete projection cannot
-  establish ownership.
-- `managedOnly=true` skips storage-unverified candidates.
-  `managedOnly=false` retains their reduced summary as
-  `OWNERSHIP_UNVERIFIED` and emits one bounded identity-free warning naming
-  `ownershipProjection`.
-- Provider inventory failures remain `HYPERV_UNAVAILABLE` with
-  `error.details.stage: vmInventory`; required summary failures remain
-  `INTERNAL_ERROR` with `stage: vmSummaryProjection`. State access/integrity
-  errors remain `STATE_ROOT_ACCESS_DENIED` / `STATE_INTEGRITY_ERROR`. All list
-  failures are `changed=false` and omit raw exceptions and sensitive identity.
-
-The base/build version, exact 20-tool surface and inputs, public schemas and
-version dispatch, Plan/Apply consumption/recovery, evidence contract,
-`inspect_host`, full `inspect_vm`, guest paths, installation payload, and
-release identities are unchanged. No public tool, field, or error code is
-added.
-
-## Changed areas
-
-- `hyperv-clean-room/mcp/lib/Adapters.ps1`: shallow list projection, stable
-  inventory/summary stages, and internal candidate-only ownership projection.
-- `hyperv-clean-room/mcp/lib/Tools.Host.ps1`: keyed list ownership screen,
-  candidate-only enrichment, safe filtering, and one bounded warning.
-- `tests/gate2-runtime.tests.ps1`: zero/multi/Unicode, unmanaged deep-getter
-  isolation, candidate-only projection, both filter modes, TOCTOU binding,
-  staged failures, state failures, warning/privacy, catalog, inspect, and
-  Plan/Apply regressions.
-- `docs/specification.md`, `docs/architecture.md`, and
-  `docs/troubleshooting.md`: synchronized contract, architecture, operator
-  diagnosis, and preserved PR #33 review fixes.
-- `TASK_HANDOFF.md`: this linked runtime-Gate status.
+No manifest, marketplace, Codex cache, or installed payload is edited by this
+Gate. Installation belongs only to the later exact protected merge Gate.
 
 ## Verification and review
 
-The candidate passes the required local validation on 2026-08-03:
+The frozen source candidate passes the required local validation on
+2026-08-04:
 
-- `tests/gate2-runtime.tests.ps1`: `passed`, 1,688 assertions, exactly 20
-  tools, four protocol versions, and `realHyperVMutations=0`.
-- `prepare-test-python.ps1`: `passed`; Python 3.10.11 and the pinned isolated
-  dependency set were prepared below ignored `.artifacts`.
-- `validate-docs.ps1`: `passed`; 17 required documents, 102 local links,
+- `prepare-test-python.ps1`: passed with Python 3.10.11 and the pinned
+  ABI-isolated dependency inventory.
+- `tests/gate2-runtime.tests.ps1`: passed, 1,688 assertions, exactly 20 tools,
+  four protocol versions, and `realHyperVMutations=0`.
+- `tests/gate4-installation.tests.ps1`: passed, 45 assertions, 31 source
+  payloads, stable stale-v0.4.0 mismatch reporting, and
+  `realHyperVMutations=0`.
+- `validate-gate6.ps1 -SkipInheritedBaseline`: passed with current runtime
+  v0.4.1, 20 tools, seven v2 schemas, 19 dynamic compatibility checks, and
+  zero real host/guest operations.
+- `validate-gate7.ps1 -SkipInheritedBaseline`: passed with v0.4.1, 20 tools,
+  388 runtime assertions, ten generated evidence validations, and zero real
+  host/guest operations.
+- `validate-install-source.ps1 -RequireCachebuster`: passed with frozen build
+  `0.4.1+codex.20260804074002`, 31 payloads, five v1 schemas, and seven v2
+  schemas.
+- `validate-docs.ps1`: passed with 17 required documents, 102 local links,
   strict UTF-8, and zero mojibake markers.
-- `validate-public-release.ps1`: `passed`; all 13 checks, including Gate 2 and
-  the CI-safe Gate 4 path, with `realGuestOperations=0` and
+- `validate-public-release.ps1`: passed all 13 checks, including Gate 2 and the
+  CI-safe Gate 4 path, with `realGuestOperations=0` and
   `realHyperVMutations=0`.
 
 Commands:
 
 ```powershell
 .\scripts\prepare-test-python.ps1
+.\scripts\validate-gate2.ps1 -SkipRealHostSmoke
+.\tests\gate4-installation.tests.ps1
 .\scripts\validate-docs.ps1
 .\scripts\validate-public-release.ps1
 ```
 
-The initial exact staged diff received local substantive review with ZERO
-ACTIONABLE FINDINGS. Remote review then identified a live-Notes TOCTOU gap in
-the rebound ownership projection. The additive fix re-reads and validates the
-marker and adds a stale-summary regression. The resulting exact staged diff
-received the same scope, compatibility, privacy, error-boundary, test,
-documentation, and safety review with ZERO ACTIONABLE FINDINGS.
+The historical H4/G9 `validate-gate4.ps1` path includes bounded real-host
+readback and is deliberately not run by this source Gate. The CI-safe aggregate
+and `validate-gate2.ps1 -SkipRealHostSmoke` do not substitute for later
+production typed acceptance.
 
-The historical H4/G9 production-adapter `validate-gate4.ps1` smoke is not run
-by this source Gate because it reads the real host. It is not a substitute for
-the later separately authorized production typed acceptance.
+The final staged candidate must pass `git diff --cached --check` and substantive
+review with ZERO ACTIONABLE FINDINGS. After push, the exact PR head must also
+complete required checks and one fresh `@codex review` 30-minute unchanged-head
+window. Mock/runtime/schema/static success is not production Hyper-V evidence.
 
-## Evidence and safety result
+## Safety result and next Gate
 
-The candidate removes the known structurally over-broad list path, but existing
-logs still do not prove whether the prior first underlying exception came from
-`Get-VM`, a VM projection getter, ownership state, or storage enrichment.
-Mock/runtime/static success is not production Hyper-V evidence.
-
-This Gate performs no production typed retry, plugin installation or cache
-edit, tag, Release, merge, Hyper-V shell/WMI/direct-cmdlet substitute, VM/host/
-guest mutation, Plan/Apply call, credential operation, package/portable/UI run,
-evidence collection, or Birdsgone acceptance. Production
-`list_vms(managedOnly=false)` and `inspect_vm` remain `notPerformed` for this
-candidate and require a later separately authorized Gate.
-
-## Blockers and next Gate
+This Gate performs no plugin installation, production typed call, Hyper-V
+shell/WMI/direct-cmdlet or JSON-RPC substitute, VM/host/guest mutation,
+Plan/Apply call, credential operation, package/portable/UI run, evidence
+collection, Birdsgone acceptance, merge, tag, or Release. Production
+`inspect_host`, `list_vms(managedOnly=false)`, and `inspect_vm` remain
+`notPerformed` for v0.4.1.
 
 `blockers: []`
 
-The implementation, review-fix, validation, and GitHub synchronization work is
-published in ready PR [#34](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/pull/34)
-from this `codex/` branch. The PR is open and must not be merged by this Gate.
-Any production typed retry remains a later separately authorized Gate after
-candidate acceptance and installation.
+After the ready PR is normally merged by the user, the next task must fetch and
+bind to that exact protected merge commit, validate and install the one frozen
+v0.4.1 build, require all 31 payload hashes and installed identity fields to
+match, and then start a separate fresh non-elevated selected-plugin task. The
+installation task itself must not call any production Hyper-V tool.

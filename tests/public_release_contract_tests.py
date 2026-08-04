@@ -157,17 +157,17 @@ def main() -> int:
             )
     version = str(manifest.get("version", ""))
     if not re.fullmatch(
-        r"0\.4\.0(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?", version
+        r"0\.4\.1(?:\+codex\.[a-z0-9]+(?:-[a-z0-9]+)*)?", version
     ):
         raise AssertionError(
-            "integrated source version must expose base 0.4.0 with at most "
+            "integrated source version must expose base 0.4.1 with at most "
             f"one Codex cachebuster: {version}"
         )
 
     server = read_text("hyperv-clean-room/mcp/server.ps1")
     common = read_text("hyperv-clean-room/mcp/lib/Common.ps1")
-    if "$script:HcrPluginVersion" not in server or "$script:HcrPluginVersion = '0.4.0'" not in common:
-        raise AssertionError("MCP serverInfo is not bound to plugin version 0.4.0")
+    if "$script:HcrPluginVersion" not in server or "$script:HcrPluginVersion = '0.4.1'" not in common:
+        raise AssertionError("MCP serverInfo is not bound to plugin version 0.4.1")
     schemas = sorted((PLUGIN_ROOT / "schemas").glob("*.json"))
     if len(schemas) != 5:
         raise AssertionError("schema-v1 count must remain exactly five")
@@ -243,8 +243,11 @@ def main() -> int:
             )
 
     release_readback_core = read_text("scripts/validate-v032-release-readback.ps1")
-    release_readback_wrapper = read_text("scripts/validate-v040-release-readback.ps1")
-    release_readback = release_readback_core + release_readback_wrapper
+    release_readback_v040 = read_text("scripts/validate-v040-release-readback.ps1")
+    release_readback_v041 = read_text("scripts/validate-v041-release-readback.ps1")
+    release_readback = (
+        release_readback_core + release_readback_v040 + release_readback_v041
+    )
     for fragment in (
         "repos/$Repository/branches/master",
         "repos/$Repository/git/ref/tags/$Tag",
@@ -256,6 +259,7 @@ def main() -> int:
         "[string]$ExpectedBuildVersion",
         "ExpectedBuildVersion does not match ReleaseVersion",
         "-ReleaseVersion '0.4.0'",
+        "-ReleaseVersion '0.4.1'",
         "rev-parse HEAD",
         "--porcelain=v1 --untracked-files=all -- hyperv-clean-room",
         "sourceStatus.Count -eq 0",
@@ -281,13 +285,14 @@ def main() -> int:
         "'v0.3.0'",
         "'v0.3.1'",
         "'v0.3.2'",
+        "'v0.4.0'",
         "payload count is not 31",
         "inventory count is not 33",
         "hyperv-clean-room@personal",
     ):
         if fragment not in release_readback:
             raise AssertionError(
-                f"v0.4.0 release readback is missing: {fragment}"
+                f"v0.4.1 release readback is missing: {fragment}"
             )
     for forbidden in (
         "release create",

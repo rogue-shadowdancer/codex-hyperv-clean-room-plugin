@@ -6,15 +6,21 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: 0.4.0 least-privilege Hyper-V authorization
+### Status: 0.4.1 minimal VM inventory projection candidate
 
-The `0.4.0` runtime keeps the frozen `0.3.0` capability target, exactly 20
-public tool names and closed inputs, and every Plan/Apply consumption and drift
-boundary. Production Hyper-V access now accepts either an enabled local
-`Hyper-V Administrators` token or an elevated Administrator token. The former
-is the preferred least-privilege mode; elevated compatibility remains
-available but every successful result carries a
-`BROADER_PRIVILEGE_CONTEXT` warning.
+The `0.4.1` source candidate packages the merged production `list_vms` repair
+without changing the frozen `0.3.0` capability target, exactly 20 public tool
+names and closed inputs, or any Plan/Apply consumption and drift boundary. VM
+inventory now uses a list-specific shallow projection and screens ownership by
+VM ID before requesting candidate-only storage identity. Unmanaged VMs never
+enter disk/VHD enrichment. Provider, summary, state, and ownership boundaries
+retain stable, privacy-bounded classifications with `changed=false`.
+
+The candidate retains the v0.4.0 least-privilege authorization model.
+Production Hyper-V access accepts either an enabled local `Hyper-V
+Administrators` token or an elevated Administrator token. The former is the
+preferred least-privilege mode; elevated compatibility remains available but
+every successful result carries a `BROADER_PRIVILEGE_CONTEXT` warning.
 
 `inspect_host` remains an unauthenticated diagnostic and reports only
 `elevated`, `hyperVAdministratorsTokenEnabled`, `hyperVAuthorized`, and the
@@ -33,11 +39,13 @@ launches an isolated selected MCP child with the mock adapter, calls only
 `inspect_host` and `list_vms`, requires `changed=false` plus the mandatory
 `TEST_ONLY_MOCK_ADAPTER` warning, and reports zero real-operation counts.
 
-The v0.4.0 source gate freezes exactly one `0.4.0+codex.20260731141404` personal build
-after the candidate is stable. Release acceptance requires protected `master`,
-annotated tag `v0.4.0`, the source-only GitHub Release, and installed
-`sourceCommit` to identify one exact commit. Immutable v0.1.1 through v0.3.2
-are historical and are not moved or overwritten.
+The released v0.4.0 source froze exactly one
+`0.4.0+codex.20260731141404` personal build. The v0.4.1 source Gate freezes the
+single `0.4.1+codex.20260804074002` build only after its code, tests, and
+documentation are stable.
+Installation and production typed read-only acceptance remain later gates;
+mock/static validation is not real-host evidence. Immutable v0.1.1 through
+v0.4.0 are historical and are not moved or overwritten.
 
 Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,
 profile, evidence, plan, and credential contracts. The first public release
@@ -234,22 +242,29 @@ checkpoint success.
 `hyperv-clean-room` 是一个仅面向 Windows 的 Codex plugin 设计，用于受保护的
 Hyper-V VM 操作、声明式 current-user package lifecycle 测试和结构化 evidence。
 
-### 状态：0.3.2 tool-call metadata 兼容修复
+### 状态：v0.4.1 `list_vms` 最小投影发布候选
 
-`0.3.2` patch 保留冻结的 `0.3.0` capability target、精确 20 个公开工具及其
-schema，以及全部 Plan/Apply 与 fail-closed 边界。`tools/call` 现在接受可选的
-object `_meta`，但不会把 transport metadata 传入工具 `arguments`；类型错误或
-未知 outer field 仍以 `-32602` 失败。
+当前 source candidate 将已合并的 `list_vms` 最小投影修复封装为兼容的
+`0.4.1` patch。它保留冻结的 `0.3.0` capability target、精确 20 个公开工具、
+全部 input schema、现有 exact integer `schemaVersion` 分派、Plan/Apply、恢复和
+evidence 字段语义；
+evidence provenance 只新增严格配对的 v0.4.1 base/build，并继续接受历史
+v0.3.x 与 v0.4.0 的严格配对。唯一候选 build 已冻结为
+`0.4.1+codex.20260804074002`，不得在 review、merge、安装或 Release 时重生成。
+
+本 Gate 只完成 source、mock、runtime、schema 与 static 验证。v0.4.1 尚未安装，
+production `inspect_host`、`list_vms(managedOnly=false)` 与 `inspect_vm` 均为
+`notPerformed`；tag、Release 和所有 VM/宿主/guest mutation 也未执行。受保护 PR
+普通合并后，后续独立 Gate 才能绑定 exact protected commit 进行安装。
 
 Codex app-server 验收默认仍只检查 20/20 unique tools，并保持
 `toolCallCount: 0`。显式 test-only 模式只在隔离的 selected MCP child 中启用
 mock adapter，依次验证 `inspect_host` / `list_vms` 的 `changed=false` 与强制
 `TEST_ONLY_MOCK_ADAPTER` warning，并要求真实操作计数为零。
 
-唯一 v0.3.2 personal build 为 `0.3.2+codex.20260731014242`。只有 protected
-`master`、annotated `v0.3.2` tag、source-only GitHub Release 与 installed
-`sourceCommit` 指向同一提交时，发布才可接受；历史 v0.1.1 至 v0.3.1
-不移动、不覆盖。
+历史 `0.3.2` tool-call metadata 修复及其唯一 personal build
+`0.3.2+codex.20260731014242` 保持不可变；v0.1.1 至 v0.4.0 的历史 tag、Release
+和 build identity 都不移动、不覆盖。
 
 Gate 2 已依据冻结的 v1 cleanup、profile、evidence、plan 和 credential 合同实现
 PowerShell 5.1 MCP runtime。首个 public release 使用 plugin base version

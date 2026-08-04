@@ -12,6 +12,12 @@ and a `plan_vm_create` call that rejects a nonexistent ISO before mutation. It
 must not enroll a credential, open a real guest session, transfer a file, start
 a package, or mutate Hyper-V.
 
+The v0.4.1 source candidate does not use that inherited real-host smoke. Its
+targeted Gate 2 run uses `-SkipRealHostSmoke`, and the publication aggregate
+uses the CI-safe Gate 4 path. A later fresh selected-plugin task owns production
+typed read-only acceptance; shell, WMI, local JSON-RPC, and direct cmdlets are
+not substitutes.
+
 ## Development environment
 
 ### Prepared test Python is unavailable or stale
@@ -62,11 +68,26 @@ file decode.
 
 Run `scripts\validate-install-source.ps1` and use its bounded error. Do not
 install a payload with untracked files, reparse points, forbidden machine-state
-extensions, an unexpected folder/manifest name, or a version outside base
-`0.4.0` plus one optional Codex cachebuster. The v0.4.0 gate publishes one
-immutable source-only release and accepts exactly one frozen personal build.
+extensions, an unexpected folder/manifest name, or a version outside the
+recognized v0.4.0/v0.4.1 patch identities plus one optional Codex cachebuster.
+Gate 1 requires the current candidate to be v0.4.1; v0.4.0 parsing remains only
+for stable old-install drift reporting. The v0.4.1 Gate freezes exactly one
+build, `0.4.1+codex.20260804074002`, after the candidate is stable and performs
+no install or Release.
 The immutable historical `v0.1.1`, `v0.2.0`, `v0.3.0`, `v0.3.1`, and
-`v0.3.2` Releases remain separate accepted artifacts.
+`v0.3.2`, and `v0.4.0` Releases remain separate accepted artifacts.
+
+### Source is v0.4.1 but the installed copy is v0.4.0
+
+Before the protected v0.4.1 merge/install Gate, `check_install.ps1` should
+report the owned and enabled v0.4.0 installation as `installed=true`,
+`owned=true`, and `matches=false`, with the old installed version/source commit
+preserved in the readback. This is expected source/install drift, not evidence
+that the new runtime failed. Do not edit the install manifest, marketplace, or
+Codex cache and do not run production tools from the old payload. After the
+candidate is merged, use only the bounded installer and require all 31 payload
+hashes, the exact protected commit, cachebuster, one marketplace entry, and
+installed/enabled status to match before starting a fresh task.
 
 ### A portable launch reports `PORTABLE_DEPLOYMENT_DRIFT`
 
