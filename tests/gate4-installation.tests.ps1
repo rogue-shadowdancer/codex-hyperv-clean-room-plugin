@@ -58,6 +58,24 @@ try {
         Assert-Gate4 $invalidVersionRejected `
             "The version parser accepted an unsupported identity: $invalidVersion"
     }
+    $sourceManifestPath = Join-Path $sourceRoot '.codex-plugin\plugin.json'
+    $sourceManifestBytes = [IO.File]::ReadAllBytes($sourceManifestPath)
+    $legacySourceRejected = $false
+    try {
+        $legacySourceManifest = Read-HcrInstallJson $sourceManifestPath
+        $legacySourceManifest.version = '0.4.0+codex.20260731141404'
+        Write-HcrInstallJson `
+            -Path $sourceManifestPath `
+            -Value $legacySourceManifest `
+            -ContainmentRoot $sourceRoot
+        try { [void](Get-HcrSourceInventory -SourceRoot $sourceRoot) }
+        catch { $legacySourceRejected = $true }
+    }
+    finally {
+        [IO.File]::WriteAllBytes($sourceManifestPath, $sourceManifestBytes)
+    }
+    Assert-Gate4 $legacySourceRejected `
+        'Source inventory accepted v0.4.0 instead of confining legacy parsing to installed-state drift.'
     $caseCollisionRejected = $false
     try { Assert-HcrUniqueRelativePaths -Paths @('Path/File.json', 'path/file.json') }
     catch { $caseCollisionRejected = $true }

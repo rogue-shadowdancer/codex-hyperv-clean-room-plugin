@@ -1558,6 +1558,14 @@ $v041BaseV040Operation.evidenceSha256 = Get-HcrEvidenceDocumentDigest `
 Assert-Gate7 (-not (Test-HcrEvidenceDocumentV2 `
         $v041BaseV040Build $v041BaseV040Operation).valid) `
     'External evidence accepted a v0.4.1 base with a v0.4.0 build.'
+$caseVariantV041Build = Copy-HcrObject $externalEvidence
+$caseVariantV041Build.runtime.pluginBuildVersion = '0.4.1+CODEX.20260804090000'
+$caseVariantV041Operation = Copy-HcrObject $externalOperation
+$caseVariantV041Operation.evidenceSha256 = Get-HcrEvidenceDocumentDigest `
+    $caseVariantV041Build
+Assert-Gate7 (-not (Test-HcrEvidenceDocumentV2 `
+        $caseVariantV041Build $caseVariantV041Operation).valid) `
+    'The native evidence validator accepted a case-variant v0.4.1 build identity.'
 
 $deploymentDriftState = Read-HcrMockAdapterState
 $deploymentDriftState | Add-Member -NotePropertyName portableActiveDeploymentOverride `
