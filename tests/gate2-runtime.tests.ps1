@@ -1438,6 +1438,224 @@ Assert-Equal (@($raceResults | Where-Object {
 $managedList = Invoke-TestTool 'list_vms' ([pscustomobject]@{})
 Assert-True $managedList.ok 'Managed VM listing failed.'
 Assert-True (@($managedList.data.vms).Count -ge 2) 'Managed VM listing omitted created VMs.'
+Assert-True (@($managedList.warnings) -contains $script:HcrMockWarning) `
+    'Mock list_vms lost the required test-only warning.'
+
+$mock = Read-HcrMockAdapterState
+$global:HcrMockOwnershipProjectionCallCount = 0
+$baselineAllVmList = Invoke-TestTool 'list_vms' ([pscustomobject]@{ managedOnly = $false })
+Assert-True $baselineAllVmList.ok 'The baseline all-VM list failed before adding an unmanaged VM.'
+$expectedManagedCandidateCount = $global:HcrMockOwnershipProjectionCallCount
+Assert-True ($expectedManagedCandidateCount -gt 0) `
+    'The baseline list did not exercise any managed ownership candidate.'
+$unmanagedUnicodeName = [string][char]0x6D4B + [char]0x8BD5 + '-unmanaged'
+$unmanagedVm = Copy-HcrObject $mock.vms[0]
+$unmanagedVm.id = [Guid]::NewGuid().ToString()
+$unmanagedVm.name = $unmanagedUnicodeName
+$unmanagedVm.notes = ''
+$unmanagedVm.vmPath = Join-Path $vmRoot $unmanagedUnicodeName
+$unmanagedVm.vhdxPath = Join-Path $unmanagedVm.vmPath "$unmanagedUnicodeName.vhdx"
+$unmanagedVm | Add-Member `
+    -NotePropertyName ownershipProjectionUnavailable `
+    -NotePropertyValue $true `
+    -Force
+$mock.vms = @($mock.vms) + @($unmanagedVm)
+Write-HcrMockAdapterState $mock
+$global:HcrMockOwnershipProjectionCallCount = 0
+$allVmList = Invoke-TestTool 'list_vms' ([pscustomobject]@{ managedOnly = $false })
+Assert-True $allVmList.ok 'The mixed managed/unmanaged VM listing failed.'
+Assert-Equal @($allVmList.data.vms).Count (@($baselineAllVmList.data.vms).Count + 1) `
+    'The mixed VM listing returned the wrong summary count.'
+Assert-Equal $global:HcrMockOwnershipProjectionCallCount $expectedManagedCandidateCount `
+    'An unmanaged VM entered ownership storage projection.'
+$unmanagedSummary = @($allVmList.data.vms | Where-Object {
+    [string]$_.name -eq $unmanagedUnicodeName
+})
+Assert-Equal $unmanagedSummary.Count 1 'The Unicode unmanaged VM summary was not preserved.'
+Assert-Equal ([string]$unmanagedSummary[0].ownershipStatus) 'unmanaged' `
+    'The unmanaged VM summary received the wrong ownership status.'
+foreach ($privateListField in @(
+    'notes',
+    'vmPath',
+    'vhdxPath',
+    'networkAdapters',
+    'checkpoints',
+    'firmware',
+    'security'
+)) {
+    Assert-True (@(Get-HcrPropertyNames $unmanagedSummary[0]) -notcontains $privateListField) `
+        "list_vms exposed the internal or deep field '$privateListField'."
+}
+$managedOnlyWithUnmanaged = Invoke-TestTool 'list_vms' ([pscustomobject]@{})
+Assert-True (@($managedOnlyWithUnmanaged.data.vms | Where-Object {
+    [string]$_.name -eq $unmanagedUnicodeName
+}).Count -eq 0) 'managedOnly=true retained an unmanaged VM.'
+
+$mock = Read-HcrMockAdapterState
+$candidateVm = @($mock.vms | Where-Object { [string]$_.name -eq 'cleanroom-test' })[0]
+$candidateVm | Add-Member `
+    -NotePropertyName ownershipProjectionUnavailable `
+    -NotePropertyValue $true `
+    -Force
+Write-HcrMockAdapterState $mock
+$global:HcrMockOwnershipProjectionCallCount = 0
+$storageUnverifiedList = Invoke-TestTool 'list_vms' ([pscustomobject]@{ managedOnly = $false })
+Assert-True $storageUnverifiedList.ok 'Storage-unverified listing did not degrade safely.'
+Assert-True (-not [bool]$storageUnverifiedList.changed) `
+    'Storage-unverified listing reported changed=true.'
+$storageUnverifiedSummary = @($storageUnverifiedList.data.vms | Where-Object {
+    [string]$_.name -eq 'cleanroom-test'
+})
+Assert-Equal $storageUnverifiedSummary.Count 1 `
+    'managedOnly=false dropped the storage-unverified summary.'
+Assert-Equal ([string]$storageUnverifiedSummary[0].ownershipStatus) 'OWNERSHIP_UNVERIFIED' `
+    'An incomplete ownership projection claimed verified ownership.'
+$ownershipProjectionWarning =
+    'OWNERSHIP_UNVERIFIED: A managed ownership candidate could not be verified at stage ownershipProjection.'
+Assert-Equal @($storageUnverifiedList.warnings | Where-Object {
+    [string]$_ -eq $ownershipProjectionWarning
+}).Count 1 'Storage-unverified listing did not emit exactly one bounded warning.'
+$warningJson = ConvertTo-HcrJson $storageUnverifiedList.warnings 10
+Assert-True ($warningJson -notmatch [regex]::Escape('cleanroom-test')) `
+    'The ownership projection warning exposed a VM name.'
+Assert-True ($warningJson -notmatch [regex]::Escape($vmRoot)) `
+    'The ownership projection warning exposed a host path.'
+$storageUnverifiedManagedOnly = Invoke-TestTool 'list_vms' ([pscustomobject]@{})
+Assert-True (@($storageUnverifiedManagedOnly.data.vms | Where-Object {
+    [string]$_.name -eq 'cleanroom-test'
+}).Count -eq 0) 'managedOnly=true retained a storage-unverified VM.'
+
+$mock = Read-HcrMockAdapterState
+$candidateVm = @($mock.vms | Where-Object { [string]$_.name -eq 'cleanroom-test' })[0]
+$candidateVm.PSObject.Properties.Remove('ownershipProjectionUnavailable')
+$mock.vms = @($mock.vms | Where-Object { [string]$_.name -ne $unmanagedUnicodeName })
+Write-HcrMockAdapterState $mock
+$candidateVm = @($mock.vms | Where-Object { [string]$_.name -eq 'cleanroom-test' })[0]
+$minimalOwnershipProjection = Invoke-HcrMockAdapter `
+    'GetVmOwnershipProjection' `
+    ([pscustomobject][ordered]@{
+        expectedVmId = [string]$candidateVm.id
+        expectedVmName = [string]$candidateVm.name
+        recordedBaseVhdxPath = [string]$candidateVm.vhdxPath
+    })
+Assert-True ([bool]$minimalOwnershipProjection.complete) `
+    'The matching ownership projection was unavailable.'
+Assert-Equal ([string]$minimalOwnershipProjection.vm.notes) ([string]$candidateVm.notes) `
+    'The ownership projection did not re-read the live Notes marker.'
+foreach ($deepOwnershipField in @(
+    'networkAdapters',
+    'checkpoints',
+    'firmware',
+    'security',
+    'processorCount',
+    'memory'
+)) {
+    Assert-True (@(Get-HcrPropertyNames $minimalOwnershipProjection.vm) -notcontains $deepOwnershipField) `
+        "Ownership projection exposed the deep field '$deepOwnershipField'."
+}
+$mismatchedOwnershipProjection = Invoke-HcrMockAdapter `
+    'GetVmOwnershipProjection' `
+    ([pscustomobject][ordered]@{
+        expectedVmId = [string]$candidateVm.id
+        expectedVmName = 'replacement-name'
+        recordedBaseVhdxPath = [string]$candidateVm.vhdxPath
+    })
+Assert-True (-not [bool]$mismatchedOwnershipProjection.complete) `
+    'Ownership projection accepted an expected VM-name mismatch.'
+Assert-Equal ([string]$mismatchedOwnershipProjection.stage) 'ownershipProjection' `
+    'Ownership projection mismatch lost its bounded stage.'
+$staleCandidateSummary = ConvertTo-HcrVmListSummary $candidateVm
+$mock = Read-HcrMockAdapterState
+$liveCandidateVm = @($mock.vms | Where-Object { [string]$_.id -eq [string]$candidateVm.id })[0]
+$liveCandidateVm.notes = 'marker-changed-after-inventory'
+Write-HcrMockAdapterState $mock
+$global:HcrMockOwnershipProjectionCallCount = 0
+$staleMarkerOwnership = Get-HcrListVmOwnershipStatus $staleCandidateSummary
+Assert-Equal $global:HcrMockOwnershipProjectionCallCount 1 `
+    'The stale-marker TOCTOU test did not enter the rebound ownership projection.'
+Assert-True (-not [bool]$staleMarkerOwnership.verified) `
+    'A changed live Notes marker retained verified ownership.'
+Assert-Equal ([string]$staleMarkerOwnership.status) 'OWNERSHIP_UNVERIFIED' `
+    'A changed live Notes marker did not fail closed.'
+Assert-True (-not [bool]$staleMarkerOwnership.ownershipProjectionUnavailable) `
+    'A complete live projection with a changed marker emitted an unavailable-storage warning.'
+$mock = Read-HcrMockAdapterState
+$liveCandidateVm = @($mock.vms | Where-Object { [string]$_.id -eq [string]$candidateVm.id })[0]
+$liveCandidateVm.notes = [string]$candidateVm.notes
+Write-HcrMockAdapterState $mock
+Remove-Variable -Name HcrMockOwnershipProjectionCallCount -Scope Global -ErrorAction SilentlyContinue
+
+$mock = Read-HcrMockAdapterState
+$mock | Add-Member -NotePropertyName listVmFailureStage -NotePropertyValue 'vmInventory' -Force
+Write-HcrMockAdapterState $mock
+$inventoryFailure = Invoke-TestTool 'list_vms' ([pscustomobject]@{ managedOnly = $false })
+Assert-ErrorCode $inventoryFailure 'HYPERV_UNAVAILABLE' `
+    'VM provider failure did not use HYPERV_UNAVAILABLE.'
+Assert-True (-not [bool]$inventoryFailure.changed) 'VM provider failure reported changed=true.'
+Assert-Equal ([string]$inventoryFailure.error.details.stage) 'vmInventory' `
+    'VM provider failure did not identify vmInventory.'
+Assert-Equal @(Get-HcrPropertyNames $inventoryFailure.error.details).Count 1 `
+    'VM provider failure details are not bounded to the stage.'
+$mock = Read-HcrMockAdapterState
+$mock.listVmFailureStage = 'vmSummaryProjection'
+Write-HcrMockAdapterState $mock
+$summaryFailure = Invoke-TestTool 'list_vms' ([pscustomobject]@{ managedOnly = $false })
+Assert-ErrorCode $summaryFailure 'INTERNAL_ERROR' `
+    'Required VM summary failure did not use INTERNAL_ERROR.'
+Assert-True (-not [bool]$summaryFailure.changed) 'VM summary failure reported changed=true.'
+Assert-Equal ([string]$summaryFailure.error.details.stage) 'vmSummaryProjection' `
+    'VM summary failure did not identify vmSummaryProjection.'
+Assert-Equal @(Get-HcrPropertyNames $summaryFailure.error.details).Count 1 `
+    'VM summary failure details are not bounded to the stage.'
+$failureJson = ConvertTo-HcrJson @($inventoryFailure.error, $summaryFailure.error) 20
+Assert-True ($failureJson -notmatch [regex]::Escape($vmRoot)) `
+    'A staged list failure exposed a host path.'
+Assert-True ($failureJson -notmatch 'S-1-5-') `
+    'A staged list failure exposed a SID.'
+$mock = Read-HcrMockAdapterState
+$mock.PSObject.Properties.Remove('listVmFailureStage')
+Write-HcrMockAdapterState $mock
+
+$savedOwnershipRecord = Read-HcrJsonFile $ownershipRecordPath
+[IO.File]::WriteAllText(
+    $ownershipRecordPath,
+    '{invalid ownership json',
+    (New-Object System.Text.UTF8Encoding($false))
+)
+$stateIntegrityList = Invoke-TestTool 'list_vms' ([pscustomobject]@{ managedOnly = $false })
+Assert-ErrorCode $stateIntegrityList 'STATE_INTEGRITY_ERROR' `
+    'A corrupt keyed ownership record was swallowed during list_vms.'
+Assert-True (-not [bool]$stateIntegrityList.changed) `
+    'A state-integrity list failure reported changed=true.'
+Write-TestJson $ownershipRecordPath $savedOwnershipRecord
+Invoke-WithCurrentUserDeniedAccess `
+    $ownershipRecordPath `
+    ([Security.AccessControl.FileSystemRights]::ReadData) `
+    {
+        $stateAccessList = Invoke-TestTool 'list_vms' ([pscustomobject]@{ managedOnly = $false })
+        Assert-ErrorCode $stateAccessList 'STATE_ROOT_ACCESS_DENIED' `
+            'Ownership record access denial was swallowed during list_vms.'
+        Assert-True (-not [bool]$stateAccessList.changed) `
+            'A state-access list failure reported changed=true.'
+    }
+
+$mock = Read-HcrMockAdapterState
+$savedMockVms = @($mock.vms | ForEach-Object { Copy-HcrObject $_ })
+$mock.vms = @()
+Write-HcrMockAdapterState $mock
+$emptyAllVmList = Invoke-TestTool 'list_vms' ([pscustomobject]@{ managedOnly = $false })
+Assert-True $emptyAllVmList.ok 'The empty all-VM inventory failed.'
+Assert-True (-not [bool]$emptyAllVmList.changed) 'The empty all-VM inventory reported changed=true.'
+Assert-Equal @($emptyAllVmList.data.vms).Count 0 `
+    'managedOnly=false did not preserve an empty VM inventory.'
+$emptyManagedVmList = Invoke-TestTool 'list_vms' ([pscustomobject]@{})
+Assert-True $emptyManagedVmList.ok 'The empty managed VM inventory failed.'
+Assert-Equal @($emptyManagedVmList.data.vms).Count 0 `
+    'managedOnly=true did not preserve an empty VM inventory.'
+$mock = Read-HcrMockAdapterState
+$mock.vms = @($savedMockVms | ForEach-Object { Copy-HcrObject $_ })
+Write-HcrMockAdapterState $mock
+
 $inspectVm = Invoke-TestTool 'inspect_vm' ([pscustomobject]@{ vmName = 'cleanroom-test' })
 Assert-True $inspectVm.data.ownership.verified 'Managed VM inspection lost ownership verification.'
 $inspectGuest = Invoke-TestTool 'inspect_guest' ([pscustomobject]@{
@@ -2079,6 +2297,105 @@ $adapterSource = Get-Content `
     -LiteralPath (Join-Path $pluginRoot 'mcp\lib\Adapters.ps1') `
     -Raw `
     -Encoding UTF8
+$deepGetterVm = [pscustomobject][ordered]@{
+    Id = [Guid]::NewGuid()
+    Name = ([string][char]0x6DF1 + [char]0x5EA6 + '-getter-trap')
+    State = 'Off'
+    Generation = 2
+    Notes = ''
+    Path = Join-Path $vmRoot 'deep-getter-trap'
+}
+$deepGetterVm | Add-Member -MemberType ScriptProperty -Name NetworkAdapters -Value {
+    throw 'The list projection touched a deep network getter.'
+}
+$deepGetterVm | Add-Member -MemberType ScriptProperty -Name Checkpoints -Value {
+    throw 'The list projection touched a deep checkpoint getter.'
+}
+$deepGetterSummary = ConvertTo-HcrVmListSummary $deepGetterVm
+Assert-Equal ([string]$deepGetterSummary.name) ([string]$deepGetterVm.Name) `
+    'The minimal list projection did not preserve a Unicode VM name.'
+Assert-Equal @(ConvertTo-HcrVmListSummaries @()).Count 0 `
+    'The minimal list projection did not preserve an empty inventory.'
+$multiSummary = @(ConvertTo-HcrVmListSummaries @(
+    $deepGetterVm,
+    ([pscustomobject][ordered]@{
+        Id = [Guid]::NewGuid()
+        Name = 'second-summary'
+        State = 'Running'
+        Generation = 2
+        Notes = ''
+        Path = Join-Path $vmRoot 'second-summary'
+    })
+))
+Assert-Equal $multiSummary.Count 2 'The minimal list projection lost a multi-VM inventory.'
+
+$realAdapterOffset = $adapterSource.IndexOf('function Invoke-HcrRealAdapter')
+Assert-True ($realAdapterOffset -ge 0) 'The production adapter function could not be located.'
+$realAdapterSource = $adapterSource.Substring($realAdapterOffset)
+$realListCase = [regex]::Match(
+    $realAdapterSource,
+    "(?s)'ListVms'\s*\{(?<body>.*?)\r?\n\s*\}\r?\n\s*'GetVmOwnershipProjection'"
+)
+Assert-True $realListCase.Success 'The production ListVms adapter case could not be isolated.'
+$realListBody = $realListCase.Groups['body'].Value
+Assert-True ($realListBody -match 'ConvertTo-HcrVmListSummaries') `
+    'Production ListVms does not use the minimal list projection.'
+foreach ($forbiddenListSeam in @(
+    'ConvertTo-HcrRealVmSnapshot',
+    'Get-VMHardDiskDrive',
+    'Get-VMNetworkAdapter',
+    'Get-VMSnapshot',
+    'Get-VMFirmware',
+    'Get-VMSecurity',
+    'Get-VHD'
+)) {
+    Assert-True ($realListBody -notmatch [regex]::Escape($forbiddenListSeam)) `
+        "Production ListVms retained the deep seam '$forbiddenListSeam'."
+}
+$summaryProjectionSource = [regex]::Match(
+    $adapterSource,
+    '(?s)function ConvertTo-HcrVmListSummary\s*\{(?<body>.*?)\r?\n\}\r?\n\r?\nfunction ConvertTo-HcrVmListSummaries'
+)
+Assert-True $summaryProjectionSource.Success 'The minimal VM summary projection could not be isolated.'
+foreach ($forbiddenSummaryField in @(
+    'NetworkAdapter',
+    'Switch',
+    'Checkpoint',
+    'Firmware',
+    'Security',
+    'HardDisk',
+    'Get-VHD'
+)) {
+    Assert-True ($summaryProjectionSource.Groups['body'].Value -notmatch $forbiddenSummaryField) `
+        "The minimal VM summary reads the deep field '$forbiddenSummaryField'."
+}
+$ownershipProjectionSource = [regex]::Match(
+    $adapterSource,
+    '(?s)function Get-HcrRealVmOwnershipProjection\s*\{(?<body>.*?)\r?\n\}\r?\n\r?\nfunction ConvertTo-HcrRealVmSnapshot'
+)
+Assert-True $ownershipProjectionSource.Success `
+    'The production ownership projection could not be isolated.'
+$ownershipProjectionBody = $ownershipProjectionSource.Groups['body'].Value
+foreach ($requiredOwnershipSeam in @(
+    'expectedVmId',
+    'expectedVmName',
+    'Get-VM -Id $parsedVmId',
+    'notes = [string]$vm.Notes',
+    'Get-VMHardDiskDrive',
+    'ownershipProjection'
+)) {
+    Assert-True ($ownershipProjectionBody -match [regex]::Escape($requiredOwnershipSeam)) `
+        "The production ownership projection is missing '$requiredOwnershipSeam'."
+}
+foreach ($forbiddenOwnershipSeam in @(
+    'Get-VMNetworkAdapter',
+    'Get-VMSnapshot',
+    'Get-VMFirmware',
+    'Get-VMSecurity'
+)) {
+    Assert-True ($ownershipProjectionBody -notmatch [regex]::Escape($forbiddenOwnershipSeam)) `
+        "The ownership projection retained the deep seam '$forbiddenOwnershipSeam'."
+}
 $supervisorSourceMatch = [regex]::Match(
     $adapterSource,
     "(?s)Add-Type -TypeDefinition @'\r?\n(?<source>.*?)\r?\n'@ -ErrorAction Stop"

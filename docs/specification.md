@@ -40,6 +40,14 @@ the unchanged VHDX path in the existing ownership record. The plugin does not
 adopt the leaf, rewrite ownership state, or remove, merge, rename, or restore a
 checkpoint.
 
+The list-specific minimal-projection repair keeps runtime/base version `0.4.0`
+and every public contract unchanged. Production `list_vms` no longer expands
+each inventory entry through the deep `inspect_vm` snapshot. It performs a
+keyed ownership-state screen first and reads minimal storage identity only for
+an existing ID/name/Notes-marker candidate. This repair is validated through
+mock/runtime/static evidence only; no production typed retry or Hyper-V
+mutation is part of the source Gate.
+
 ## Purpose and boundary
 
 The plugin provides typed MCP tools for Windows Hyper-V host inspection,
@@ -471,6 +479,26 @@ is public.
 - Input: `managedOnly`, default `true`.
 - Return managed VM summaries by default. When explicitly false, return only
   names, IDs, state, generation, and ownership status for other VMs.
+- The production inventory projection reads only ID, name, state, generation,
+  Notes, and VM configuration path. Notes and path remain internal; the public
+  result does not expose them. This path must not call the deep VM snapshot or
+  read network adapters, switches, checkpoints, firmware, security, or full VM
+  configuration.
+- Resolve ownership state by VM ID before storage enrichment. A missing keyed
+  record is `unmanaged` and causes no disk or VHD read. Only a record whose VM
+  ID/name and Notes marker match may request an internal minimal storage
+  projection bound again to the expected VM ID and name. That bound projection
+  must revalidate the live Notes marker. Incomplete storage projection never
+  establishes ownership: `managedOnly=true` skips it and
+  `managedOnly=false` retains the reduced summary as `OWNERSHIP_UNVERIFIED`
+  with one bounded identity-free warning.
+- A provider inventory failure is `HYPERV_UNAVAILABLE` with bounded
+  `error.details.stage: vmInventory`. Failure of a required minimal summary is
+  `INTERNAL_ERROR` with `stage: vmSummaryProjection`. The recoverable ownership
+  warning names `ownershipProjection`. Raw exceptions, VM names/IDs, host
+  paths, SIDs, environment, and token facts are forbidden. All list failures
+  have `changed: false`; `STATE_ROOT_ACCESS_DENIED` and
+  `STATE_INTEGRITY_ERROR` propagate without being downgraded.
 
 #### `inspect_vm`
 
@@ -1513,3 +1541,26 @@ selected-child mock evidence only. All production host and Hyper-V operation
 counters remain zero. Production typed read-only acceptance belongs to a fresh
 non-elevated selected-plugin task after exact protected publication and install;
 it authorizes no mutation.
+
+## `list_vms` minimal-projection repair boundary
+
+This additive source Gate preserves base/build version, exactly 20 public tool
+names and closed inputs, schema-v1 and schema-v2 paths and IDs, the external
+portable contract fixtures, Plan/Apply consumption and recovery, evidence
+semantics, and the full `inspect_vm` projection. It adds only internal adapter
+operations and list ownership classification.
+
+Acceptance must prove through mock/runtime/static tests that unmanaged VMs do
+not enter storage enrichment; deep getters cannot break their reduced summary;
+zero, multiple, and Unicode-named VMs preserve the list contract; only screened
+managed candidates enter the expected-ID/name and live-Notes-recheck storage
+seam; both
+`managedOnly` modes handle storage-unverified candidates safely; and provider,
+summary, state-access, and state-integrity failures remain bounded with
+`changed: false`. Catalog/tool/schema, `inspect_vm`, guest, Plan/Apply, warning,
+and evidence regressions must remain green.
+
+This Gate performs no production typed call, installation, cache update, tag,
+Release, merge, VM/host/guest mutation, credential operation, or Birdsgone
+acceptance. A later separately authorized task owns any production
+`list_vms(managedOnly=false)` retry and subsequent `inspect_vm` call.

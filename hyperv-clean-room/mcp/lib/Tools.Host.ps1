@@ -270,6 +270,102 @@ function Get-HcrOwnershipStatus {
     }
 }
 
+function Get-HcrListVmOwnershipStatus {
+    param([Parameter(Mandatory = $true)][object]$Vm)
+
+    $unmanaged = [pscustomobject][ordered]@{
+        verified = $false
+        status = 'unmanaged'
+        record = $null
+        ownershipProjectionUnavailable = $false
+    }
+    $unverified = [pscustomobject][ordered]@{
+        verified = $false
+        status = 'OWNERSHIP_UNVERIFIED'
+        record = $null
+        ownershipProjectionUnavailable = $false
+    }
+    $vmId = [string](Get-HcrPropertyValue $Vm 'id')
+    if ([string]::IsNullOrWhiteSpace($vmId)) { return $unmanaged }
+    $record = Get-HcrOwnershipRecordByVmId $vmId
+    if ($null -eq $record) { return $unmanaged }
+    $unverified.record = $record
+
+    $ownershipId = [string](Get-HcrPropertyValue $record 'ownershipId')
+    $marker = "hyperv-clean-room/v1:$ownershipId"
+    if ([string](Get-HcrPropertyValue $record 'vmId') -ne $vmId -or
+        [string](Get-HcrPropertyValue $record 'vmName') -ne
+            [string](Get-HcrPropertyValue $Vm 'name') -or
+        [string](Get-HcrPropertyValue $Vm 'notes') -ne $marker) {
+        return $unverified
+    }
+
+    try {
+        $recordVmRoot = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $record 'vmRoot'))
+        $recordVmPath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $record 'vmPath'))
+        $recordVhdxPath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $record 'vhdxPath'))
+        $listedVmPath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $Vm 'vmPath'))
+        if ($recordVmRoot -ne (Get-HcrNormalizedPath (Split-Path -Parent $recordVmPath)) -or
+            $recordVmPath -ne $listedVmPath) {
+            return $unverified
+        }
+    }
+    catch {
+        return $unverified
+    }
+
+    $projection = $null
+    try {
+        $projection = Invoke-HcrAdapter 'GetVmOwnershipProjection' ([pscustomobject][ordered]@{
+            expectedVmId = $vmId
+            expectedVmName = [string](Get-HcrPropertyValue $Vm 'name')
+            recordedBaseVhdxPath = $recordVhdxPath
+        })
+    }
+    catch {
+        if ($_.Exception.Data.Contains('HcrCode') -and
+            @('STATE_ROOT_ACCESS_DENIED', 'STATE_INTEGRITY_ERROR') -contains
+                [string]$_.Exception.Data['HcrCode']) {
+            throw
+        }
+        $unverified.ownershipProjectionUnavailable = $true
+        return $unverified
+    }
+    if ($null -eq $projection -or
+        -not [bool](Get-HcrPropertyValue $projection 'complete' $false) -or
+        [string](Get-HcrPropertyValue $projection 'stage') -ne 'ownershipProjection') {
+        $unverified.ownershipProjectionUnavailable = $true
+        return $unverified
+    }
+    $storageVm = Get-HcrPropertyValue $projection 'vm'
+    if ($null -eq $storageVm -or
+        [string](Get-HcrPropertyValue $storageVm 'id') -ne $vmId -or
+        [string](Get-HcrPropertyValue $storageVm 'name') -ne
+            [string](Get-HcrPropertyValue $Vm 'name')) {
+        $unverified.ownershipProjectionUnavailable = $true
+        return $unverified
+    }
+    if ([string](Get-HcrPropertyValue $storageVm 'notes') -ne $marker) {
+        return $unverified
+    }
+    try {
+        $storageVmPath = Get-HcrNormalizedPath ([string](Get-HcrPropertyValue $storageVm 'vmPath'))
+        $storageBinding = Get-HcrVmStorageOwnershipBinding $storageVm $recordVhdxPath
+        if ($storageVmPath -ne $recordVmPath -or -not [bool]$storageBinding.verified) {
+            return $unverified
+        }
+    }
+    catch {
+        return $unverified
+    }
+    return [pscustomobject][ordered]@{
+        verified = $true
+        status = 'verified'
+        record = $record
+        ownershipProjectionUnavailable = $false
+    }
+}
+
 function Get-HcrRequiredOwnedVm {
     param(
         [Parameter(Mandatory = $true)][string]$VmName,
@@ -400,8 +496,12 @@ function Invoke-HcrListVms {
     [void](Get-HcrAuthorizedHostSnapshot)
     $managedOnly = [bool](Get-HcrPropertyValue $Arguments 'managedOnly' $true)
     $results = New-Object System.Collections.Generic.List[object]
+    $ownershipProjectionUnavailable = $false
     foreach ($vm in @(Invoke-HcrAdapter 'ListVms')) {
-        $ownership = Get-HcrOwnershipStatus $vm
+        $ownership = Get-HcrListVmOwnershipStatus $vm
+        if ([bool](Get-HcrPropertyValue $ownership 'ownershipProjectionUnavailable' $false)) {
+            $ownershipProjectionUnavailable = $true
+        }
         if ($managedOnly -and -not $ownership.verified) { continue }
         if ($ownership.verified) {
             $results.Add([pscustomobject][ordered]@{
@@ -426,7 +526,10 @@ function Invoke-HcrListVms {
     return [pscustomobject][ordered]@{
         changed = $false
         data = [pscustomobject][ordered]@{ managedOnly = $managedOnly; vms = @($results | ForEach-Object { $_ }) }
-        warnings = @()
+        warnings = if ($ownershipProjectionUnavailable) {
+            @('OWNERSHIP_UNVERIFIED: A managed ownership candidate could not be verified at stage ownershipProjection.')
+        }
+        else { @() }
     }
 }
 

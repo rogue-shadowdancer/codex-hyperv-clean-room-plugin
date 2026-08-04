@@ -1,130 +1,103 @@
-# Task handoff: Desktop capability-discovery documentation closeout
+# Task handoff: `list_vms` minimal production projection
 
 `relayProtocolVersion: 1`
 
 `projectPath: E:\study\great_projects\codex-hyperv-clean-room-plugin`
 
-## Objective
+## Objective and authority
 
-Close only the documentation and GitHub gate for the Birdsgone Codex Desktop
-capability-discovery repair. Document the diagnosis, minimal configuration
-repair and rollback, and separate CLI/Desktop production read-only smoke
-evidence without modifying the plugin runtime, installed cache, Codex
-configuration, Hyper-V, or Birdsgone.
+Implement one backward-compatible runtime Gate that removes deep
+`inspect_vm`-level projection from production `list_vms`, layers ownership
+enrichment behind keyed state and marker checks, and adds stable bounded stage
+classification for unrecoverable list failures.
 
-## Gate scope and authority
+- Exact protected base: `f0da5cff3510d152e61bc9e3497adaed72d786a6`,
+  the normal merge commit for documentation PR #33.
+- Base tree: `bc0eff06cdd6f0bc8bf8344582c698cce204cba7`.
+- Task branch: `codex/list-vms-minimal-projection`.
+- This worktree is the Gate's only writer. The stopped PR #33 task, older H5C
+  checkout, Birdsgone, and the preserved documentation-review source remain
+  read-only.
 
-- Exact base and protected `origin/master` at task start:
-  `52f947ce9a46f9a22a339a922042305e1e21a3ad`.
-- Task branch: `codex/desktop-capability-discovery-docs`.
-- Writable files: `docs/troubleshooting.md` and `TASK_HANDOFF.md` only.
-- The older `codex/h5c-native-token-diagnostic` checkout and Birdsgone
-  repository remain read-only; no user-owned change is absorbed.
-- This gate creates an additive commit, branch push, and pull request only. It
-  does not merge, tag, release, install, or change repository administration.
+## Preserved PR #33 review fixes
 
-## Diagnosis and evidence boundaries
+The reusable capability-discovery authority remains
+[docs/troubleshooting.md](docs/troubleshooting.md#codex-desktop-capability-discovery).
+This runtime candidate absorbs all four preserved review dispositions:
 
-The affected environment had an installed and enabled
-`hyperv-clean-room@personal` build at
-`0.4.0+codex.20260731141404`. A stale task referenced the absent v0.3.2 skill
-cache; resolving the current installed version located the v0.4.0 skill. The
-installed manifest, `.mcp.json`, and PowerShell MCP launch path were internally
-consistent. Those facts proved installation and launchability, not model-side
-tool injection.
+- use the established `list_vms(managedOnly=false)` signature;
+- separate the reusable installation/current-skill/MCP-startup/selected-
+  catalog/model-registry/production-typed-call workflow from dated incident
+  evidence, with bounded repair, complete restart, and rollback;
+- keep this handoff as a linked Gate summary instead of duplicating the
+  troubleshooting matrix and repair narrative; and
+- define an evidence lane and the current harness role of
+  `selectedCapabilityRoots`, while identifying `deferred_tool_world_state` only
+  as a separate unused feature key with no stability claim.
 
-Before the Desktop update/restart, a selected app-server catalog-only check
-reported ready state, exactly 20 unique tools, and `toolCallCount: 0`, while
-affected task model registries contained no callable Hyper-V tools after the
-older `tool_search` path was removed. This separated selected-child catalog
-readiness from task-level capability discovery.
+The standalone post-update selected-catalog recheck remains `notPerformed` and
+fresh model inventory is not substituted for that lane. The documentation
+continues to prohibit machine-specific cache paths and shell/WMI/direct-cmdlet,
+handwritten JSON-RPC, alternate-registration, or mock/static substitution.
 
-The minimal persistent repair was the following single line in the existing
-`[features]` table of the user's Codex configuration:
+## Runtime design and compatibility
 
-```toml
-executor_capability_discovery = true
-```
+- Production `ListVms` enumerates with `Get-VM` once and uses a list-specific
+  summary containing only ID, name, state, generation, Notes, and VM path.
+  Notes/path are internal and are not returned publicly. The path does not call
+  `ConvertTo-HcrRealVmSnapshot` or read NICs, switches, checkpoints, firmware,
+  security, or complete VM configuration.
+- Ownership first reads the keyed record by VM ID. No record means unmanaged
+  and causes no disk/VHD projection. Only matching record ID/name and Notes
+  marker candidates enter the new internal storage projection.
+- The storage projection rebinds expected VM ID/name, revalidates the live
+  Notes marker, and then reads the first attached-disk path plus only the
+  VHD-chain identity needed for the recorded base. Incomplete projection cannot
+  establish ownership.
+- `managedOnly=true` skips storage-unverified candidates.
+  `managedOnly=false` retains their reduced summary as
+  `OWNERSHIP_UNVERIFIED` and emits one bounded identity-free warning naming
+  `ownershipProjection`.
+- Provider inventory failures remain `HYPERV_UNAVAILABLE` with
+  `error.details.stage: vmInventory`; required summary failures remain
+  `INTERNAL_ERROR` with `stage: vmSummaryProjection`. State access/integrity
+  errors remain `STATE_ROOT_ACCESS_DENIED` / `STATE_INTEGRITY_ERROR`. All list
+  failures are `changed=false` and omit raw exceptions and sensitive identity.
 
-A timestamped backup was preserved first under the user's `.codex\backups`
-directory with leaf
-`config.toml.executor-capability-discovery-20260801-023158.bak`. The key occurs
-exactly once. No `deferred_tool_world_state` setting or duplicate MCP
-registration was added. A complete Codex Desktop restart was required.
-
-Rollback means preserving the current configuration, then preferably removing
-only the single discovery line. Restore the whole timestamped backup only when
-a diff proves that no later unrelated configuration change would be lost. In
-either case, validate the remaining TOML and completely restart Desktop.
-Rollback does not uninstall the plugin or alter Hyper-V.
-
-After restart, a fresh Desktop task selected **Hyper-V Clean Room (personal)**
-through the UI before its first message. Its model registry contained exactly
-20 unique `mcp__hyperv_clean_room__*` tools, including `inspect_host`,
-`list_vms`, and `inspect_vm`, and it resolved the current v0.4.0 skill path.
-
-A separate post-update standalone `selectedCapabilityRoots` plus turn/start
-catalog-only protocol recheck was `notPerformed`: the packaged Desktop
-executable could not be safely invoked from the external shell, and the
-repository had no equivalent Desktop harness. The fresh task's 20-tool model
-inventory must not be substituted for that unperformed catalog-only lane.
-
-## Production typed smoke evidence
-
-CLI and Desktop results are separate evidence even though they matched. Both
-smokes used only the selected plugin's typed surface, stopped at the first
-`list_vms` failure, returned no mock marker, and made no mutation.
-
-### Stable CLI 0.144.1
-
-- Registry: `passed`, exactly 20 unique Hyper-V tools with the three required
-  names present.
-- `inspect_host({})`: `passed`; `ok=true`, `changed=false`, `elevated=false`,
-  `hyperVAdministratorsTokenEnabled=true`, `hyperVAuthorized=true`, and
-  `authorizationMode=hyperVAdministrators`.
-- `list_vms({managedOnly:false})`: `failed`; `ok=false`, `changed=false`, and
-  `INTERNAL_ERROR`.
-- `inspect_vm`: `notPerformed` because enumeration returned no VM name.
-- Typed tool calls: exactly 2.
-
-### Fresh selected Desktop task
-
-- Registry: `passed`, exactly 20 unique Hyper-V tools with the three required
-  names and current v0.4.0 skill path.
-- `inspect_host({})`: `passed`; the same least-privilege, non-elevated,
-  `changed=false` authorization fields as the CLI result.
-- `list_vms({managedOnly:false})`: `failed`; `ok=false`, `changed=false`, and
-  `INTERNAL_ERROR`.
-- `inspect_vm`: `notPerformed` because enumeration returned no VM name.
-- Typed tool calls: exactly 2.
-
-The model-side capability-discovery repair is proven. Production VM
-enumeration and VM inspection are not proven, and the `INTERNAL_ERROR` cause
-was not diagnosed in this gate. Do not infer successful real-VM access from
-host authorization, catalog/model inventory, installation, mock, parser,
-schema, or static evidence.
+The base/build version, exact 20-tool surface and inputs, public schemas and
+version dispatch, Plan/Apply consumption/recovery, evidence contract,
+`inspect_host`, full `inspect_vm`, guest paths, installation payload, and
+release identities are unchanged. No public tool, field, or error code is
+added.
 
 ## Changed areas
 
-- `docs/troubleshooting.md`: adds the layered diagnostic matrix, one-line
-  repair and rollback, restart procedure, corrected pre/post catalog boundary,
-  and separate CLI/Desktop smoke status.
-- `TASK_HANDOFF.md`: replaces the completed v0.4.0 release handoff with this
-  documentation-only closeout state and the remaining evidence gaps.
-- Runtime, tests, schemas, manifests, version files, README, specification,
-  installation cache, configuration, and Birdsgone are unchanged.
+- `hyperv-clean-room/mcp/lib/Adapters.ps1`: shallow list projection, stable
+  inventory/summary stages, and internal candidate-only ownership projection.
+- `hyperv-clean-room/mcp/lib/Tools.Host.ps1`: keyed list ownership screen,
+  candidate-only enrichment, safe filtering, and one bounded warning.
+- `tests/gate2-runtime.tests.ps1`: zero/multi/Unicode, unmanaged deep-getter
+  isolation, candidate-only projection, both filter modes, TOCTOU binding,
+  staged failures, state failures, warning/privacy, catalog, inspect, and
+  Plan/Apply regressions.
+- `docs/specification.md`, `docs/architecture.md`, and
+  `docs/troubleshooting.md`: synchronized contract, architecture, operator
+  diagnosis, and preserved PR #33 review fixes.
+- `TASK_HANDOFF.md`: this linked runtime-Gate status.
 
-## Validation and review
+## Verification and review
 
-The documentation candidate passed the required local checks on 2026-08-03:
+The candidate passes the required local validation on 2026-08-03:
 
+- `tests/gate2-runtime.tests.ps1`: `passed`, 1,688 assertions, exactly 20
+  tools, four protocol versions, and `realHyperVMutations=0`.
 - `prepare-test-python.ps1`: `passed`; Python 3.10.11 and the pinned isolated
   dependency set were prepared below ignored `.artifacts`.
-- `validate-docs.ps1`: `passed`; 17 required documents, 100 local links,
+- `validate-docs.ps1`: `passed`; 17 required documents, 102 local links,
   strict UTF-8, and zero mojibake markers.
-- `validate-public-release.ps1`: `passed`; all 13 checks, including Gate 2 with
-  real-host smoke skipped and the CI-safe Gate 4 path, with
-  `realGuestOperations=0` and `realHyperVMutations=0`.
+- `validate-public-release.ps1`: `passed`; all 13 checks, including Gate 2 and
+  the CI-safe Gate 4 path, with `realGuestOperations=0` and
+  `realHyperVMutations=0`.
 
 Commands:
 
@@ -134,30 +107,37 @@ Commands:
 .\scripts\validate-public-release.ps1
 ```
 
-Only CI-safe mock/parser/schema/static/publication checks are acceptance
-evidence. The historical H4/G9 production-adapter `validate-gate4.ps1` smoke is
-not run by this docs gate and is not a substitute for the typed CLI or Desktop
-results above. The final staged two-file diff requires substantive scope,
-truthfulness, privacy, link, and evidence-boundary review with ZERO ACTIONABLE
-FINDINGS before commit.
+The initial exact staged diff received local substantive review with ZERO
+ACTIONABLE FINDINGS. Remote review then identified a live-Notes TOCTOU gap in
+the rebound ownership projection. The additive fix re-reads and validates the
+marker and adds a stale-summary regression. The resulting exact staged diff
+received the same scope, compatibility, privacy, error-boundary, test,
+documentation, and safety review with ZERO ACTIONABLE FINDINGS.
 
-## Safety result
+The historical H4/G9 production-adapter `validate-gate4.ps1` smoke is not run
+by this source Gate because it reads the real host. It is not a substitute for
+the later separately authorized production typed acceptance.
 
-- No Hyper-V typed call, shell/WMI/direct Hyper-V substitute, Plan/Apply call,
-  VM/host/guest mutation, credential operation, package or portable run,
-  WebDriver/UI action, evidence collection, or Birdsgone G8 operation was
-  performed by this docs gate.
-- The prior CLI/Desktop typed smokes were read-only and each stopped after
-  `list_vms` returned `changed=false` with `INTERNAL_ERROR`.
-- VM mutation, guest/package/portable/UI/evidence acceptance, successful real
-  VM enumeration/inspection, and Birdsgone G8 remain `notPerformed`.
+## Evidence and safety result
 
-## Blockers and next gate
+The candidate removes the known structurally over-broad list path, but existing
+logs still do not prove whether the prior first underlying exception came from
+`Get-VM`, a VM projection getter, ownership state, or storage enrichment.
+Mock/runtime/static success is not production Hyper-V evidence.
+
+This Gate performs no production typed retry, plugin installation or cache
+edit, tag, Release, merge, Hyper-V shell/WMI/direct-cmdlet substitute, VM/host/
+guest mutation, Plan/Apply call, credential operation, package/portable/UI run,
+evidence collection, or Birdsgone acceptance. Production
+`list_vms(managedOnly=false)` and `inspect_vm` remain `notPerformed` for this
+candidate and require a later separately authorized Gate.
+
+## Blockers and next Gate
 
 `blockers: []`
 
-No subsequent implementation gate is authorized. A new, separately scoped
-gate is required to diagnose the production `list_vms` `INTERNAL_ERROR` or to
-perform any additional production typed call. This task ends after the two
-documents pass validation and staged review, then are committed, pushed, and
-opened as a pull request; it does not relay into implementation.
+The implementation, review-fix, validation, and GitHub synchronization work is
+published in ready PR [#34](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/pull/34)
+from this `codex/` branch. The PR is open and must not be merged by this Gate.
+Any production typed retry remains a later separately authorized Gate after
+candidate acceptance and installation.
