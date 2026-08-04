@@ -444,6 +444,23 @@ foreach ($runtimeFile in @(
 }
 Initialize-HcrRuntime $pluginRoot
 
+$originalTestPluginBuildVersion = $env:HCR_TEST_PLUGIN_BUILD_VERSION
+try {
+    $env:HCR_TEST_PLUGIN_BUILD_VERSION = '0.4.1+CODEX.20260804090000'
+    $caseVariantMockIdentity = Get-HcrV2RuntimeIdentity
+    Assert-Gate7Equal ([string]$caseVariantMockIdentity.pluginBuildVersion) `
+        '0.4.1+codex.00000000000000' `
+        'Mock runtime identity preserved a case-variant v0.4.1 build identity.'
+}
+finally {
+    if ($null -eq $originalTestPluginBuildVersion) {
+        Remove-Item Env:\HCR_TEST_PLUGIN_BUILD_VERSION -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:HCR_TEST_PLUGIN_BUILD_VERSION = $originalTestPluginBuildVersion
+    }
+}
+
 $runtimeInstallRoot = Join-Path $testRoot 'runtime-install'
 $runtimeInstallPluginDirectory = Join-Path $runtimeInstallRoot '.codex-plugin'
 $runtimeInstallMcpDirectory = Join-Path $runtimeInstallRoot 'mcp'
@@ -487,9 +504,8 @@ Write-Gate7Json (
     schemaVersion = 1
     targetRoot = $runtimeInstallRoot
 })
-Write-Gate7Json (
-    Join-Path $runtimeInstallPluginDirectory 'install-manifest.json'
-) ([ordered]@{
+$runtimeInstallManifestPath = Join-Path $runtimeInstallPluginDirectory 'install-manifest.json'
+Write-Gate7Json $runtimeInstallManifestPath ([ordered]@{
     schemaVersion = 1
     pluginName = 'hyperv-clean-room'
     installationId = $runtimeInstallationId
@@ -511,6 +527,21 @@ try {
     Assert-Gate7Equal ([string]$verifiedRuntimeIdentity.installedInventorySha256) `
         (Get-HcrSha256Text ($expectedRuntimeRows -join "`n")) `
         'Runtime identity did not rebind the exact installed bytes.'
+
+    $caseVariantInstalledManifest = Read-HcrJsonFile `
+        $runtimeInstallManifestPath `
+        'RUNTIME_PROVENANCE_INVALID'
+    $caseVariantInstalledManifest.sourceVersion = '0.4.1+CODEX.20260804090000'
+    Write-Gate7Json $runtimeInstallManifestPath $caseVariantInstalledManifest
+    $caseVariantInstalledCode = $null
+    try { [void](Get-HcrV2RuntimeIdentity) }
+    catch {
+        $caseVariantInstalledCode = [string](Get-HcrExceptionData $_.Exception).code
+    }
+    Assert-Gate7Equal $caseVariantInstalledCode 'RUNTIME_PROVENANCE_INVALID' `
+        'Runtime identity accepted a case-variant installed v0.4.1 build identity.'
+    $caseVariantInstalledManifest.sourceVersion = '0.4.1+codex.20260804090000'
+    Write-Gate7Json $runtimeInstallManifestPath $caseVariantInstalledManifest
 
     $wrongRuntimeOwnership = Read-HcrJsonFile `
         $runtimeOwnershipPath `

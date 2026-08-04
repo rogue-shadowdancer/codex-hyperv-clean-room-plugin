@@ -33,7 +33,7 @@ function Get-HcrV2VerifiedInstalledInventory {
         [int](Get-HcrPropertyValue $manifest 'schemaVersion') -ne 1 -or
         [string](Get-HcrPropertyValue $manifest 'pluginName') -cne 'hyperv-clean-room' -or
         -not (Test-HcrUuid (Get-HcrPropertyValue $manifest 'installationId')) -or
-        [string](Get-HcrPropertyValue $manifest 'sourceVersion') -notmatch
+        [string](Get-HcrPropertyValue $manifest 'sourceVersion') -cnotmatch
             '^0\.4\.1\+codex\.[0-9]{14}$' -or
         [string](Get-HcrPropertyValue $manifest 'sourceCommit') -notmatch
             '^[a-f0-9]{40}$' -or
@@ -177,7 +177,7 @@ function Get-HcrV2RuntimeIdentity {
         $inventorySha256 = [string]$verified.inventorySha256
     }
     elseif ((Get-HcrAdapterMode) -eq 'mock' -and $env:HCR_TEST_MODE -eq '1') {
-        $buildVersion = if ($env:HCR_TEST_PLUGIN_BUILD_VERSION -match
+        $buildVersion = if ($env:HCR_TEST_PLUGIN_BUILD_VERSION -cmatch
             '^0\.4\.1\+codex\.[0-9]{14}$') {
             $env:HCR_TEST_PLUGIN_BUILD_VERSION
         }
@@ -191,7 +191,7 @@ function Get-HcrV2RuntimeIdentity {
             Get-HcrSha256Text "mock-installed-runtime|$sourceCommit|$buildVersion"
         }
     }
-    if ($buildVersion -notmatch '^0\.4\.1\+codex\.[0-9]{14}$' -or
+    if ($buildVersion -cnotmatch '^0\.4\.1\+codex\.[0-9]{14}$' -or
         $sourceCommit -notmatch '^[a-f0-9]{40}$' -or
         $inventorySha256 -notmatch '^[a-f0-9]{64}$') {
         Throw-HcrError 'RUNTIME_PROVENANCE_INVALID' 'The exact installed runtime identity is unavailable.'

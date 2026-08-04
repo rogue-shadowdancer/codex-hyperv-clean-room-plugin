@@ -53,8 +53,9 @@ integrity errors retain their existing stable codes. Every list failure is
   checks report stable drift instead of throwing, while the current source
   Gate requires v0.4.1 and rejects unknown or multiply suffixed versions.
 - Keep that legacy recognition out of the source-install path: source inventory
-  requires v0.4.1, and native evidence provenance uses case-sensitive build
-  matching so it agrees with the authoritative JSON Schema.
+  requires v0.4.1, and native evidence validation plus runtime identity
+  production use case-sensitive build matching so they agree with the
+  authoritative JSON Schema.
 - Add a v0.4.1 release-readback wrapper and freeze v0.4.0 as a historical
   baseline without modifying any historical tag, Release, or wrapper meaning.
 - Freeze exactly one v0.4.1 cachebuster after the candidate is otherwise
@@ -95,7 +96,7 @@ The frozen source candidate passes the required local validation on
   v0.4.1, 20 tools, seven v2 schemas, 19 dynamic compatibility checks, and
   zero real host/guest operations.
 - `validate-gate7.ps1 -SkipInheritedBaseline`: passed with v0.4.1, 20 tools,
-  386 runtime assertions, ten generated evidence validations, and zero real
+  388 runtime assertions, ten generated evidence validations, and zero real
   host/guest operations.
 - `validate-install-source.ps1 -RequireCachebuster`: passed with frozen build
   `0.4.1+codex.20260804074002`, 31 payloads, five v1 schemas, and seven v2

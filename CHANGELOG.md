@@ -34,8 +34,9 @@ the local plugin cache.
   changing historical tags or Releases.
 - Keep legacy v0.4.0 parsing confined to installed-state drift: source
   inventory and installation fail closed unless the candidate base is v0.4.1.
-  Native evidence validation now also applies case-sensitive build provenance
-  matching, consistent with the authoritative JSON Schema.
+  Native evidence validation and runtime identity production now also apply
+  case-sensitive build provenance matching, consistent with the authoritative
+  JSON Schema.
 - Freeze the single candidate build `0.4.1+codex.20260804074002` after the
   runtime, contracts, tests, and documentation are stable; do not regenerate
   it during review, merge, installation, or Release.
