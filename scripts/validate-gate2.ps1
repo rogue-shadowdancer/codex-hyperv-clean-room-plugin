@@ -176,7 +176,7 @@ $realHostOperations = @()
 if (-not $SkipRealHostSmoke) {
     $realHostOperations = @(
         'inspect_host',
-        'plan_vm_create missing-ISO rejection'
+        'list_vms managedOnly=false'
     )
 }
 

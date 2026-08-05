@@ -1,4 +1,4 @@
-# Task handoff: v0.4.1 minimal VM inventory repair candidate
+# Task handoff: v0.4.1 Windows MCP `COMPUTERNAME` compatibility repair
 
 `relayProtocolVersion: 1`
 
@@ -6,140 +6,136 @@
 
 ## Objective and authority
 
-Package the merged production `list_vms` minimal-projection repair as a
-backward-compatible v0.4.1 candidate, validate its exact source tree, and
-publish a ready protected PR. This source Gate does not install the plugin,
-call a production Hyper-V tool, merge, tag, or create a Release.
+Repair the Windows Codex MCP child environment so Hyper-V PowerShell receives a
+usable machine name, while preserving plugin/server base version `0.4.1`, all
+31 payload paths, exactly 20 public tools, every schema/envelope/error contract,
+and every adapter and Plan/Apply boundary. Publish the exact reviewed candidate
+through one ordinary protected pull request and merge it only when all required
+exact-head checks, reviews, protection, mergeability, and the fresh 30-minute
+window remain satisfied.
 
-- PR [#34](https://github.com/rogue-shadowdancer/codex-hyperv-clean-room-plugin/pull/34)
-  was normally merged at `2026-08-04T06:57:55Z`.
-- Exact protected base:
-  `4ba9cfbe2b75b514740e3e1467cba03b4f094417`.
-- Base tree: `366bc98f02504f846291aa9b5fb81df1536f6cd0`.
-- Task branch: `codex/v041-list-vms-release`.
-- This worktree is the only writer. Older h5 checkouts, the preserved ccdc
-  documentation worktree, and Birdsgone remain read-only.
+This Gate does not install the plugin, enter Gate C, call `inspect_vm`, execute
+Plan/Apply, mutate Hyper-V, touch a guest or credential, create evidence, tag,
+publish a Release, deploy, force/direct push, or delete a branch.
 
-## Merged runtime repair
+- Exact protected base: `837ef934c8de6958a79a415f8e6d55016de54264`.
+- Base tree: `07fff89642f338edaae22908e90ece196dfc07be`.
+- Task branch: `codex/v041-computername-repair`.
+- This worktree is the sole writer. The saved primary checkout and all other
+  Hyper-V clean-room/Birdsgone worktrees remain read-only.
+- Task Mail credential state is `credential_state_missing`; no predecessor
+  identity was created, reused, or impersonated.
 
-Production `ListVms` enumerates once and projects only ID, name, state,
-generation, Notes, and VM configuration path. Notes/path remain internal. The
-list path does not call `ConvertTo-HcrRealVmSnapshot` or read NICs, switches,
-checkpoints, firmware, security, or complete VM configuration.
+## Root cause and repair
 
-Ownership reads keyed state by VM ID before enrichment. Missing state is
-unmanaged and performs no disk/VHD read. Only matching ID/name/Notes candidates
-enter the expected-identity storage seam, which revalidates the live Notes
-marker. Incomplete storage stays `OWNERSHIP_UNVERIFIED`; it is skipped by
-`managedOnly=true` and retained with one bounded identity-free warning by
-`managedOnly=false`.
+The original diagnosis proved that a Codex parent could retain
+`COMPUTERNAME=ROGUE-PC` while its bound Windows MCP child omitted the variable.
+In Windows PowerShell 5.1, removing `COMPUTERNAME` reproduced both `Get-VM` and
+`Get-VMSwitch` failures with a null `name` parameter; restoring only the process
+value from `[Environment]::MachineName` made both commands succeed. A fresh
+exact installed child succeeded, excluding VMMS, Hyper-V authorization,
+installed bytes, projection, and VM data as the primary cause.
 
-Inventory/provider failure is `HYPERV_UNAVAILABLE` at `vmInventory`; required
-summary failure is `INTERNAL_ERROR` at `vmSummaryProjection`; recoverable
-ownership projection is named only by its warning stage. State access and
-integrity errors retain their existing stable codes. Every list failure is
-`changed=false` and omits raw exceptions and sensitive resource identity.
+The candidate applies two compatible defenses:
 
-## v0.4.1 candidate changes
+- `hyperv-clean-room/.mcp.json` still declares exactly one server and now has
+  only `env_vars: ["COMPUTERNAME"]`. It contains no environment literal and no
+  other environment variable.
+- At the start of `Initialize-HcrRuntime`, before plugin-root, adapter, or state
+  initialization, a missing or whitespace process value is set from
+  `[Environment]::MachineName`. A non-empty explicit value is preserved.
 
-- Advance runtime, manifest, catalog, and compatibility current identity to
-  v0.4.1 while retaining exactly 20 public tools, every closed input, v1/v2
-  dispatch, Plan/Apply/recovery semantics, and evidence fields.
-- Add only the strict matching v0.4.1 evidence runtime-provenance pair; retain
-  matching v0.3.0, v0.3.1, v0.3.2, and v0.4.0 pairs and reject cross-pairs.
-- Keep authoritative and installable evidence schemas byte-identical and bind
-  their updated SHA-256 in `contracts/v2/compatibility.json`.
-- Recognize immutable installed v0.4.0 identities so read-only installation
-  checks report stable drift instead of throwing, while the current source
-  Gate requires v0.4.1 and rejects unknown or multiply suffixed versions.
-- Keep that legacy recognition out of the source-install path: source inventory
-  requires v0.4.1, and native evidence validation plus runtime identity
-  production use case-sensitive build matching so they agree with the
-  authoritative JSON Schema.
-- Add a v0.4.1 release-readback wrapper and freeze v0.4.0 as a historical
-  baseline without modifying any historical tag, Release, or wrapper meaning.
-- Freeze exactly one v0.4.1 cachebuster after the candidate is otherwise
-  stable: `0.4.1+codex.20260804074002`. Do not regenerate it during review,
-  merge, installation, or Release.
+The fallback changes only the MCP child process. It does not write user/system
+environment state, the registry, `config.toml`, marketplace data, installed
+payloads, logs, public tool input, envelopes, errors, or adapter behavior.
 
-The reusable capability-discovery, selectedCapabilityRoots, catalog/model
-registry, typed-call, restart, rollback, `deferred_tool_world_state`, and dated
-incident boundaries remain in
-[docs/troubleshooting.md](docs/troubleshooting.md#codex-desktop-capability-discovery).
+## Regression coverage
 
-## Installed-state boundary
+- Contract: parse `.mcp.json`, require the sole `hyperv-clean-room` server,
+  exact launch fields, and exactly one `COMPUTERNAME` pass-through.
+- Runtime environment: prove missing and whitespace values repair to
+  `[Environment]::MachineName` and an explicit non-empty value is preserved.
+- MCP protocol: launch a PowerShell 5.1 mock MCP child with `COMPUTERNAME`
+  removed, complete initialization, list all 20 tools, and call the unchanged
+  mock `inspect_host`/`list_vms` path without stderr or contract drift.
+- Real host: remove `COMPUTERNAME`, initialize the production adapter, call only
+  `inspect_host` and `list_vms(managedOnly=false)`, require successful
+  `changed=false` envelopes with no mock warning, and report
+  `realHyperVMutations=0` and `realGuestOperations=0`.
 
-At source-Gate start the owned/enabled personal plugin remained immutable
-`0.4.0+codex.20260731141404` from
-`52f947ce9a46f9a22a339a922042305e1e21a3ad`. Read-only
-`check_install.ps1` reported `installed=true`, `owned=true`,
-`marketplaceVisible=true`, `matches=false`, 31 source files, and a payload
-inventory mismatch. That is expected source/install drift and is not v0.4.1
-runtime evidence.
+The real-host lane is source repair evidence only. It is not installed-plugin
+or Gate C acceptance and authorizes no retry, alternate transport,
+`inspect_vm`, Plan/Apply, guest, credential, or evidence action.
 
-No manifest, marketplace, Codex cache, or installed payload is edited by this
-Gate. Installation belongs only to the later exact protected merge Gate.
+## Build and documentation
 
-## Verification and review
+The plugin-creator cachebuster helper was invoked exactly once in this Gate.
+The only repair build is `0.4.1+codex.20260805101924`; do not invoke the helper
+again during review, merge, installation, tagging, or Release.
 
-The frozen source candidate passes the required local validation on
-2026-08-04:
+README/CHANGELOG, specification, installation, maintenance, operations,
+troubleshooting, release-process, documentation-center, and this handoff now
+describe the process-only fallback, regression evidence, unchanged public
+contract, and later install/Gate C boundary. Historical v0.1.1 through v0.4.0
+tags and Releases remain unchanged.
 
-- `prepare-test-python.ps1`: passed with Python 3.10.11 and the pinned
-  ABI-isolated dependency inventory.
-- `tests/gate2-runtime.tests.ps1`: passed, 1,688 assertions, exactly 20 tools,
-  four protocol versions, and `realHyperVMutations=0`.
-- `tests/gate4-installation.tests.ps1`: passed, 45 assertions, 31 source
-  payloads, stable stale-v0.4.0 mismatch reporting, and
-  `realHyperVMutations=0`.
-- `validate-gate6.ps1 -SkipInheritedBaseline`: passed with current runtime
-  v0.4.1, 20 tools, seven v2 schemas, 19 dynamic compatibility checks, and
-  zero real host/guest operations.
-- `validate-gate7.ps1 -SkipInheritedBaseline`: passed with v0.4.1, 20 tools,
-  388 runtime assertions, ten generated evidence validations, and zero real
-  host/guest operations.
-- `validate-install-source.ps1 -RequireCachebuster`: passed with frozen build
-  `0.4.1+codex.20260804074002`, 31 payloads, five v1 schemas, and seven v2
-  schemas.
-- `validate-docs.ps1`: passed with 17 required documents, 102 local links,
-  strict UTF-8, and zero mojibake markers.
-- `validate-public-release.ps1`: passed all 13 checks, including Gate 2 and the
-  CI-safe Gate 4 path, with `realGuestOperations=0` and
-  `realHyperVMutations=0`.
+## Local verification
 
-Commands:
+The candidate passes on 2026-08-05:
 
-```powershell
-.\scripts\prepare-test-python.ps1
-.\scripts\validate-gate2.ps1 -SkipRealHostSmoke
-.\tests\gate4-installation.tests.ps1
-.\scripts\validate-docs.ps1
-.\scripts\validate-public-release.ps1
-```
+- plugin-creator `validate_plugin.py` with the prepared pinned dependency set;
+- `tests/gate1-contract.tests.ps1`;
+- `tests/gate2-runtime.tests.ps1`: 1,692 assertions, 20 tools, four protocol
+  versions, missing-environment MCP session, and `realHyperVMutations=0`;
+- `tests/gate2-real-readonly.tests.ps1`: `computerNameRepair=passed`, only
+  `inspect_host` plus `list_vms managedOnly=false`, zero guest operations, and
+  zero Hyper-V mutations;
+- `scripts/validate-gate2.ps1`: schema/static/runtime suites plus the authorized
+  real-host lane, zero Hyper-V mutations;
+- `tests/gate4-installation.tests.ps1`: 45 assertions and 31 source payloads;
+- `scripts/validate-install-source.ps1 -RequireCachebuster`: 31 payloads, five
+  v1 schemas, seven v2 schemas, one suffix, and no untracked payload;
+- `scripts/validate-gate6.ps1 -SkipInheritedBaseline`: 20 target tools, seven
+  v2 schemas, 19 dynamic checks, and zero real/guest/portable operations;
+- `scripts/validate-gate7.ps1 -SkipInheritedBaseline`: repair build, 20 tools,
+  388 runtime assertions, ten evidence validations, and zero real operations;
+- `scripts/validate-docs.ps1`: 17 documents, 102 local links, strict UTF-8,
+  and zero mojibake markers;
+- `scripts/validate-gate4-ci.ps1`: 31 payloads, 45 installer assertions, and
+  zero install, marketplace, installed-copy, host, guest, or mutation actions;
+- `scripts/validate-public-release.ps1`: all 13 aggregate checks passed with
+  `realGuestOperations=0` and `realHyperVMutations=0`.
 
-The historical H4/G9 `validate-gate4.ps1` path includes bounded real-host
-readback and is deliberately not run by this source Gate. The CI-safe aggregate
-and `validate-gate2.ps1 -SkipRealHostSmoke` do not substitute for later
-production typed acceptance.
+Historical H4/G9 installed-copy acceptance through
+`scripts/validate-gate4.ps1` is `notPerformed` in this source repair Gate. That
+workflow requires an exact installed payload and includes installed-copy host
+probing, so it belongs to the separately relayed post-merge installation Gate;
+it is not evidence for this candidate and was not substituted by another
+transport.
 
-The final staged candidate must pass `git diff --cached --check` and substantive
-review with ZERO ACTIONABLE FINDINGS. After push, the exact PR head must also
-complete required checks and one fresh `@codex review` 30-minute unchanged-head
-window. Mock/runtime/schema/static success is not production Hyper-V evidence.
+The read-only installed-state check found an owned prior candidate at
+`0.4.1+codex.20260804074002`, source commit
+`837ef934c8de6958a79a415f8e6d55016de54264`, with one marketplace entry. It
+correctly reports `matches=false` against the repair build and currently reports
+`marketplaceVisible=false`. No installed or marketplace state was changed.
+This drift is deferred to the post-merge installation Gate.
 
-## Safety result and next Gate
+## Publication and next Gate
 
-This Gate performs no plugin installation, production typed call, Hyper-V
-shell/WMI/direct-cmdlet or JSON-RPC substitute, VM/host/guest mutation,
-Plan/Apply call, credential operation, package/portable/UI run, evidence
-collection, Birdsgone acceptance, merge, tag, or Release. Production
-`inspect_host`, `list_vms(managedOnly=false)`, and `inspect_vm` remain
-`notPerformed` for v0.4.1.
+Before publication, stage only the intended source/test/document files, require
+`git diff --cached --check`, and complete a substantive exact-staged review with
+`ZERO ACTIONABLE FINDINGS`. Any candidate change resets affected validation and
+review. Publish one ordinary non-draft PR against protected `master`, require
+exact local/remote head equality, required checks, resolved review threads,
+clean mergeability/protection, and one fresh full 30-minute unchanged-head
+review window. Merge only through the ordinary protected PR path when every
+condition still holds.
+
+After a successful merge, read protected `master` back exactly and relay a new
+task whose only Gate is installation of this frozen build from that exact
+protected commit. The installation task must validate all 31 payload hashes,
+source/installed version and commit, cachebuster, one marketplace entry, and
+installed/enabled state, but must not call any production Hyper-V tool. Gate C
+remains a later separate authorization.
 
 `blockers: []`
-
-After the ready PR is normally merged by the user, the next task must fetch and
-bind to that exact protected merge commit, validate and install the one frozen
-v0.4.1 build, require all 31 payload hashes and installed identity fields to
-match, and then start a separate fresh non-elevated selected-plugin task. The
-installation task itself must not call any production Hyper-V tool.

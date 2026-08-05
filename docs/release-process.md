@@ -412,3 +412,29 @@ explicit user selection, and zero candidates remain `notPerformed`. Any typed
 failure stops without retry or alternate transport. Only successful production
 read-only acceptance can unlock a separately authorized annotated `v0.4.1`
 tag and source-only Release at the same tested commit.
+
+## v0.4.1 Windows MCP `COMPUTERNAME` compatibility repair
+
+This additive repair retains base version `0.4.1`, the exact 20-tool public
+contract, all schema and evidence semantics, and the 31-file payload topology.
+The sole MCP server passes through exactly `COMPUTERNAME`; the earliest runtime
+initialization restores a missing or whitespace child-process value from
+`[Environment]::MachineName` without persistent environment, registry, Codex
+configuration, marketplace, tool, error, or adapter changes.
+
+Invoke the plugin-creator cachebuster helper exactly once after the repair
+candidate is stable and freeze `0.4.1+codex.20260805101924`. Run the complete
+contract, runtime, missing-environment MCP protocol, installation/static/schema,
+documentation, Gate 4 CI-safe, and public-release aggregate suites. The one
+authorized real-host diagnostic runs separately with `COMPUTERNAME` removed and
+calls only `inspect_host` plus `list_vms(managedOnly=false)`; it performs no
+`inspect_vm`, Plan/Apply, guest, credential, evidence, or Hyper-V mutation and
+does not count as installed-plugin or Gate C acceptance.
+
+Review the exact staged candidate to zero actionable findings, publish one
+ordinary non-draft protected PR, complete the required exact-head checks and a
+fresh unchanged-head 30-minute review window, and merge only through the
+ordinary protected PR path when every condition remains satisfied. This Gate
+must not install, tag, publish a Release, deploy, force/direct push, delete a
+branch, or begin Gate C. A separate post-merge task owns exact protected-commit
+installation.

@@ -39,6 +39,7 @@ $checkpointPlanSchemaPath = Join-Path `
 $manifestPath = Join-Path `
     $repoRoot `
     'hyperv-clean-room\.codex-plugin\plugin.json'
+$mcpManifestPath = Join-Path $repoRoot 'hyperv-clean-room\.mcp.json'
 $serverPath = Join-Path $repoRoot 'hyperv-clean-room\mcp\server.ps1'
 $documentationPaths = @(
     (Join-Path $repoRoot 'README.md'),
@@ -61,7 +62,24 @@ $checkpointPlanSchema = Get-Content `
     ConvertFrom-Json
 $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 |
     ConvertFrom-Json
+$mcpManifest = Get-Content -LiteralPath $mcpManifestPath -Raw -Encoding UTF8 |
+    ConvertFrom-Json
 $serverScript = Get-Content -LiteralPath $serverPath -Raw -Encoding UTF8
+
+$mcpServerNames = @($mcpManifest.mcpServers.PSObject.Properties.Name)
+Assert-SetEqual $mcpServerNames @('hyperv-clean-room') `
+    'The plugin MCP configuration must declare exactly one server.'
+$mcpServer = $mcpManifest.mcpServers.'hyperv-clean-room'
+Assert-SetEqual @($mcpServer.PSObject.Properties.Name) @(
+    'command',
+    'args',
+    'cwd',
+    'env_vars'
+) 'The MCP server configuration contains an unexpected environment or launch field.'
+if (@($mcpServer.env_vars).Count -ne 1 -or
+    [string]$mcpServer.env_vars[0] -cne 'COMPUTERNAME') {
+    throw 'The MCP server must pass through only COMPUTERNAME and no literal environment values.'
+}
 
 $requiredTools = @(
     'inspect_host',

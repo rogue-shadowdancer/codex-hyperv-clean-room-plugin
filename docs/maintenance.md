@@ -46,9 +46,12 @@ the helper. Protected `master`, annotated `v0.4.0`, the source-only Release,
 and installed `sourceCommit` must remain one commit. Immutable v0.1.1 through
 v0.3.2 remain unchanged.
 
-The v0.4.1 list-inventory repair Gate invokes the helper exactly once only
-after runtime, contract, tests, and documentation are stable. The resulting
-`0.4.1+codex.20260804074002` value is committed and reviewed without a second
+The v0.4.1 list-inventory repair Gate invoked the helper once after its source
+candidate stabilized and produced `0.4.1+codex.20260804074002`. That build was
+not installed or released. The follow-up Windows MCP compatibility repair Gate
+invokes the helper exactly once after its runtime, contract, tests, and
+documentation are stable. The resulting
+`0.4.1+codex.20260805101924` value is committed and reviewed without a second
 helper run. Installation occurs only from the later protected merge commit, and
 production typed read-only acceptance occurs only in a fresh non-elevated task.
 The `v0.4.1` tag and source-only Release remain a separate authorization Gate

@@ -1,6 +1,9 @@
 function Initialize-HcrRuntime {
     param([Parameter(Mandatory = $true)][string]$PluginRoot)
 
+    if ([string]::IsNullOrWhiteSpace([string]$env:COMPUTERNAME)) {
+        $env:COMPUTERNAME = [Environment]::MachineName
+    }
     $script:HcrPluginRoot = Get-HcrNormalizedPath $PluginRoot
     if (-not (Test-Path -LiteralPath $script:HcrPluginRoot -PathType Container)) {
         Throw-HcrError 'PLUGIN_ROOT_INVALID' 'The plugin root does not exist.'
