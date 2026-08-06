@@ -38,6 +38,14 @@ pair while preserving all accepted historical pairs. Source acceptance remains
 mock/runtime/schema/static only; exact installed-copy and production typed
 read-only acceptance are later gates.
 
+The follow-up v0.4.1 Windows MCP compatibility repair retains that public
+contract and the 31-file payload topology. The server declaration passes
+through only `COMPUTERNAME`; earliest runtime initialization supplies a missing
+or whitespace child-process value from `[Environment]::MachineName`. The repair
+does not modify user/system environment state, registry, Codex configuration,
+marketplace state, tool schemas, envelopes, errors, adapters, or host mutation
+behavior.
+
 Gate H5A adds a backward-compatible repair for Hyper-V automatic checkpoints.
 Newly created managed VMs must disable automatic checkpoints before ownership
 publication and read the setting back as disabled. A pre-fix VM whose active
@@ -372,6 +380,13 @@ profile, or evidence files in place; corrupt or unknown records fail closed.
 - Return every tool result as a JSON string in the MCP text content block.
 - Set the MCP `isError` flag when the envelope has `ok: false`.
 - Never serialize a PowerShell error record or stack trace into a response.
+- The sole declared MCP environment pass-through is `COMPUTERNAME`. At the
+  start of `Initialize-HcrRuntime`, a missing or whitespace process value is
+  set from `[Environment]::MachineName` before any adapter or state
+  initialization. A non-empty explicit value is preserved. This is a
+  child-process compatibility fallback only; it must not write persistent
+  environment, registry, Codex configuration, marketplace state, or environment
+  diagnostics.
 
 ## Common result envelope
 
@@ -1579,3 +1594,29 @@ stable. A later separately authorized task owns exact protected installation;
 the frozen build is `0.4.1+codex.20260804074002`. A fresh non-elevated
 selected-plugin task then owns one production
 `list_vms(managedOnly=false)` call and a conditional `inspect_vm` call.
+
+## v0.4.1 Windows MCP `COMPUTERNAME` compatibility repair boundary
+
+This repair keeps plugin/server base version `0.4.1`, exactly 20 tool names and
+closed inputs, all five schema-v1 and seven schema-v2 paths, every public
+envelope/error shape, Plan/Apply and recovery behavior, evidence semantics, and
+the 31 tracked payload paths. The only build for this candidate is
+`0.4.1+codex.20260805101924`, created by one cachebuster-helper invocation and
+never regenerated during review, merge, installation, tagging, or Release.
+
+Acceptance includes four distinct regressions: the sole-server `.mcp.json`
+contract with `env_vars: ["COMPUTERNAME"]`; missing, whitespace, and explicit
+runtime-environment behavior; a complete mock MCP protocol session launched
+without `COMPUTERNAME`; and an explicitly authorized production-adapter
+real-host diagnostic that removes the variable before initialization and calls
+only `inspect_host` plus `list_vms(managedOnly=false)`. Both tool envelopes must
+be successful with `changed: false` and no mock warning. The diagnostic proves
+only that `Get-VMSwitch`/host inspection and `Get-VM` inventory survive the
+filtered child environment; it is not installed-plugin or Gate C acceptance.
+
+This repair Gate performs no `inspect_vm`, Plan/Apply, credential, guest,
+transfer, package, portable, checkpoint, power, network, evidence, installation,
+tag, or Release operation and no Hyper-V mutation. After an ordinary protected
+merge satisfying the exact-head validation, review, check, and fresh 30-minute
+window requirements, a separate task owns exact-commit installation. Gate C
+remains separately authorized and `notPerformed` here.

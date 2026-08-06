@@ -6,15 +6,16 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: 0.4.1 minimal VM inventory projection candidate
+### Status: 0.4.1 Windows MCP environment compatibility repair candidate
 
-The `0.4.1` source candidate packages the merged production `list_vms` repair
-without changing the frozen `0.3.0` capability target, exactly 20 public tool
-names and closed inputs, or any Plan/Apply consumption and drift boundary. VM
-inventory now uses a list-specific shallow projection and screens ownership by
-VM ID before requesting candidate-only storage identity. Unmanaged VMs never
-enter disk/VHD enrichment. Provider, summary, state, and ownership boundaries
-retain stable, privacy-bounded classifications with `changed=false`.
+The `0.4.1` repair candidate retains the merged production `list_vms` shallow
+projection, the frozen `0.3.0` capability target, exactly 20 public tool names
+and closed inputs, and every Plan/Apply consumption and drift boundary. Its MCP
+configuration passes through only the host-provided `COMPUTERNAME` variable.
+At the earliest runtime initialization stage, a child that still has a missing
+or whitespace value restores only its process-local value from
+`[Environment]::MachineName`. It does not write user/system environment state,
+the registry, Codex configuration, marketplace data, or raw environment logs.
 
 The candidate retains the v0.4.0 least-privilege authorization model.
 Production Hyper-V access accepts either an enabled local `Hyper-V
@@ -39,13 +40,19 @@ launches an isolated selected MCP child with the mock adapter, calls only
 `inspect_host` and `list_vms`, requires `changed=false` plus the mandatory
 `TEST_ONLY_MOCK_ADAPTER` warning, and reports zero real-operation counts.
 
+The repository regression deliberately removes `COMPUTERNAME` from a fresh
+PowerShell 5.1 child, completes the MCP handshake in mock mode, and separately
+runs production-adapter `inspect_host` plus `list_vms(managedOnly=false)` as a
+read-only real-host diagnostic. That diagnostic is repair evidence only: it is
+not installed-plugin or Gate C acceptance and performs no `inspect_vm`,
+Plan/Apply, guest, credential, evidence, or Hyper-V mutation operation.
+
 The released v0.4.0 source froze exactly one
 `0.4.0+codex.20260731141404` personal build. The v0.4.1 source Gate freezes the
-single `0.4.1+codex.20260804074002` build only after its code, tests, and
+single `0.4.1+codex.20260805101924` build only after its code, tests, and
 documentation are stable.
-Installation and production typed read-only acceptance remain later gates;
-mock/static validation is not real-host evidence. Immutable v0.1.1 through
-v0.4.0 are historical and are not moved or overwritten.
+Exact installed-plugin and Gate C acceptance remain later gates. Immutable
+v0.1.1 through v0.4.0 are historical and are not moved or overwritten.
 
 Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,
 profile, evidence, plan, and credential contracts. The first public release
@@ -242,20 +249,23 @@ checkpoint success.
 `hyperv-clean-room` 是一个仅面向 Windows 的 Codex plugin 设计，用于受保护的
 Hyper-V VM 操作、声明式 current-user package lifecycle 测试和结构化 evidence。
 
-### 状态：v0.4.1 `list_vms` 最小投影发布候选
+### 状态：v0.4.1 Windows MCP `COMPUTERNAME` 兼容性修复候选
 
-当前 source candidate 将已合并的 `list_vms` 最小投影修复封装为兼容的
-`0.4.1` patch。它保留冻结的 `0.3.0` capability target、精确 20 个公开工具、
-全部 input schema、现有 exact integer `schemaVersion` 分派、Plan/Apply、恢复和
-evidence 字段语义；
-evidence provenance 只新增严格配对的 v0.4.1 base/build，并继续接受历史
-v0.3.x 与 v0.4.0 的严格配对。唯一候选 build 已冻结为
-`0.4.1+codex.20260804074002`，不得在 review、merge、安装或 Release 时重生成。
+当前 repair candidate 保留已合并的 `list_vms` 最小投影、冻结的 `0.3.0`
+capability target、精确 20 个公开工具、全部 input schema、Plan/Apply、恢复和
+evidence 语义。`.mcp.json` 只透传宿主提供的 `COMPUTERNAME`；若新 MCP child
+仍缺失该变量或其值仅为空白，最早的 runtime 初始化只在该 child process 内从
+`[Environment]::MachineName` 恢复它。此修复不会写 user/system environment、
+registry、Codex config、marketplace，也不会记录原始 environment。唯一候选 build
+已冻结为
+`0.4.1+codex.20260805101924`，不得在 review、merge、安装或 Release 时重生成。
 
-本 Gate 只完成 source、mock、runtime、schema 与 static 验证。v0.4.1 尚未安装，
-production `inspect_host`、`list_vms(managedOnly=false)` 与 `inspect_vm` 均为
-`notPerformed`；tag、Release 和所有 VM/宿主/guest mutation 也未执行。受保护 PR
-普通合并后，后续独立 Gate 才能绑定 exact protected commit 进行安装。
+本 Gate 的 repository diagnostic 会在缺失 `COMPUTERNAME` 的条件下完成 mock MCP
+handshake，并通过 production adapter 只读调用 `inspect_host` 与
+`list_vms(managedOnly=false)`。该结果只证明本次修复，不是 installed-plugin 或
+Gate C 验收；`inspect_vm`、Plan/Apply、guest、credential、evidence 与全部 Hyper-V
+mutation 均未执行。受保护 PR 普通合并后，后续独立 Gate 才能绑定 exact protected
+commit 进行安装。
 
 Codex app-server 验收默认仍只检查 20/20 unique tools，并保持
 `toolCallCount: 0`。显式 test-only 模式只在隔离的 selected MCP child 中启用

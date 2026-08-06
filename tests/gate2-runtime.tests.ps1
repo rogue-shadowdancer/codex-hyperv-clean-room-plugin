@@ -284,6 +284,32 @@ foreach ($runtimeFile in @(
     )) {
     . (Join-Path (Join-Path (Join-Path $pluginRoot 'mcp') 'lib') $runtimeFile)
 }
+$hadComputerName = Test-Path Env:COMPUTERNAME
+$savedComputerName = $env:COMPUTERNAME
+try {
+    Remove-Item Env:COMPUTERNAME -ErrorAction SilentlyContinue
+    $script:HcrInitialized = $false
+    Initialize-HcrRuntime $pluginRoot
+    Assert-Equal ([string]$env:COMPUTERNAME) ([Environment]::MachineName) `
+        'Runtime initialization did not repair a missing COMPUTERNAME.'
+
+    $env:COMPUTERNAME = '   '
+    $script:HcrInitialized = $false
+    Initialize-HcrRuntime $pluginRoot
+    Assert-Equal ([string]$env:COMPUTERNAME) ([Environment]::MachineName) `
+        'Runtime initialization did not repair a whitespace COMPUTERNAME.'
+
+    $env:COMPUTERNAME = 'HCR-EXPLICIT-COMPUTERNAME'
+    $script:HcrInitialized = $false
+    Initialize-HcrRuntime $pluginRoot
+    Assert-Equal ([string]$env:COMPUTERNAME) 'HCR-EXPLICIT-COMPUTERNAME' `
+        'Runtime initialization overwrote an explicit COMPUTERNAME.'
+}
+finally {
+    if ($hadComputerName) { $env:COMPUTERNAME = $savedComputerName }
+    else { Remove-Item Env:COMPUTERNAME -ErrorAction SilentlyContinue }
+}
+$script:HcrInitialized = $false
 Initialize-HcrRuntime $pluginRoot
 Assert-Equal (@(Get-ChildItem `
         -LiteralPath $stateRoot `
@@ -2629,6 +2655,9 @@ $serverInfo.EnvironmentVariables['HCR_ADAPTER_MODE'] = 'mock'
 $serverInfo.EnvironmentVariables['HCR_MOCK_ADAPTER_PATH'] = $mockPath
 $serverInfo.EnvironmentVariables['HCR_STATE_ROOT'] = Join-Path $protocolRoot 'state'
 $serverInfo.EnvironmentVariables['HCR_CREDENTIAL_ROOT'] = Join-Path $protocolRoot 'credentials'
+$serverInfo.EnvironmentVariables.Remove('COMPUTERNAME')
+Assert-True (-not $serverInfo.EnvironmentVariables.ContainsKey('COMPUTERNAME')) `
+    'The missing-COMPUTERNAME MCP protocol regression did not remove the inherited variable.'
 $mock = Read-HcrMockAdapterState
 $mock | Add-Member -NotePropertyName emitNonProtocolStreams -NotePropertyValue $true -Force
 Write-HcrMockAdapterState $mock

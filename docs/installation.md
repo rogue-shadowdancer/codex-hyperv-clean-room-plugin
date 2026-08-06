@@ -12,7 +12,7 @@ in the default personal marketplace through the `plugin-creator` helper, and
 runs:
 
 The source Gate prepares the one precommitted
-`0.4.1+codex.20260804074002` build; it does not install or publish it. After
+`0.4.1+codex.20260805101924` build; it does not install or publish it. After
 merge, the installation Gate requires all 31
 tracked payloads, the two installed-state records, exact per-file size/SHA-256,
 source commit, version, cachebuster, one canonical marketplace entry, and Codex
@@ -20,6 +20,13 @@ installed/enabled state to agree. Production typed read-only acceptance follows
 only in a fresh task. A later Release Gate requires the tested protected
 commit, annotated `v0.4.1`, GitHub Release target, and installed `sourceCommit`
 to be identical. Historical releases through `v0.4.0` remain unchanged.
+
+The repair candidate's `.mcp.json` declares exactly one server and passes
+through only `COMPUTERNAME`; it contains no environment literal. The runtime
+also restores a missing or whitespace value from `[Environment]::MachineName`
+inside the MCP child before adapter or state initialization. The source repair
+Gate validates this behavior but does not copy it into the personal plugin,
+edit marketplace/Codex configuration, or claim installed runtime acceptance.
 
 ```powershell
 codex plugin add hyperv-clean-room@personal

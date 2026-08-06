@@ -77,6 +77,14 @@ Gate adds only strict v0.4.1 runtime provenance, stale-v0.4.0 install drift
 reporting, regression coverage, and release-readback preparation. Installation
 and production typed read-only acceptance remain later gates; no mock or static
 result is promoted to real-host evidence.
+The follow-up Windows MCP compatibility repair keeps base version `0.4.1`, all
+31 payload paths, and the exact 20-tool contract. `.mcp.json` passes through
+only `COMPUTERNAME`; earliest runtime initialization restores a missing or
+whitespace child-process value from `[Environment]::MachineName` without
+changing persistent environment, registry, Codex configuration, or marketplace
+state. Its bounded real-host regression calls only `inspect_host` and
+`list_vms(managedOnly=false)` and is diagnostic repair evidence, not installed
+plugin or Gate C acceptance.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.
@@ -167,6 +175,12 @@ MCP tool，catalog readback 也没有执行 adapter operation。local publicatio
 aggregate 仍调用了继承自 Gate 2 的有界只读 `inspect_host` 与 missing-ISO
 `plan_vm_create` 拒绝；这偏离了 P3.3 的 no-host boundary，但没有产生 mutation 或
 machine acceptance。
+v0.4.1 的 Windows MCP 兼容性 follow-up 保留 31 个 payload 路径与精确 20-tool
+contract。`.mcp.json` 只透传 `COMPUTERNAME`；最早 runtime 初始化会在变量缺失或
+仅为空白时，只为 MCP child process 从 `[Environment]::MachineName` 恢复该值，
+不会修改持久 environment、registry、Codex config 或 marketplace。真实宿主回归
+仅执行只读 `inspect_host` 和 `list_vms(managedOnly=false)`；它不是 installed-plugin
+或 Gate C 验收。
 继承的 Gate 2 测试仍在 Windows PowerShell 5.1 下使用 mock
 adapter、parser、production-adapter static seam、严格文档
 检查和有界真实 host 只读 smoke。Production guest adapter 已包含固定的 administrator-supervised

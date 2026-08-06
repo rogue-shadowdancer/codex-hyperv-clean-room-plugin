@@ -2,12 +2,16 @@
 
 ## Current operating status
 
-The v0.4.1 source Gate prepares the merged minimal-list repair for the existing
-ownership-marked personal install workflow. It freezes exactly one cachebuster
-after the candidate is stable, `0.4.1+codex.20260804074002`, but performs no
-installation or production typed call. The current installed v0.4.0 payload remains historical input to the
-read-only drift check. Final v0.4.1 acceptance requires the later protected
-merge/install state recorded in `TASK_HANDOFF.md`.
+The v0.4.1 Windows MCP compatibility Gate retains the merged minimal-list
+repair and prepares one new source candidate for the existing ownership-marked
+personal install workflow. It freezes exactly one cachebuster,
+`0.4.1+codex.20260805101924`, but performs no installation or selected-plugin
+Gate C call. `.mcp.json` passes through only `COMPUTERNAME`, and earliest
+runtime initialization repairs a missing or whitespace child-process value
+from `[Environment]::MachineName`. The owned installed payload remains the prior
+v0.4.1 source candidate and is expected to differ in the read-only drift check.
+Final installed repair-candidate acceptance
+requires the later protected merge/install state recorded in `TASK_HANDOFF.md`.
 Catalog-only acceptance starts only from
 `%USERPROFILE%\plugins\hyperv-clean-room`, negotiates MCP `2025-11-25`, and
 discovers exactly 20 unique tools without calling any tool. An explicit
@@ -16,8 +20,10 @@ only `inspect_host` and `list_vms` after verifying the mandatory warning and
 `changed=false`; it reports zero real-operation counts. Neither check inspects
 or mutates a real host, Hyper-V resource, VM, guest, credential,
 package, portable deployment, driver, UI, network, evidence, or manual result.
-It performs no real Hyper-V mutation. Production `inspect_host`, one
-`list_vms(managedOnly=false)` call, and conditional `inspect_vm` are a later
+It performs no real Hyper-V mutation. This repair Gate separately runs
+production-adapter `inspect_host` and `list_vms(managedOnly=false)` only as an
+authorized read-only missing-environment regression. That result is not
+installed-plugin acceptance. Conditional `inspect_vm` remains a later
 fresh-task Gate and must not be substituted by this source validation.
 
 G7/P3.2 advances the repository source runtime to `0.3.0` and makes the seven
@@ -64,9 +70,10 @@ unknown cause or authority of the earlier maximum-memory difference.
 
 Do not infer operational readiness from a green mock run. Real use requires a
 separately approved host, owned VM, credential profile, artifact, profile, and
-mutation scope. Gate 2 validation itself performs only real `inspect_host` and
-a `plan_vm_create` request that is guaranteed to fail on a nonexistent ISO;
-reported real mutations remain zero.
+mutation scope. The current Gate 2 real-host lane performs only read-only
+`inspect_host` and `list_vms(managedOnly=false)` after deliberately removing
+`COMPUTERNAME`; reported real mutations remain zero and Plan/Apply is not
+called.
 
 ## Prerequisites
 

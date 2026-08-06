@@ -12,11 +12,14 @@ and a `plan_vm_create` call that rejects a nonexistent ISO before mutation. It
 must not enroll a credential, open a real guest session, transfer a file, start
 a package, or mutate Hyper-V.
 
-The v0.4.1 source candidate does not use that inherited real-host smoke. Its
-targeted Gate 2 run uses `-SkipRealHostSmoke`, and the publication aggregate
-uses the CI-safe Gate 4 path. A later fresh selected-plugin task owns production
-typed read-only acceptance; shell, WMI, local JSON-RPC, and direct cmdlets are
-not substitutes.
+The v0.4.1 Windows MCP compatibility repair has a separately authorized
+real-host diagnostic: it deliberately removes `COMPUTERNAME`, initializes the
+production adapter, then calls only `inspect_host` and
+`list_vms(managedOnly=false)`. Both must remain successful and read-only. This
+is repository repair evidence, not installed-plugin or Gate C acceptance. The
+publication aggregate still uses `-SkipRealHostSmoke` and the CI-safe Gate 4
+path. Shell, WMI, local JSON-RPC, direct cmdlets, `inspect_vm`, and Plan/Apply
+are not substitutes or follow-ups in this Gate.
 
 ## Development environment
 
@@ -62,6 +65,24 @@ mojibake problems, and broken repository-relative links. Save Markdown as
 UTF-8 without BOM. Do not trust a terminal's mojibake display over a strict
 file decode.
 
+### `Get-VM` or `Get-VMSwitch` fails because the host name is null
+
+On Windows, a filtered Codex MCP child can start without `COMPUTERNAME`; the
+Hyper-V PowerShell module may then reject otherwise valid `Get-VM` or
+`Get-VMSwitch` calls with a null `name` parameter. The plugin declares only
+`env_vars: ["COMPUTERNAME"]` for its sole MCP server. At the earliest runtime
+initialization stage it also repairs a missing or whitespace process value from
+`[Environment]::MachineName` before loading the adapter or state store. A
+non-empty explicit value is preserved.
+
+This fallback changes only the current MCP child. Do not add other environment
+variables or literal values, write user/system environment or registry state,
+edit `config.toml` or the marketplace, or log the raw environment. Use the
+contract, runtime-environment, missing-environment MCP protocol, and authorized
+read-only host regressions to diagnose the source candidate. After merge, use a
+separate exact-install Gate before any selected-plugin acceptance; a repository
+diagnostic never proves that the installed copy was updated.
+
 ## Plugin installation
 
 ### Source validation fails
@@ -72,7 +93,7 @@ extensions, an unexpected folder/manifest name, or a version outside the
 recognized v0.4.0/v0.4.1 patch identities plus one optional Codex cachebuster.
 Gate 1 requires the current candidate to be v0.4.1; v0.4.0 parsing remains only
 for stable old-install drift reporting. The v0.4.1 Gate freezes exactly one
-build, `0.4.1+codex.20260804074002`, after the candidate is stable and performs
+build, `0.4.1+codex.20260805101924`, after the candidate is stable and performs
 no install or Release.
 The immutable historical `v0.1.1`, `v0.2.0`, `v0.3.0`, `v0.3.1`, and
 `v0.3.2`, and `v0.4.0` Releases remain separate accepted artifacts.

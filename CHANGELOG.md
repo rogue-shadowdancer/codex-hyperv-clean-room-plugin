@@ -4,10 +4,17 @@ This file records public releases and earlier source milestones. Plugin semver
 and schema versions evolve independently; Codex build metadata only invalidates
 the local plugin cache.
 
-## 0.4.1 - Minimal VM inventory projection - Unreleased
+## 0.4.1 - Windows MCP environment compatibility and minimal VM inventory - Unreleased
 
 ### Fixed
 
+- Pass through exactly `COMPUTERNAME` to the Windows MCP child and no literal
+  environment value. If that variable is missing or whitespace at the earliest
+  runtime initialization stage, restore only the child-process value from
+  `[Environment]::MachineName` without changing user/system environment state,
+  the registry, Codex configuration, or marketplace data.
+- Add contract, process-environment, missing-environment MCP protocol, and
+  authorized real-host read-only regressions for the compatibility repair.
 - Use a list-specific production VM summary containing only ID, name, state,
   generation, and the internal Notes/configuration-path fields needed for the
   first ownership screen; `list_vms` no longer expands every VM through the
@@ -37,13 +44,16 @@ the local plugin cache.
   Native evidence validation and runtime identity production now also apply
   case-sensitive build provenance matching, consistent with the authoritative
   JSON Schema.
-- Freeze the single candidate build `0.4.1+codex.20260804074002` after the
+- Freeze the single candidate build `0.4.1+codex.20260805101924` after the
   runtime, contracts, tests, and documentation are stable; do not regenerate
   it during review, merge, installation, or Release.
-- This source Gate uses mock/runtime/schema/static and CI-safe validation only.
-  Installation and production typed `inspect_host`,
-  `list_vms(managedOnly=false)`, and conditional `inspect_vm` remain later,
-  separately bounded gates. No Hyper-V or guest mutation is authorized.
+- The repair Gate additionally removes `COMPUTERNAME` from the launched child,
+  completes a mock MCP handshake, and runs only production-adapter
+  `inspect_host` and `list_vms(managedOnly=false)` as an authorized real-host
+  read-only diagnostic. That diagnostic is not installed-plugin or Gate C
+  acceptance. Installation, conditional `inspect_vm`, Plan/Apply, guest,
+  credential, evidence, tag, and Release work remain later or `notPerformed`;
+  no Hyper-V or guest mutation is authorized.
 
 ## 0.4.0 - Least-privilege Hyper-V authorization - 2026-07-31
 
