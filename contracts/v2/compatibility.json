@@ -20,7 +20,7 @@
   "schemaV2RuntimeSha256": {
     "evidence.schema.json": "145a96ab69aab943f8ae28e9f1d107874941fefc26664e7b35e848915a3be070",
     "operation-envelope.schema.json": "7160708f6fb09ba8837e00350ba364aa52af7da0be6c619e903a1efbf485a5f6",
-    "portable-manifest.schema.json": "36dee1b8833169462fd2cc0a3e31689cca5fe5eab0fdb4e6cba5fb736092dbe5",
+    "portable-manifest.schema.json": "88f68d9934f03d6c0fb503f7a5ed0993e758bfa1005ca869a68f9b43b537742b",
     "test-profile.schema.json": "aee2f3cdddf8db57449485a75d43ff39f276bf64e99bd0e999b5ca6f9f8ad3b9",
     "vm-network-plan.schema.json": "9ef327eb77a8d21662fca782de04673b9d7b6016436fbecc07d97b114a7c2ddc",
     "vm-power-plan.schema.json": "52361ea5dcd0d4cfb136a580383abb898fde6c6f7349774efe151d40f04d3616",

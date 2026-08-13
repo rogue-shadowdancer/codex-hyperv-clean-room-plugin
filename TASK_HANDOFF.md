@@ -102,8 +102,23 @@ Exact frozen-candidate source verification passed:
   `f9267d70ca9b412bc54170489e38d211bd528a28e64a1fe15fa2cf987471650c`,
   370 files, `sourceMode=fresh-exact-head`, and `uiRequired=false`.
 
-The source gate still requires exact-staged substantive review, commit/push/PR,
-exact-head check/review reconciliation, and ordinary protected merge. Until
+Initial PR head `53f05f8cddc2301f141d003cbc0e6bda7892bf61` opened ordinary
+PR #37 and both push/pull-request `public-release-validation` runs passed.
+Codex review then found two actionable integration gaps: the production
+GuestWorker omitted the selected-source triple from its external sidecar
+allowlist, and shared schema definitions admitted the Test2 string inventories
+and Agent sizes into the historical branch. The additive review fix admits the
+three fields in the fixed worker while retaining exact staged sidecar
+size/SHA binding, and gives the end-user branch separate provenance definitions.
+Dynamic contract probes prove the historical branch still rejects the Test2
+alternatives, and an implementation regression scopes the worker allowlist and
+its staged-byte binding. Gate 6, complete Gate 7, exact immutable input
+readback, and all 13 local public-release checks passed again after the fix;
+all real-operation counters remain zero.
+
+The source gate still requires final exact-staged substantive review, one
+additive commit/push, review-thread reconciliation, fresh exact-head checks and
+review, the full unchanged-head window, and ordinary protected merge. Until
 that merge and exact reinstall, the production Test2 sequence is
 `notPerformed`. All source-validation real host, Hyper-V mutation, guest,
 portable deployment, WebDriver, and UI operation counts are zero.
@@ -120,11 +135,13 @@ tools.
 
 1. Preserve frozen build `0.4.1+codex.20260813075830` unchanged; never rerun the
    cachebuster helper.
-2. Complete full local release-equivalent validation and exact-staged review;
-   push one branch and open one ready protected PR. Hosted infrastructure
-   unavailability may be recorded only as `waived_non_code` / `notPerformed`
-   after exact local equivalents pass; do not claim hosted success or silently
-   bypass protection.
+2. Commit and push the reviewed additive fix on the existing PR #37, reply to
+   and resolve only the two addressed review threads, then require exact-head
+   hosted checks, a fresh Codex review with zero actionable findings, and a
+   fresh unchanged-head 30-minute window before the ordinary protected merge.
+   Hosted infrastructure unavailability may be recorded only as
+   `waived_non_code` / `notPerformed` after exact local equivalents pass; do
+   not claim hosted success or silently bypass protection.
 3. After ordinary protected merge, validate the exact protected source, run
    `check_install.ps1`, install once through `install_plugin.ps1`, then require
    exact 31-file/source/build/cachebuster/marketplace/enabled/catalog readback.

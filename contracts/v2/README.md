@@ -43,7 +43,10 @@ schemas add closed, mutually exclusive branches:
   Test2 producer shape: an optional all-or-none `fresh-exact-head`
   source-manifest triple, homogeneous string-path source inventories as an
   alternative to the historical file-identity arrays, and an optional paired
-  Maa Agent size identity. Native validation binds those fields to the unique
+  Maa Agent size identity. These alternatives are scoped only to the
+  `end-user-complete` branch; `runtime-and-legal-only` retains object-valued
+  inventories and the historical Agent identity without size fields. Native
+  validation binds the Test2 fields to the unique
   removed source manifest and the complete ZIP inventory; canonical property
   casing is required and separator aliases collide before inventory binding.
   The schema does not admit mixed arrays, partial pairs, another source mode,

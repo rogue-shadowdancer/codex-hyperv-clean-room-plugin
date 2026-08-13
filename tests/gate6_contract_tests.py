@@ -2171,6 +2171,10 @@ def assert_p3_1_contract(
     test2_manifest = load_json(
         P3_1_FIXTURE_ROOT / "portable-manifest.external-test2-provenance.valid.json"
     )
+    legacy_manifest = load_json(
+        P3_1_FIXTURE_ROOT
+        / "portable-manifest.external-legacy-historical.valid.json"
+    )
     portable_validator = validator_for(
         "portable-manifest.schema.json", schemas, registry
     )
@@ -2199,6 +2203,19 @@ def assert_p3_1_contract(
     for label, probe in test2_schema_probes.items():
         if not list(portable_validator.iter_errors(probe)):
             raise AssertionError(f"portable schema accepted {label}")
+    legacy_string_sources = deepcopy(legacy_manifest)
+    legacy_string_sources["sourceInputs"] = deepcopy(test2_manifest["sourceInputs"])
+    if not list(portable_validator.iter_errors(legacy_string_sources)):
+        raise AssertionError("legacy manifest accepted Test2 string source inputs")
+    legacy_agent_sizes = deepcopy(legacy_manifest)
+    legacy_agent_sizes["maa"] = deepcopy(test2_manifest["maa"])
+    if not list(portable_validator.iter_errors(legacy_agent_sizes)):
+        raise AssertionError("legacy manifest accepted Test2 Agent size bindings")
+    legacy_object_provenance = deepcopy(legacy_manifest)
+    legacy_object_provenance["sourceInputs"] = deepcopy(ui_manifest["sourceInputs"])
+    legacy_object_provenance["maa"] = deepcopy(ui_manifest["maa"])
+    if list(portable_validator.iter_errors(legacy_object_provenance)):
+        raise AssertionError("legacy manifest rejected historical object provenance")
     removed_source_mismatch = deepcopy(test2_manifest)
     removed_source_mismatch["removedFiles"][0]["size"] += 1
     if not validate_portable_manifest_semantics(removed_source_mismatch):

@@ -194,6 +194,32 @@
     "externalAgentIdentity": {
       "type": "object",
       "additionalProperties": false,
+      "required": [
+        "inventoryPath",
+        "inventorySha256",
+        "executablePath",
+        "executableSha256",
+        "maaBinding",
+        "maaCore",
+        "targetTriple"
+      ],
+      "properties": {
+        "inventoryPath": { "$ref": "#/$defs/safeRelativePath" },
+        "inventorySha256": { "$ref": "#/$defs/sha256" },
+        "executablePath": { "$ref": "#/$defs/safeRelativePath" },
+        "executableSha256": { "$ref": "#/$defs/sha256" },
+        "maaBinding": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "maaCore": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "targetTriple": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "externalEndUserAgentIdentity": {
+      "type": "object",
+      "additionalProperties": false,
       "dependentRequired": {
         "inventorySize": ["executableSize"],
         "executableSize": ["inventorySize"]
@@ -255,6 +281,30 @@
         "agent": { "$ref": "#/$defs/externalAgentIdentity" }
       }
     },
+    "externalEndUserMaaIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtimeManifestPath",
+        "runtimeManifestSha256",
+        "nativeInventoryPath",
+        "nativeInventorySha256",
+        "runtimeVersion",
+        "bindingVersion",
+        "platform",
+        "agent"
+      ],
+      "properties": {
+        "runtimeManifestPath": { "$ref": "#/$defs/safeRelativePath" },
+        "runtimeManifestSha256": { "$ref": "#/$defs/sha256" },
+        "nativeInventoryPath": { "$ref": "#/$defs/safeRelativePath" },
+        "nativeInventorySha256": { "$ref": "#/$defs/sha256" },
+        "runtimeVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "bindingVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "platform": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "agent": { "$ref": "#/$defs/externalEndUserAgentIdentity" }
+      }
+    },
     "externalWebView2Identity": {
       "type": "object",
       "additionalProperties": false,
@@ -306,6 +356,34 @@
       }
     },
     "externalSourceInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "birdsgoneTrackedFiles",
+        "excludedBirdsgoneTrackedFiles",
+        "preparedAgentFiles",
+        "maaInventoriedFiles",
+        "maaInventoryAuthority"
+      ],
+      "properties": {
+        "birdsgoneTrackedFiles": {
+          "$ref": "#/$defs/externalInventory"
+        },
+        "excludedBirdsgoneTrackedFiles": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/safeRelativePath" }
+        },
+        "preparedAgentFiles": {
+          "$ref": "#/$defs/externalInventory"
+        },
+        "maaInventoriedFiles": {
+          "$ref": "#/$defs/externalInventory"
+        },
+        "maaInventoryAuthority": { "$ref": "#/$defs/safeRelativePath" }
+      }
+    },
+    "externalEndUserSourceInputs": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -564,9 +642,9 @@
             { "type": "integer", "minimum": 1 }
           ]
         },
-        "sourceInputs": { "$ref": "#/$defs/externalSourceInputs" },
+        "sourceInputs": { "$ref": "#/$defs/externalEndUserSourceInputs" },
         "host": { "$ref": "#/$defs/externalHostIdentity" },
-        "maa": { "$ref": "#/$defs/externalMaaIdentity" },
+        "maa": { "$ref": "#/$defs/externalEndUserMaaIdentity" },
         "webView2": { "$ref": "#/$defs/externalWebView2Identity" },
         "sbom": { "$ref": "#/$defs/externalSbomIdentity" },
         "files": {

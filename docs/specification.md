@@ -1660,6 +1660,10 @@ The compatible manifest contract remains fail closed:
 - `maa.agent.inventorySize` and `executableSize` are optional only as a pair.
   When present, both are bounded positive integers and their respective
   path/size/SHA triples exactly match the complete ZIP inventory.
+- Those string-inventory and Agent-size alternatives belong only to the
+  executable `end-user-complete` schema branch. The historical
+  `runtime-and-legal-only` branch retains closed object identities and does not
+  accept the new size fields.
 - Unknown fields, partial groups, alternate modes, unsafe or colliding paths,
   absent inventory entries, and size/SHA drift remain invalid. ZIP name,
   ZIP size/SHA, sidecar size/SHA, entrypoint, documentation inventory,

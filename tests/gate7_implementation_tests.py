@@ -335,6 +335,37 @@ def main() -> int:
             "Test-WorkerBoolean (Get-WorkerProperty $manifest 'unsigned')",
         ),
     )
+    worker_manifest_start = worker.index("function Read-WorkerPortableManifest {")
+    worker_manifest_end = worker.index("\nfunction ", worker_manifest_start + 1)
+    worker_manifest_reader = worker[worker_manifest_start:worker_manifest_end]
+    require_tokens(
+        worker_manifest_reader,
+        "worker exact Test2 selected-source fields",
+        (
+            "'sourceMode'",
+            "'sourceManifestSize'",
+            "'sourceManifestSha256'",
+            "Resolve-WorkerStagedPortableManifest",
+        ),
+    )
+    worker_manifest_resolver_start = worker.index(
+        "function Resolve-WorkerStagedPortableManifest {"
+    )
+    worker_manifest_resolver_end = worker.index(
+        "\nfunction ", worker_manifest_resolver_start + 1
+    )
+    worker_manifest_resolver = worker[
+        worker_manifest_resolver_start:worker_manifest_resolver_end
+    ]
+    require_tokens(
+        worker_manifest_resolver,
+        "worker staged sidecar byte binding",
+        (
+            "guestSizeBytes",
+            "guestSha256",
+            "Get-WorkerSha256File",
+        ),
+    )
     require_tokens(
         common + validation,
         "single-read external sidecar identity",
