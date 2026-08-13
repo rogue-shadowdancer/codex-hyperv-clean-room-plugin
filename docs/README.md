@@ -85,6 +85,13 @@ changing persistent environment, registry, Codex configuration, or marketplace
 state. Its bounded real-host regression calls only `inspect_host` and
 `list_vms(managedOnly=false)` and is diagnostic repair evidence, not installed
 plugin or Gate C acceptance.
+The current compatible source candidate adds the exact immutable Birdsgone
+`v0.1.0-test.2` manifest shape without changing tools or execution semantics.
+It recognizes only complete `fresh-exact-head` source binding, homogeneous
+bounded source-path inventories, and paired Maa Agent sizes, then cross-binds
+them to the removed source manifest and complete ZIP inventory. Source/schema/
+mock acceptance remains distinct from protected merge, exact reinstall, and
+the separately authorized real VM/guest/portable/evidence/shutdown sequence.
 The inherited Gate 2 suite still uses mock adapters, parser
 checks, static production-adapter seams, strict documentation checks, and a
 bounded real-host read-only smoke.

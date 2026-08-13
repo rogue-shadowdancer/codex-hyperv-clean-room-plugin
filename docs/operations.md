@@ -5,7 +5,9 @@
 The v0.4.1 Windows MCP compatibility Gate retains the merged minimal-list
 repair and prepares one new source candidate for the existing ownership-marked
 personal install workflow. It freezes exactly one cachebuster,
-`0.4.1+codex.20260805101924`, but performs no installation or selected-plugin
+`0.4.1+codex.20260813075830`; the prior installed
+`0.4.1+codex.20260805101924` remains predecessor state. The source Gate
+performs no installation or selected-plugin
 Gate C call. `.mcp.json` passes through only `COMPUTERNAME`, and earliest
 runtime initialization repairs a missing or whitespace child-process value
 from `[Environment]::MachineName`. The owned installed payload remains the prior
@@ -25,6 +27,42 @@ production-adapter `inspect_host` and `list_vms(managedOnly=false)` only as an
 authorized read-only missing-environment regression. That result is not
 installed-plugin acceptance. Conditional `inspect_vm` remains a later
 fresh-task Gate and must not be substituted by this source validation.
+
+The current follow-up candidate also repairs compatibility with the exact
+Birdsgone `v0.1.0-test.2` sidecar. Native and schema validation accept its
+complete `fresh-exact-head` source binding, string-path source inventories, and
+paired Maa Agent sizes only after cross-binding them to the removed source
+manifest and the complete ZIP inventory. This source result is not permission
+to use the currently installed older bytes.
+
+After protected merge and exact repository-authorized reinstall, the approved
+Test2 production sequence is strictly ordered:
+
+1. Re-read the installed 31-file provenance/catalog and re-run
+   `validate_test_profile` against the unchanged ZIP, sidecar, and non-UI
+   profile.
+2. Inspect `Birdsgone-W11-HV-20260723`; if it is Off and ownership plus
+   automatic-checkpoint guards remain valid, create one `start` power plan,
+   review it, then consume it once with `apply_vm_power`.
+3. Run `Initialize-GuestCredential.ps1` interactively with only
+   `-ProfileName birdsgone-w11-test2` and
+   `-VmName Birdsgone-W11-HV-20260723`. Complete both `Get-Credential` prompts
+   locally; never transmit or log either secret.
+4. Call `inspect_guest`, then `run_test_profile` with the exact host ZIP and
+   profile. This profile has no UI or manual assertions: the portable smoke is
+   deploy, launch, running assertion, stop, stopped assertion, plus bounded
+   cleanup.
+5. Export with `collect_evidence` only to a new child below an existing safe
+   output directory, then call `validate_evidence` on the exported
+   `evidence.json`.
+6. Re-inspect the VM, create one `gracefulShutdown` plan only from Running,
+   consume it once, and verify the VM is Off. A failed or indeterminate guest
+   transport is not retried blindly; preserve state and re-inspect before the
+   separately reviewed shutdown plan.
+
+This authorization excludes checkpoints, network changes, VM creation,
+forced-off power, deletion, arbitrary guest commands, UI/manual attestation,
+and every other artifact/profile/VM.
 
 G7/P3.2 advances the repository source runtime to `0.3.0` and makes the seven
 source-tree installed v2 schemas exact copies of their authorities. G7/P3.3

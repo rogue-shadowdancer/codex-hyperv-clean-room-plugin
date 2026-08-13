@@ -1265,6 +1265,211 @@ Assert-Gate7Equal ([string]$externalNativeValidation.sha256) `
     (Get-HcrSha256File $externalProfilePath) `
     'Profile validation did not retain the exact bytes that were parsed.'
 
+$test2FixturePath = Join-Path $repoRoot `
+    'tests\fixtures\v3\portable-manifest.external-test2-provenance.valid.json'
+$test2Manifest = Get-Content -LiteralPath $test2FixturePath -Raw |
+    ConvertFrom-Json
+$test2ManifestPath = Join-Path $testRoot 'external-portable-manifest-test2.json'
+Write-Gate7Json $test2ManifestPath $test2Manifest
+$test2ManifestItem = Get-Item -LiteralPath $test2ManifestPath
+$test2ManifestSha = (Get-FileHash `
+    -LiteralPath $test2ManifestPath `
+    -Algorithm SHA256).Hash.ToLowerInvariant()
+$test2Profile = Copy-HcrObject ([pscustomobject]$externalProfile)
+$test2Profile.id = 'external-test2-provenance-runtime'
+$test2Profile.artifact.fileNamePattern = [string]$test2Manifest.fileName
+$test2Profile.artifact.sizeBytes = [int64]$test2Manifest.newZipSize
+$test2Profile.artifact.sha256 = [string]$test2Manifest.newZipSha256
+$test2Profile.artifact.portableManifestRelativePath = $test2ManifestItem.Name
+$test2Profile.artifact.portableManifestSizeBytes = [int64]$test2ManifestItem.Length
+$test2Profile.artifact.portableManifestSha256 = $test2ManifestSha
+$test2Profile.applications[0].executableRelativePath =
+    [string]$test2Manifest.entrypoint
+$test2ProfilePath = Join-Path $testRoot 'external-portable-profile-test2.json'
+Write-Gate7Json $test2ProfilePath $test2Profile
+$test2Validation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+    profilePath = $test2ProfilePath
+})
+Assert-Gate7 $test2Validation.ok `
+    ('The exact-Test2 provenance shape failed public profile validation: ' +
+        (($test2Validation | ConvertTo-Json -Depth 10 -Compress)))
+
+$objectInventoryManifest = Copy-HcrObject ([pscustomobject]$test2Manifest)
+$objectInventoryFields = @(
+    'birdsgoneTrackedFiles',
+    'preparedAgentFiles',
+    'maaInventoriedFiles'
+)
+for ($objectInventoryIndex = 0;
+    $objectInventoryIndex -lt $objectInventoryFields.Count;
+    $objectInventoryIndex++) {
+    $fileIdentity = $objectInventoryManifest.files[$objectInventoryIndex]
+    $objectInventoryManifest.sourceInputs.($objectInventoryFields[$objectInventoryIndex]) =
+        @([pscustomobject][ordered]@{
+            path = [string]$fileIdentity.path
+            size = [int64]$fileIdentity.size
+            sha256 = [string]$fileIdentity.sha256
+        })
+}
+$objectInventoryValidation = Test-HcrExternalPortableManifestV2 `
+    $objectInventoryManifest `
+    $test2Profile
+Assert-Gate7 $objectInventoryValidation.valid `
+    ('The historical object-identity source inventories lost native compatibility: ' +
+        ($objectInventoryValidation.errors -join '; '))
+
+$test2NegativeCases = @(
+    [pscustomobject]@{
+        name = 'wrong-case-source-mode'
+        mutate = {
+            param($manifest)
+            $value = [string]$manifest.sourceMode
+            $manifest.PSObject.Properties.Remove('sourceMode')
+            $manifest | Add-Member `
+                -NotePropertyName SourceMode `
+                -NotePropertyValue $value
+        }
+    },
+    [pscustomobject]@{
+        name = 'wrong-case-source-input-field'
+        mutate = {
+            param($manifest)
+            $value = @($manifest.sourceInputs.birdsgoneTrackedFiles)
+            $manifest.sourceInputs.PSObject.Properties.Remove('birdsgoneTrackedFiles')
+            $manifest.sourceInputs | Add-Member `
+                -NotePropertyName BirdsgoneTrackedFiles `
+                -NotePropertyValue $value
+        }
+    },
+    [pscustomobject]@{
+        name = 'wrong-case-agent-size'
+        mutate = {
+            param($manifest)
+            $value = [int64]$manifest.maa.agent.inventorySize
+            $manifest.maa.agent.PSObject.Properties.Remove('inventorySize')
+            $manifest.maa.agent | Add-Member `
+                -NotePropertyName InventorySize `
+                -NotePropertyValue $value
+        }
+    },
+    [pscustomobject]@{
+        name = 'unsupported-source-mode'
+        mutate = { param($manifest) $manifest.sourceMode = 'stale-local-copy' }
+    },
+    [pscustomobject]@{
+        name = 'noninteger-source-size'
+        mutate = { param($manifest) $manifest.sourceManifestSize = '1024' }
+    },
+    [pscustomobject]@{
+        name = 'partial-source-binding'
+        mutate = { param($manifest) $manifest.PSObject.Properties.Remove('sourceManifestSha256') }
+    },
+    [pscustomobject]@{
+        name = 'removed-source-mismatch'
+        mutate = {
+            param($manifest)
+            $row = @($manifest.removedFiles | Where-Object {
+                    [string]$_.path -ceq 'portable-manifest.json'
+                })[0]
+            $row.size = [int64]$row.size + 1
+        }
+    },
+    [pscustomobject]@{
+        name = 'noninteger-removed-source-size'
+        mutate = {
+            param($manifest)
+            $row = @($manifest.removedFiles | Where-Object {
+                    [string]$_.path -ceq 'portable-manifest.json'
+                })[0]
+            $row.size = '1024'
+        }
+    },
+    [pscustomobject]@{
+        name = 'source-input-not-in-zip'
+        mutate = {
+            param($manifest)
+            $manifest.sourceInputs.birdsgoneTrackedFiles[0] = 'missing.json'
+        }
+    },
+    [pscustomobject]@{
+        name = 'mixed-source-input-shape'
+        mutate = {
+            param($manifest)
+            $manifest.sourceInputs.preparedAgentFiles = @(
+                'birdsgone/agent/runner.exe',
+                [pscustomobject]@{
+                    path = 'birdsgone/agent/inventory.json'
+                    size = 256
+                    sha256 = ('e' * 64)
+                }
+            )
+        }
+    },
+    [pscustomobject]@{
+        name = 'source-input-case-collision'
+        mutate = {
+            param($manifest)
+            $manifest.sourceInputs.maaInventoriedFiles = @(
+                'MaaFramework.dll',
+                'maaframework.dll'
+            )
+        }
+    },
+    [pscustomobject]@{
+        name = 'source-input-separator-collision'
+        mutate = {
+            param($manifest)
+            $manifest.sourceInputs.birdsgoneTrackedFiles = @(
+                'resource/interface.json',
+                'resource\interface.json'
+            )
+        }
+    },
+    [pscustomobject]@{
+        name = 'partial-agent-size-binding'
+        mutate = { param($manifest) $manifest.maa.agent.PSObject.Properties.Remove('executableSize') }
+    },
+    [pscustomobject]@{
+        name = 'noninteger-agent-size'
+        mutate = { param($manifest) $manifest.maa.agent.inventorySize = '256' }
+    },
+    [pscustomobject]@{
+        name = 'agent-size-mismatch'
+        mutate = {
+            param($manifest)
+            $manifest.maa.agent.inventorySize =
+                [int64]$manifest.maa.agent.inventorySize + 1
+        }
+    }
+)
+foreach ($negativeCase in $test2NegativeCases) {
+    $negativeManifest = Copy-HcrObject ([pscustomobject]$test2Manifest)
+    & $negativeCase.mutate $negativeManifest
+    $negativeManifestPath = Join-Path `
+        $testRoot `
+        "external-portable-manifest-test2-$($negativeCase.name).json"
+    Write-Gate7Json $negativeManifestPath $negativeManifest
+    $negativeManifestItem = Get-Item -LiteralPath $negativeManifestPath
+    $negativeManifestSha = (Get-FileHash `
+        -LiteralPath $negativeManifestPath `
+        -Algorithm SHA256).Hash.ToLowerInvariant()
+    $negativeProfile = Copy-HcrObject ([pscustomobject]$test2Profile)
+    $negativeProfile.artifact.portableManifestRelativePath =
+        $negativeManifestItem.Name
+    $negativeProfile.artifact.portableManifestSizeBytes =
+        [int64]$negativeManifestItem.Length
+    $negativeProfile.artifact.portableManifestSha256 = $negativeManifestSha
+    $negativeProfilePath = Join-Path `
+        $testRoot `
+        "external-portable-profile-test2-$($negativeCase.name).json"
+    Write-Gate7Json $negativeProfilePath $negativeProfile
+    $negativeValidation = Invoke-Gate7Tool 'validate_test_profile' ([pscustomobject]@{
+        profilePath = $negativeProfilePath
+    })
+    Assert-Gate7Error $negativeValidation 'PROFILE_INVALID' `
+        "The Test2 compatibility layer accepted $($negativeCase.name)."
+}
+
 $invalidUtf8Prefix = [Text.Encoding]::UTF8.GetBytes(
     '{"schemaVersion":2,"description":"'
 )

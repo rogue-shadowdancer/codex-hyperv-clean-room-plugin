@@ -6,7 +6,7 @@
 VM operations, declarative current-user package lifecycle tests, and structured
 evidence.
 
-### Status: 0.4.1 Windows MCP environment compatibility repair candidate
+### Status: 0.4.1 exact Test2 manifest compatibility candidate
 
 The `0.4.1` repair candidate retains the merged production `list_vms` shallow
 projection, the frozen `0.3.0` capability target, exactly 20 public tool names
@@ -16,6 +16,16 @@ At the earliest runtime initialization stage, a child that still has a missing
 or whitespace value restores only its process-local value from
 `[Environment]::MachineName`. It does not write user/system environment state,
 the registry, Codex configuration, marketplace data, or raw environment logs.
+
+The same compatible patch line now accepts the exact immutable Birdsgone
+`v0.1.0-test.2` end-user-complete sidecar. It does not open the contract to
+arbitrary producer metadata: `fresh-exact-head` size/SHA must match the unique
+removed source manifest, string source-input inventories must be safe,
+case-insensitively unique and present under fixed prefixes in the complete ZIP
+inventory, and optional Maa Agent sizes must be paired and byte-bound to that
+inventory. Historical object-valued provenance remains valid. All 20 tool
+names, closed tool inputs, Plan/Apply semantics, evidence semantics, schema IDs,
+and schema-v1 bytes remain unchanged.
 
 The candidate retains the v0.4.0 least-privilege authorization model.
 Production Hyper-V access accepts either an enabled local `Hyper-V
@@ -48,10 +58,16 @@ not installed-plugin or Gate C acceptance and performs no `inspect_vm`,
 Plan/Apply, guest, credential, evidence, or Hyper-V mutation operation.
 
 The released v0.4.0 source froze exactly one
-`0.4.0+codex.20260731141404` personal build. The v0.4.1 source Gate freezes the
-single `0.4.1+codex.20260805101924` build only after its code, tests, and
-documentation are stable.
-Exact installed-plugin and Gate C acceptance remain later gates. Immutable
+`0.4.0+codex.20260731141404` personal build. The earlier v0.4.1
+`COMPUTERNAME` repair froze `0.4.1+codex.20260805101924`; this exact Test2
+compatibility candidate freezes the single
+`0.4.1+codex.20260813075830` build after its code, tests, and documentation
+stabilize. That new value must not be regenerated.
+The exact Test2 source/profile check is source-only until this candidate is
+merged through protected `master` and reinstalled by the repository installer.
+Only then may the separately authorized VM start, interactive credential
+enrollment, `inspect_guest`, non-UI portable smoke, evidence validation, and
+graceful shutdown run. Immutable
 v0.1.1 through v0.4.0 are historical and are not moved or overwritten.
 
 Gate 2 implements the PowerShell 5.1 MCP runtime against the frozen v1 cleanup,
@@ -249,16 +265,25 @@ checkpoint success.
 `hyperv-clean-room` 是一个仅面向 Windows 的 Codex plugin 设计，用于受保护的
 Hyper-V VM 操作、声明式 current-user package lifecycle 测试和结构化 evidence。
 
-### 状态：v0.4.1 Windows MCP `COMPUTERNAME` 兼容性修复候选
+### 状态：v0.4.1 精确 Test2 manifest 兼容性修复候选
 
 当前 repair candidate 保留已合并的 `list_vms` 最小投影、冻结的 `0.3.0`
 capability target、精确 20 个公开工具、全部 input schema、Plan/Apply、恢复和
 evidence 语义。`.mcp.json` 只透传宿主提供的 `COMPUTERNAME`；若新 MCP child
 仍缺失该变量或其值仅为空白，最早的 runtime 初始化只在该 child process 内从
 `[Environment]::MachineName` 恢复它。此修复不会写 user/system environment、
-registry、Codex config、marketplace，也不会记录原始 environment。唯一候选 build
-已冻结为
-`0.4.1+codex.20260805101924`，不得在 review、merge、安装或 Release 时重生成。
+registry、Codex config、marketplace，也不会记录原始 environment。此前
+`COMPUTERNAME` repair build 为 `0.4.1+codex.20260805101924`；本次精确 Test2
+兼容候选 build 已唯一冻结为 `0.4.1+codex.20260813075830`，不得在 review、merge、
+安装或 Release 时重生成。
+
+同一 compatible patch line 现在也接受不可变 Birdsgone `v0.1.0-test.2` 的精确
+`end-user-complete` sidecar，但不会放宽为任意 producer metadata：完整
+`fresh-exact-head` size/SHA 必须绑定唯一被移除的源 `portable-manifest.json`；字符串
+source-input inventories 必须是安全、Windows 大小写不敏感唯一的相对路径，并按固定
+prefix 存在于完整 ZIP inventory；可选 Maa Agent size 必须成对出现并与同一 inventory
+的 path/size/SHA 一致。历史 object-valued provenance 仍兼容；20 个工具、闭合 inputs、
+Plan/Apply、evidence、schema ID 与 schema-v1 bytes 均不变。
 
 本 Gate 的 repository diagnostic 会在缺失 `COMPUTERNAME` 的条件下完成 mock MCP
 handshake，并通过 production adapter 只读调用 `inspect_host` 与
@@ -266,6 +291,11 @@ handshake，并通过 production adapter 只读调用 `inspect_host` 与
 Gate C 验收；`inspect_vm`、Plan/Apply、guest、credential、evidence 与全部 Hyper-V
 mutation 均未执行。受保护 PR 普通合并后，后续独立 Gate 才能绑定 exact protected
 commit 进行安装。
+
+精确 Test2 的 source/profile 校验只属于 source evidence。只有受保护合并和仓库
+installer 重装完成后，才可按本次单独授权启动 `Birdsgone-W11-HV-20260723`、交互式
+初始化 `birdsgone-w11-test2` 凭据、执行 `inspect_guest`、non-UI portable smoke、
+证据验证与优雅关机。
 
 Codex app-server 验收默认仍只检查 20/20 unique tools，并保持
 `toolCallCount: 0`。显式 test-only 模式只在隔离的 selected MCP child 中启用

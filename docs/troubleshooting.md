@@ -92,11 +92,32 @@ install a payload with untracked files, reparse points, forbidden machine-state
 extensions, an unexpected folder/manifest name, or a version outside the
 recognized v0.4.0/v0.4.1 patch identities plus one optional Codex cachebuster.
 Gate 1 requires the current candidate to be v0.4.1; v0.4.0 parsing remains only
-for stable old-install drift reporting. The v0.4.1 Gate freezes exactly one
-build, `0.4.1+codex.20260805101924`, after the candidate is stable and performs
-no install or Release.
+for stable old-install drift reporting. The earlier `COMPUTERNAME` repair build
+was `0.4.1+codex.20260805101924`; the current exact-Test2 candidate freezes
+exactly `0.4.1+codex.20260813075830` after the candidate is stable and performs
+no install or Release during its source Gate.
 The immutable historical `v0.1.1`, `v0.2.0`, `v0.3.0`, `v0.3.1`, and
 `v0.3.2`, and `v0.4.0` Releases remain separate accepted artifacts.
+
+### Exact Test2 sidecar returns `PORTABLE_MANIFEST_INVALID`
+
+First verify the unchanged sidecar is 142,013 bytes with SHA-256
+`f9267d70ca9b412bc54170489e38d211bd528a28e64a1fe15fa2cf987471650c`
+and that the profile binds that same identity. The compatible runtime accepts
+only a complete `fresh-exact-head` triple, homogeneous path or file-identity
+source arrays, and a complete Maa Agent size pair. It then requires the source
+manifest row and every path/size/SHA binding to agree with `removedFiles` and
+the complete ZIP inventory. Field names are case-exact, and slash/backslash
+aliases are normalized before Windows case-insensitive collision checks.
+
+Do not delete the producer fields, convert strings to invented identity
+objects, rewrite/re-hash the immutable sidecar, or weaken `additionalProperties`
+or archive checks. If the exact source still reports unsupported root fields,
+string items "must be an object", or unsupported Agent sizes, the selected
+server is an older installed build. Stop before VM start or credential
+enrollment, install the exact protected repair commit with the repository
+installer, verify all 31 payload hashes and one catalog entry, and start a
+fresh selected-plugin task before retrying validation.
 
 ### Source is v0.4.1 but the installed copy is v0.4.0
 

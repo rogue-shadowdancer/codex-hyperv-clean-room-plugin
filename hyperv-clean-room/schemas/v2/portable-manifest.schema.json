@@ -164,6 +164,19 @@
       "maxItems": 4096,
       "items": { "$ref": "#/$defs/externalFileIdentity" }
     },
+    "externalPathInventory": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/safeRelativePath" }
+    },
+    "externalSourceInputInventory": {
+      "anyOf": [
+        { "$ref": "#/$defs/externalInventory" },
+        { "$ref": "#/$defs/externalPathInventory" }
+      ]
+    },
     "externalHostIdentity": {
       "type": "object",
       "additionalProperties": false,
@@ -181,6 +194,10 @@
     "externalAgentIdentity": {
       "type": "object",
       "additionalProperties": false,
+      "dependentRequired": {
+        "inventorySize": ["executableSize"],
+        "executableSize": ["inventorySize"]
+      },
       "required": [
         "inventoryPath",
         "inventorySha256",
@@ -193,8 +210,18 @@
       "properties": {
         "inventoryPath": { "$ref": "#/$defs/safeRelativePath" },
         "inventorySha256": { "$ref": "#/$defs/sha256" },
+        "inventorySize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
         "executablePath": { "$ref": "#/$defs/safeRelativePath" },
         "executableSha256": { "$ref": "#/$defs/sha256" },
+        "executableSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483648
+        },
         "maaBinding": { "type": "string", "minLength": 1, "maxLength": 64 },
         "maaCore": { "type": "string", "minLength": 1, "maxLength": 64 },
         "targetTriple": {
@@ -289,14 +316,20 @@
         "maaInventoryAuthority"
       ],
       "properties": {
-        "birdsgoneTrackedFiles": { "$ref": "#/$defs/externalInventory" },
+        "birdsgoneTrackedFiles": {
+          "$ref": "#/$defs/externalSourceInputInventory"
+        },
         "excludedBirdsgoneTrackedFiles": {
           "type": "array",
           "maxItems": 4096,
           "items": { "$ref": "#/$defs/safeRelativePath" }
         },
-        "preparedAgentFiles": { "$ref": "#/$defs/externalInventory" },
-        "maaInventoriedFiles": { "$ref": "#/$defs/externalInventory" },
+        "preparedAgentFiles": {
+          "$ref": "#/$defs/externalSourceInputInventory"
+        },
+        "maaInventoriedFiles": {
+          "$ref": "#/$defs/externalSourceInputInventory"
+        },
         "maaInventoryAuthority": { "$ref": "#/$defs/safeRelativePath" }
       }
     },
@@ -403,6 +436,11 @@
     "externalEndUserCompletePortableManifest": {
       "type": "object",
       "additionalProperties": false,
+      "dependentRequired": {
+        "sourceMode": ["sourceManifestSize", "sourceManifestSha256"],
+        "sourceManifestSize": ["sourceMode", "sourceManifestSha256"],
+        "sourceManifestSha256": ["sourceMode", "sourceManifestSize"]
+      },
       "required": [
         "schemaVersion",
         "packageKind",
@@ -435,6 +473,13 @@
         "schemaVersion": { "const": 2 },
         "packageKind": { "const": "windows-x64-portable" },
         "distributionBoundary": { "const": "end-user-complete" },
+        "sourceMode": { "const": "fresh-exact-head" },
+        "sourceManifestSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
+        "sourceManifestSha256": { "$ref": "#/$defs/sha256" },
         "fileName": { "$ref": "#/$defs/safeZipLeaf" },
         "version": { "$ref": "#/$defs/boundedSemver" },
         "architecture": { "const": "x86_64" },

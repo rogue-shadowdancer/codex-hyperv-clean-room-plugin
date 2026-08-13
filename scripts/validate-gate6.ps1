@@ -77,7 +77,7 @@ try {
         [int]$contractResult.semanticInvalidFixtures -ne 3 -or
         [int]$contractResult.migrationFixtures -ne 2 -or
         [int]$contractResult.dynamicCompatibilityChecks -ne 19 -or
-        [int]$contractResult.p3_1ValidFixtures -ne 6 -or
+        [int]$contractResult.p3_1ValidFixtures -ne 7 -or
         [int]$contractResult.p3_1SchemaInvalidFixtures -ne 5 -or
         [int]$contractResult.p3_1NegativeCases -ne 41 -or
         -not [bool]$contractResult.p3_1Closable -or

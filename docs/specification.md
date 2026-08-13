@@ -1315,7 +1315,8 @@ All case-insensitive path identity uses the supported Windows host's exact
 ordinal-ignore-case comparison over normalized UTF-16 paths. It does not use
 Unicode full case folding or multi-character expansions.
 
-P3.1 acceptance requires six positive target fixtures, five direct
+P3.1 acceptance now requires seven positive target fixtures, including the
+synthetic exact-Test2 provenance shape, plus five direct
 schema-negative fixtures, and the exact 41-case negative matrix under
 `tests/fixtures/v3`. The neutral sample omits WebView2, MaaFramework, driver,
 and UI steps. The consumer-shaped sample uses synthetic identities only; it
@@ -1620,3 +1621,73 @@ tag, or Release operation and no Hyper-V mutation. After an ordinary protected
 merge satisfying the exact-head validation, review, check, and fresh 30-minute
 window requirements, a separate task owns exact-commit installation. Gate C
 remains separately authorized and `notPerformed` here.
+
+## v0.4.1 exact Birdsgone `v0.1.0-test.2` manifest compatibility boundary
+
+This additive compatible patch preserves plugin/server base version `0.4.1`,
+frozen build `0.4.1+codex.20260813075830`,
+the exact 20 public tool names and closed tool inputs, all five schema-v1
+bytes, all seven schema-v2 paths and IDs, every Plan/Apply consumption and
+recovery rule, evidence semantics, credential separation, and the 31-payload
+installation topology. It changes only the closed external
+`end-user-complete` portable-manifest branch needed to consume the already
+published Test2 producer shape.
+
+The exact immutable candidate identities are:
+
+- ZIP `Birdsgone_0.1.0_windows-x64-portable.zip`, 344,485,947 bytes, SHA-256
+  `1a7cd75229c785b0724ea9552439504a8a4721242246ed53c2251594b36f8f6a`;
+- sidecar `portable-manifest.json`, 142,013 bytes, SHA-256
+  `f9267d70ca9b412bc54170489e38d211bd528a28e64a1fe15fa2cf987471650c`;
+- non-UI profile SHA-256
+  `37c4c8a49cef9a7b982c842a197f47f54a7cb02c10c3ff1c9043ccf803b31021`.
+
+The compatible manifest contract remains fail closed:
+
+- `sourceMode`, `sourceManifestSize`, and `sourceManifestSha256` are optional
+  only as one all-or-none group. When present, the mode is exactly
+  `fresh-exact-head`; size is an integer from 1 through 16 MiB; SHA is a
+  lowercase SHA-256; and size/SHA equal the unique ordinal-exact
+  `portable-manifest.json` row in `removedFiles`.
+- Each of `birdsgoneTrackedFiles`, `preparedAgentFiles`, and
+  `maaInventoriedFiles` is either the historical bounded array of closed
+  `{path,size,sha256}` objects or a homogeneous bounded array of safe relative
+  path strings. Mixed items fail. String paths are Windows
+  ordinal-ignore-case unique after `/` and `\` normalization and must exist in
+  the complete ZIP `files` inventory under the fixed `birdsgone/`, direct, and
+  `maafw/` mappings. New compatibility-field names use exact schema casing;
+  case aliases remain unsupported.
+- `maa.agent.inventorySize` and `executableSize` are optional only as a pair.
+  When present, both are bounded positive integers and their respective
+  path/size/SHA triples exactly match the complete ZIP inventory.
+- Unknown fields, partial groups, alternate modes, unsafe or colliding paths,
+  absent inventory entries, and size/SHA drift remain invalid. ZIP name,
+  ZIP size/SHA, sidecar size/SHA, entrypoint, documentation inventory,
+  source/packaging identities, forbidden sidecars/data paths, fixture
+  separation, archive closure, deployment identity, and pre-launch byte
+  revalidation are unchanged.
+
+Source acceptance requires both authoritative schema copies to be
+byte-identical, the exact immutable Test2 sidecar to pass Draft 2020-12 and
+native runtime validation without rewriting, the exact profile to resolve that
+same sidecar, focused negative probes for every new binding, PowerShell 5.1
+runtime regressions, complete repository validation, and exact-staged review
+with zero actionable findings. All real host, Hyper-V, guest, credential,
+portable, evidence, and UI counters remain zero during this source gate.
+
+After one ordinary protected pull-request merge, install the one frozen build
+only through `scripts/install_plugin.ps1` from exact protected `master` and
+require all 31 installed payload identities, source commit, version,
+cachebuster, one marketplace entry, enabled state, and 20-tool selected catalog
+to agree. No tag or GitHub Release is part of this repair.
+
+The user separately authorizes the post-install production sequence only for
+owned VM `Birdsgone-W11-HV-20260723`, new credential profile
+`birdsgone-w11-test2`, and the exact ZIP/profile/sidecar identities above:
+revalidate the profile; inspect current VM state; plan then apply start when it
+is Off; run the two-prompt interactive credential initializer; call
+`inspect_guest`; run the declarative non-UI portable smoke; collect and validate
+its evidence; then plan and apply `gracefulShutdown` and verify Off. Credentials
+never enter MCP, shell arguments, logs, evidence, or Git. No checkpoint,
+network, VM-create, deletion, forced power-off, arbitrary command, UI/manual
+attestation, tag, Release, or unrelated mutation is authorized.
