@@ -39,6 +39,18 @@ schemas add closed, mutually exclusive branches:
   payload size, canonical documentation digest, retained runtime/legal
   digests, and complete archive inventory, plus the closed typed provenance
   fields required by the protected consumer contract.
+  The compatible v0.4.1 runtime additionally recognizes the exact published
+  Test2 producer shape: an optional all-or-none `fresh-exact-head`
+  source-manifest triple, homogeneous string-path source inventories as an
+  alternative to the historical file-identity arrays, and an optional paired
+  Maa Agent size identity. These alternatives are scoped only to the
+  `end-user-complete` branch; `runtime-and-legal-only` retains object-valued
+  inventories and the historical Agent identity without size fields. Native
+  validation binds the Test2 fields to the unique
+  removed source manifest and the complete ZIP inventory; canonical property
+  casing is required and separator aliases collide before inventory binding.
+  The schema does not admit mixed arrays, partial pairs, another source mode,
+  or unknown fields.
 - `evidence.schema.json` retains embedded evidence without a discriminator and
   adds `evidenceKind: externalPortable`, binding source/guest ZIP and manifest
   identities, runtime provenance, fixture identities, deployment identity,
@@ -70,6 +82,7 @@ continues to use the exact integer `schemaVersion`; unknown versions fail with
 Fixtures under `tests/fixtures/v3` contain only synthetic identities. They
 include a generic non-UI portable with no WebView2, MaaFramework, driver, or UI
 step; a synthetic end-user-complete consumer-shaped manifest/UI pair; a
+synthetic exact-Test2 provenance shape and drift probes; a
 historical-only legacy external manifest; external evidence; schema-negative
 branch fixtures; and the complete parser/archive/documentation/prerequisite/
 cross-document negative-case inventory. They contain no private asset, machine

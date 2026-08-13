@@ -340,6 +340,33 @@ function Test-HcrV2ClosedObject {
     return $true
 }
 
+function Test-HcrV2ExactPropertyNames {
+    param(
+        [AllowNull()][object]$Value,
+        [Parameter(Mandatory = $true)][string[]]$Names,
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Errors
+    )
+
+    if (-not (Test-HcrObjectLike $Value)) { return }
+    foreach ($actualName in (Get-HcrPropertyNames $Value)) {
+        foreach ($canonicalName in $Names) {
+            if ([StringComparer]::OrdinalIgnoreCase.Equals(
+                    [string]$actualName,
+                    [string]$canonicalName
+                ) -and
+                -not [StringComparer]::Ordinal.Equals(
+                    [string]$actualName,
+                    [string]$canonicalName
+                )) {
+                Add-HcrValidationError $Errors (
+                    "$Path contains incorrectly cased field '$actualName'."
+                )
+            }
+        }
+    }
+}
+
 function Test-HcrV2ExternalFileInventory {
     param(
         [AllowNull()][object]$Value,
@@ -374,6 +401,185 @@ function Test-HcrV2ExternalFileInventory {
             [decimal]$size -gt 2GB -or
             -not (Test-HcrV2Sha256 (Get-HcrPropertyValue $item 'sha256'))) {
             Add-HcrValidationError $Errors "$Path contains an invalid or colliding file identity."
+        }
+    }
+}
+
+function Test-HcrV2ExternalSourceInputInventory {
+    param(
+        [AllowNull()][object]$Value,
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Errors
+    )
+
+    if ($Value -isnot [Array]) {
+        Add-HcrValidationError $Errors "$Path must be an array."
+        return
+    }
+    $items = @($Value)
+    if ($items.Count -gt 4096) {
+        Add-HcrValidationError $Errors "$Path exceeds the inventory bound."
+        return
+    }
+    if ($items.Count -eq 0) { return }
+
+    $stringItems = @($items | Where-Object { $_ -is [string] })
+    if ($stringItems.Count -eq 0) {
+        Test-HcrV2ExternalFileInventory $Value $Path $Errors
+        return
+    }
+    if ($stringItems.Count -ne $items.Count) {
+        Add-HcrValidationError $Errors "$Path must contain only file identities or only relative paths."
+        return
+    }
+
+    $seen = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($item in $items) {
+        $itemPath = [string]$item
+        $normalizedItemPath = $itemPath.Replace('\', '/')
+        if (-not (Test-HcrV2WindowsSafeRelativePath $itemPath) -or
+            -not $seen.Add($normalizedItemPath)) {
+            Add-HcrValidationError $Errors "$Path contains an unsafe or colliding relative path."
+        }
+    }
+}
+
+function Test-HcrV2ExternalSelectedSourceBinding {
+    param(
+        [Parameter(Mandatory = $true)][object]$Manifest,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Errors
+    )
+
+    $bindingFields = @('sourceMode', 'sourceManifestSize', 'sourceManifestSha256')
+    $presentFields = @($bindingFields | Where-Object {
+            Test-HcrProperty $Manifest $_
+        })
+    if ($presentFields.Count -eq 0) { return }
+    if ($presentFields.Count -ne $bindingFields.Count) {
+        Add-HcrValidationError $Errors '$manifest selected-source binding must be absent or complete.'
+        return
+    }
+
+    $sourceManifestSize = Get-HcrPropertyValue $Manifest 'sourceManifestSize'
+    if ((Get-HcrPropertyValue $Manifest 'sourceMode') -cne 'fresh-exact-head' -or
+        -not (Test-HcrInteger $sourceManifestSize) -or
+        [decimal]$sourceManifestSize -lt 1 -or
+        [decimal]$sourceManifestSize -gt 16MB -or
+        -not (Test-HcrV2Sha256 (
+                Get-HcrPropertyValue $Manifest 'sourceManifestSha256'
+            ))) {
+        Add-HcrValidationError $Errors '$manifest selected-source binding is invalid.'
+        return
+    }
+
+    $removedFilesValue = Get-HcrPropertyValue $Manifest 'removedFiles'
+    $sourceManifestRows = @(if ($removedFilesValue -is [Array]) {
+        $removedFilesValue | Where-Object {
+                (Test-HcrObjectLike $_) -and
+                (Get-HcrPropertyValue $_ 'path') -is [string] -and
+                [string](Get-HcrPropertyValue $_ 'path') -ceq 'portable-manifest.json'
+            }
+    }
+    else { @() })
+    $sourceManifestRowSize = if ($sourceManifestRows.Count -eq 1) {
+        Get-HcrPropertyValue $sourceManifestRows[0] 'size'
+    }
+    else { $null }
+    $sourceManifestRowSha256 = if ($sourceManifestRows.Count -eq 1) {
+        Get-HcrPropertyValue $sourceManifestRows[0] 'sha256'
+    }
+    else { $null }
+    if ($sourceManifestRows.Count -ne 1 -or
+        -not (Test-HcrInteger $sourceManifestRowSize) -or
+        -not (Test-HcrV2Sha256 $sourceManifestRowSha256) -or
+        [int64]$sourceManifestRowSize -ne [int64]$sourceManifestSize -or
+        [string]$sourceManifestRowSha256 -cne
+            [string](Get-HcrPropertyValue $Manifest 'sourceManifestSha256')) {
+        Add-HcrValidationError $Errors '$manifest selected-source binding does not match removedFiles portable-manifest.json.'
+    }
+}
+
+function Test-HcrV2ExternalSourceInputBindings {
+    param(
+        [Parameter(Mandatory = $true)][object]$Manifest,
+        [Parameter(Mandatory = $true)][object]$FileByPath,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Errors
+    )
+
+    if (-not (Test-HcrProperty $Manifest 'sourceInputs')) { return }
+    $sourceInputs = Get-HcrPropertyValue $Manifest 'sourceInputs'
+    if (-not (Test-HcrObjectLike $sourceInputs)) { return }
+
+    foreach ($binding in @(
+            [pscustomobject]@{ field = 'birdsgoneTrackedFiles'; prefix = 'birdsgone/' },
+            [pscustomobject]@{ field = 'preparedAgentFiles'; prefix = '' },
+            [pscustomobject]@{ field = 'maaInventoriedFiles'; prefix = 'maafw/' }
+        )) {
+        $value = Get-HcrPropertyValue $sourceInputs $binding.field
+        if ($value -isnot [Array]) { continue }
+        $items = @($value)
+        if ($items.Count -eq 0 -or
+            @($items | Where-Object { $_ -isnot [string] }).Count -ne 0) {
+            continue
+        }
+        foreach ($item in $items) {
+            $archivePath = [string]$binding.prefix + ([string]$item).Replace('\', '/')
+            if (-not $FileByPath.ContainsKey($archivePath)) {
+                Add-HcrValidationError $Errors (
+                    '$manifest.sourceInputs.{0} path is not represented in the ZIP inventory.' -f
+                        $binding.field
+                )
+            }
+        }
+    }
+}
+
+function Test-HcrV2ExternalAgentFileBindings {
+    param(
+        [Parameter(Mandatory = $true)][object]$Manifest,
+        [Parameter(Mandatory = $true)][object]$FileByPath,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Errors
+    )
+
+    if (-not (Test-HcrProperty $Manifest 'maa')) { return }
+    $maa = Get-HcrPropertyValue $Manifest 'maa'
+    if (-not (Test-HcrObjectLike $maa) -or -not (Test-HcrProperty $maa 'agent')) {
+        return
+    }
+    $agent = Get-HcrPropertyValue $maa 'agent'
+    if (-not (Test-HcrObjectLike $agent) -or
+        -not (Test-HcrProperty $agent 'inventorySize') -or
+        -not (Test-HcrProperty $agent 'executableSize')) {
+        return
+    }
+    if (-not (Test-HcrInteger (
+                Get-HcrPropertyValue $agent 'inventorySize'
+            )) -or
+        -not (Test-HcrInteger (
+                Get-HcrPropertyValue $agent 'executableSize'
+            ))) {
+        return
+    }
+
+    foreach ($binding in @(
+            [pscustomobject]@{
+                path = 'inventoryPath'; size = 'inventorySize'; sha256 = 'inventorySha256'
+            },
+            [pscustomobject]@{
+                path = 'executablePath'; size = 'executableSize'; sha256 = 'executableSha256'
+            }
+        )) {
+        $path = ([string](Get-HcrPropertyValue $agent $binding.path)).Replace('\', '/')
+        $file = if ($FileByPath.ContainsKey($path)) { $FileByPath[$path] } else { $null }
+        if ($null -eq $file -or
+            [int64](Get-HcrPropertyValue $file 'size') -ne
+                [int64](Get-HcrPropertyValue $agent $binding.size) -or
+            [string](Get-HcrPropertyValue $file 'sha256') -cne
+                [string](Get-HcrPropertyValue $agent $binding.sha256)) {
+            Add-HcrValidationError $Errors (
+                '$manifest.maa.agent {0} identity is not byte-bound to the ZIP inventory.' -f
+                    $binding.path
+            )
         }
     }
 }
@@ -506,6 +712,15 @@ function Test-HcrV2ExternalManifestProvenance {
 
     if (Test-HcrProperty $Manifest 'sourceInputs') {
         $sourceInputs = Get-HcrPropertyValue $Manifest 'sourceInputs'
+        Test-HcrV2ExactPropertyNames `
+            $sourceInputs `
+            @(
+                'birdsgoneTrackedFiles',
+                'preparedAgentFiles',
+                'maaInventoriedFiles'
+            ) `
+            '$manifest.sourceInputs' `
+            $Errors
         $sourceFields = @(
             'birdsgoneTrackedFiles', 'excludedBirdsgoneTrackedFiles',
             'preparedAgentFiles', 'maaInventoriedFiles', 'maaInventoryAuthority'
@@ -517,7 +732,7 @@ function Test-HcrV2ExternalManifestProvenance {
                     'birdsgoneTrackedFiles', 'preparedAgentFiles',
                     'maaInventoriedFiles'
                 )) {
-                Test-HcrV2ExternalFileInventory `
+                Test-HcrV2ExternalSourceInputInventory `
                     (Get-HcrPropertyValue $sourceInputs $field) `
                     "$.manifest.sourceInputs.$field" `
                     $Errors
@@ -571,12 +786,22 @@ function Test-HcrV2ExternalManifestProvenance {
                 }
             }
             $agent = Get-HcrPropertyValue $maa 'agent'
+            Test-HcrV2ExactPropertyNames `
+                $agent `
+                @('inventorySize', 'executableSize') `
+                '$manifest.maa.agent' `
+                $Errors
             $agentFields = @(
+                'inventoryPath', 'inventorySha256', 'inventorySize',
+                'executablePath', 'executableSha256', 'executableSize',
+                'maaBinding', 'maaCore', 'targetTriple'
+            )
+            $requiredAgentFields = @(
                 'inventoryPath', 'inventorySha256', 'executablePath',
                 'executableSha256', 'maaBinding', 'maaCore', 'targetTriple'
             )
             if (Test-HcrV2ClosedObject `
-                    $agent $agentFields $agentFields '$manifest.maa.agent' $Errors) {
+                    $agent $agentFields $requiredAgentFields '$manifest.maa.agent' $Errors) {
                 foreach ($field in @('inventoryPath', 'executablePath')) {
                     if (-not (Test-HcrV2WindowsSafeRelativePath (
                                 Get-HcrPropertyValue $agent $field
@@ -596,6 +821,26 @@ function Test-HcrV2ExternalManifestProvenance {
                     $maximum = if ($field -eq 'targetTriple') { 128 } else { 64 }
                     if ($value.Length -lt 1 -or $value.Length -gt $maximum) {
                         Add-HcrValidationError $Errors "$.manifest.maa.agent.$field is invalid."
+                    }
+                }
+                $sizeFields = @('inventorySize', 'executableSize')
+                $presentSizeFields = @($sizeFields | Where-Object {
+                        Test-HcrProperty $agent $_
+                    })
+                if ($presentSizeFields.Count -ne 0 -and
+                    $presentSizeFields.Count -ne $sizeFields.Count) {
+                    Add-HcrValidationError $Errors '$manifest.maa.agent size binding must be absent or complete.'
+                }
+                elseif ($presentSizeFields.Count -eq $sizeFields.Count) {
+                    $inventorySize = Get-HcrPropertyValue $agent 'inventorySize'
+                    $executableSize = Get-HcrPropertyValue $agent 'executableSize'
+                    if (-not (Test-HcrInteger $inventorySize) -or
+                        [decimal]$inventorySize -lt 1 -or
+                        [decimal]$inventorySize -gt 16MB -or
+                        -not (Test-HcrInteger $executableSize) -or
+                        [decimal]$executableSize -lt 1 -or
+                        [decimal]$executableSize -gt 2GB) {
+                        Add-HcrValidationError $Errors '$manifest.maa.agent size binding is invalid.'
                     }
                 }
             }
@@ -1184,8 +1429,14 @@ function Test-HcrExternalPortableManifestV2 {
     )
 
     $errors = New-Object System.Collections.Generic.List[string]
+    Test-HcrV2ExactPropertyNames `
+        $Manifest `
+        @('sourceMode', 'sourceManifestSize', 'sourceManifestSha256') `
+        '$manifest' `
+        $errors
     $allowed = @(
         'schemaVersion', 'packageKind', 'distributionBoundary', 'fileName',
+        'sourceMode', 'sourceManifestSize', 'sourceManifestSha256',
         'version', 'architecture', 'entrypoint', 'distributionMode', 'dataRoot',
         'unsigned', 'newZipSize', 'newZipSha256', 'documentationFiles',
         'documentationSourceCommit', 'documentationSourceTree',
@@ -1473,6 +1724,9 @@ function Test-HcrExternalPortableManifestV2 {
         Add-HcrValidationError $errors 'The non-UI external branch must omit WebDriver.'
     }
     Test-HcrV2ExternalManifestProvenance $Manifest $errors
+    Test-HcrV2ExternalSelectedSourceBinding $Manifest $errors
+    Test-HcrV2ExternalSourceInputBindings $Manifest $fileByPath $errors
+    Test-HcrV2ExternalAgentFileBindings $Manifest $fileByPath $errors
 
     $inventory = $null
     try {

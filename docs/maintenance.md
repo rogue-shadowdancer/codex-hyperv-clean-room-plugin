@@ -57,6 +57,16 @@ production typed read-only acceptance occurs only in a fresh non-elevated task.
 The `v0.4.1` tag and source-only Release remain a separate authorization Gate
 after that acceptance. Immutable v0.1.1 through v0.4.0 remain unchanged.
 
+The exact Test2 manifest compatibility repair remains on base `0.4.1` but must
+receive one new cachebuster after its runtime, schema copies, synthetic/exact
+Test2 validation, and documentation stabilize. Invoke the helper once for this
+repair; the frozen value is `0.4.1+codex.20260813075830`. Commit that value and
+reuse it unchanged through protected review,
+merge, repository-authorized reinstall, selected-catalog verification, and the
+authorized Test2 VM sequence. The prior
+`0.4.1+codex.20260805101924` installation is historical source/install state,
+not an acceptable cache identity for the repaired bytes.
+
 The historical `v0.1.1` release used the helper exactly once and produced
 `0.1.1+codex.20260715064728`. Release verification must preserve that value;
 do not run the helper again merely to reinstall the accepted source commit.

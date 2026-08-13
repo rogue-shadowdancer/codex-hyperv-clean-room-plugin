@@ -438,3 +438,28 @@ ordinary protected PR path when every condition remains satisfied. This Gate
 must not install, tag, publish a Release, deploy, force/direct push, delete a
 branch, or begin Gate C. A separate post-merge task owns exact protected-commit
 installation.
+
+## v0.4.1 exact Test2 manifest compatibility repair
+
+This repair remains on base version `0.4.1` and does not move or reissue any
+historical tag or Release. It changes only the strict external
+portable-manifest compatibility layer, its two byte-identical schema copies,
+tests, and affected documentation. Exactly 20 tools, all tool inputs,
+schema-v1 bytes, schema-v2 paths/IDs, Plan/Apply, credentials, evidence, and
+31-payload topology remain unchanged.
+
+After code, contract, tests, and documentation are stable, invoke the
+plugin-creator cachebuster helper exactly once. The frozen build is
+`0.4.1+codex.20260813075830`; commit and reuse it without regeneration.
+Complete local full-gate validation and an exact-staged zero-actionable-finding
+review, publish one ready pull request, and merge only through ordinary
+protected `master` after its exact-head requirements are satisfied. Hosted CI
+that is affirmatively quota/billing/platform-blocked may be recorded only as
+`waived_non_code` / `notPerformed` after the exact candidate passes every
+locally available equivalent; it is never called passed and branch protection
+is not silently bypassed.
+
+Install only the merged protected commit through `scripts/install_plugin.ps1`;
+do not regenerate the cachebuster or hand-edit marketplace/configuration. The
+subsequent exact Test2 VM/guest/portable/evidence/shutdown sequence uses its own
+explicit authorization and does not create a tag or GitHub Release.

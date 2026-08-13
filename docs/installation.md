@@ -11,9 +11,11 @@ the payload to
 in the default personal marketplace through the `plugin-creator` helper, and
 runs:
 
-The source Gate prepares the one precommitted
-`0.4.1+codex.20260805101924` build; it does not install or publish it. After
-merge, the installation Gate requires all 31
+The current exact-Test2 source Gate prepares the one precommitted
+`0.4.1+codex.20260813075830` build; the prior
+`0.4.1+codex.20260805101924` build is installed predecessor state. The source
+Gate does not install or publish the new build. After merge, the installation
+Gate requires all 31
 tracked payloads, the two installed-state records, exact per-file size/SHA-256,
 source commit, version, cachebuster, one canonical marketplace entry, and Codex
 installed/enabled state to agree. Production typed read-only acceptance follows
@@ -27,6 +29,17 @@ also restores a missing or whitespace value from `[Environment]::MachineName`
 inside the MCP child before adapter or state initialization. The source repair
 Gate validates this behavior but does not copy it into the personal plugin,
 edit marketplace/Codex configuration, or claim installed runtime acceptance.
+
+The exact Test2 manifest repair follows the same boundary. Source validation
+may prove the immutable sidecar/profile compatible, but the currently installed
+older payload remains ineligible for the Test2 run. After the ordinary
+protected merge, run `validate-install-source.ps1 -RequireCachebuster`,
+`check_install.ps1`, `install_plugin.ps1` exactly once, and `check_install.ps1`
+again from the exact protected checkout. Require 31/31 payload hashes, exact
+source/installed commit and build, one personal marketplace entry,
+installed/enabled state, and the 20-tool selected catalog before any VM start,
+credential enrollment, or guest call. Do not edit marketplace/configuration or
+regenerate the cachebuster during installation.
 
 ```powershell
 codex plugin add hyperv-clean-room@personal

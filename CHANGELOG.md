@@ -8,6 +8,18 @@ the local plugin cache.
 
 ### Fixed
 
+- Accept the exact published Birdsgone `v0.1.0-test.2` end-user-complete
+  sidecar without weakening the external-manifest boundary. The compatible
+  branch recognizes only the complete `fresh-exact-head` source-manifest
+  binding, homogeneous bounded path inventories, and the paired Maa Agent size
+  identities emitted by that release.
+- Require canonical JSON property casing, bind the fresh source-manifest
+  size/SHA to the unique removed
+  `portable-manifest.json`, bind every string source-input path to the complete
+  ZIP inventory under its fixed archive prefix after separator normalization,
+  and bind both Maa Agent path/size/SHA triples to the same inventory. Partial,
+  mixed-shape, unsafe, case/separator-colliding, missing, or drifted provenance
+  continues to fail closed.
 - Pass through exactly `COMPUTERNAME` to the Windows MCP child and no literal
   environment value. If that variable is missing or whitespace at the earliest
   runtime initialization stage, restore only the child-process value from
@@ -32,6 +44,11 @@ the local plugin cache.
 
 ### Compatibility and validation boundary
 
+- Keep previous object-valued external source inventories valid while adding
+  the exact string-path form as an alternate closed schema shape. The two
+  authoritative/installed `portable-manifest.schema.json` copies remain
+  byte-identical, all five schema-v1 bytes and seven schema-v2 paths/IDs remain
+  stable, and no public tool input or result envelope changes.
 - Preserve exactly 20 public tools, all closed input schemas, v1/v2 dispatch,
   Plan/Apply and recovery semantics, and evidence fields. Evidence runtime
   provenance adds only the strict v0.4.1 base/build pair while retaining all
@@ -44,9 +61,11 @@ the local plugin cache.
   Native evidence validation and runtime identity production now also apply
   case-sensitive build provenance matching, consistent with the authoritative
   JSON Schema.
-- Freeze the single candidate build `0.4.1+codex.20260805101924` after the
-  runtime, contracts, tests, and documentation are stable; do not regenerate
-  it during review, merge, installation, or Release.
+- Freeze the final exact-Test2-compatible candidate build
+  `0.4.1+codex.20260813075830` after the runtime, contracts, tests, and
+  documentation are stable; do not regenerate it during review, merge,
+  installation, or Release. The earlier
+  `0.4.1+codex.20260805101924` install remains historical predecessor state.
 - The repair Gate additionally removes `COMPUTERNAME` from the launched child,
   completes a mock MCP handshake, and runs only production-adapter
   `inspect_host` and `list_vms(managedOnly=false)` as an authorized real-host

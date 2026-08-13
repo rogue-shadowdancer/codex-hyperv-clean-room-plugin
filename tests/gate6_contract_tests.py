@@ -593,6 +593,86 @@ def validate_portable_manifest_semantics(manifest: dict[str, Any]) -> list[str]:
             "newRuntimeInventoryDigest"
         ):
             errors.append("retained runtime/legal inventory digest drifted")
+        selected_source_fields = {
+            "sourceMode",
+            "sourceManifestSize",
+            "sourceManifestSha256",
+        }
+        present_selected_source_fields = selected_source_fields & set(manifest)
+        if present_selected_source_fields:
+            if present_selected_source_fields != selected_source_fields:
+                errors.append("selected-source binding is partial")
+            elif manifest.get("sourceMode") != "fresh-exact-head":
+                errors.append("selected-source mode is not fresh-exact-head")
+            else:
+                removed_source_manifests = [
+                    item
+                    for item in manifest.get("removedFiles", [])
+                    if isinstance(item, dict)
+                    and item.get("path") == "portable-manifest.json"
+                ]
+                if len(removed_source_manifests) != 1 or any(
+                    removed_source_manifests[0].get(field)
+                    != manifest.get(f"sourceManifest{field.capitalize()}")
+                    for field in ("size", "sha256")
+                ):
+                    errors.append(
+                        "selected-source binding differs from removed portable manifest"
+                    )
+        source_inputs = manifest.get("sourceInputs")
+        if isinstance(source_inputs, dict):
+            for field, prefix in (
+                ("birdsgoneTrackedFiles", "birdsgone/"),
+                ("preparedAgentFiles", ""),
+                ("maaInventoriedFiles", "maafw/"),
+            ):
+                source_paths = source_inputs.get(field)
+                if not isinstance(source_paths, list) or not source_paths or not all(
+                    isinstance(item, str) for item in source_paths
+                ):
+                    continue
+                if duplicate_windows_paths(source_paths):
+                    errors.append(
+                        f"{field} contains colliding Windows relative paths"
+                    )
+                for source_path in source_paths:
+                    archive_path = prefix + normalized_archive_path(source_path)
+                    if not any(
+                        windows_ordinal_ignore_case_equal(archive_path, path)
+                        for path in string_paths
+                    ):
+                        errors.append(
+                            f"{field} path is absent from the archive inventory"
+                        )
+        agent = manifest.get("maa", {}).get("agent", {})
+        if isinstance(agent, dict) and {
+            "inventorySize",
+            "executableSize",
+        }.issubset(agent):
+            for path_field, size_field, sha_field in (
+                ("inventoryPath", "inventorySize", "inventorySha256"),
+                ("executablePath", "executableSize", "executableSha256"),
+            ):
+                agent_file = next(
+                    (
+                        item
+                        for item in files
+                        if isinstance(item, dict)
+                        and isinstance(item.get("path"), str)
+                        and windows_ordinal_ignore_case_equal(
+                            item["path"], agent.get(path_field)
+                        )
+                    ),
+                    None,
+                )
+                if (
+                    agent_file is None
+                    or agent_file.get("size") != agent.get(size_field)
+                    or agent_file.get("sha256") != agent.get(sha_field)
+                ):
+                    errors.append(
+                        f"agent {path_field} identity differs from archive inventory"
+                    )
     return errors
 
 
@@ -2023,6 +2103,9 @@ def assert_p3_1_contract(
         "portable-manifest.external-birdsgone-shape.valid.json": (
             "portable-manifest.schema.json"
         ),
+        "portable-manifest.external-test2-provenance.valid.json": (
+            "portable-manifest.schema.json"
+        ),
         "portable-manifest.external-legacy-historical.valid.json": (
             "portable-manifest.schema.json"
         ),
@@ -2085,9 +2168,75 @@ def assert_p3_1_contract(
     ui_profile_sha256 = sha256_file(
         P3_1_FIXTURE_ROOT / "test-profile.external-ui.valid.json"
     )
+    test2_manifest = load_json(
+        P3_1_FIXTURE_ROOT / "portable-manifest.external-test2-provenance.valid.json"
+    )
+    legacy_manifest = load_json(
+        P3_1_FIXTURE_ROOT
+        / "portable-manifest.external-legacy-historical.valid.json"
+    )
     portable_validator = validator_for(
         "portable-manifest.schema.json", schemas, registry
     )
+    if validate_portable_manifest_semantics(test2_manifest):
+        raise AssertionError("exact Test2 provenance fixture failed semantic validation")
+    test2_schema_probes = {}
+    partial_source = deepcopy(test2_manifest)
+    del partial_source["sourceManifestSha256"]
+    test2_schema_probes["partial selected-source binding"] = partial_source
+    wrong_source_mode = deepcopy(test2_manifest)
+    wrong_source_mode["sourceMode"] = "frozen-g4.2-baseline"
+    test2_schema_probes["unsupported selected-source mode"] = wrong_source_mode
+    wrong_case_source_mode = deepcopy(test2_manifest)
+    wrong_case_source_mode["SourceMode"] = wrong_case_source_mode.pop("sourceMode")
+    test2_schema_probes["incorrectly cased selected-source field"] = (
+        wrong_case_source_mode
+    )
+    mixed_source_inventory = deepcopy(test2_manifest)
+    mixed_source_inventory["sourceInputs"]["preparedAgentFiles"].append(
+        {"path": "extra.exe", "size": 1, "sha256": "a" * 64}
+    )
+    test2_schema_probes["mixed source-input inventory"] = mixed_source_inventory
+    partial_agent_size = deepcopy(test2_manifest)
+    del partial_agent_size["maa"]["agent"]["executableSize"]
+    test2_schema_probes["partial Agent size binding"] = partial_agent_size
+    for label, probe in test2_schema_probes.items():
+        if not list(portable_validator.iter_errors(probe)):
+            raise AssertionError(f"portable schema accepted {label}")
+    legacy_string_sources = deepcopy(legacy_manifest)
+    legacy_string_sources["sourceInputs"] = deepcopy(test2_manifest["sourceInputs"])
+    if not list(portable_validator.iter_errors(legacy_string_sources)):
+        raise AssertionError("legacy manifest accepted Test2 string source inputs")
+    legacy_agent_sizes = deepcopy(legacy_manifest)
+    legacy_agent_sizes["maa"] = deepcopy(test2_manifest["maa"])
+    if not list(portable_validator.iter_errors(legacy_agent_sizes)):
+        raise AssertionError("legacy manifest accepted Test2 Agent size bindings")
+    legacy_object_provenance = deepcopy(legacy_manifest)
+    legacy_object_provenance["sourceInputs"] = deepcopy(ui_manifest["sourceInputs"])
+    legacy_object_provenance["maa"] = deepcopy(ui_manifest["maa"])
+    if list(portable_validator.iter_errors(legacy_object_provenance)):
+        raise AssertionError("legacy manifest rejected historical object provenance")
+    removed_source_mismatch = deepcopy(test2_manifest)
+    removed_source_mismatch["removedFiles"][0]["size"] += 1
+    if not validate_portable_manifest_semantics(removed_source_mismatch):
+        raise AssertionError("selected-source removed-file mismatch was accepted")
+    source_input_mismatch = deepcopy(test2_manifest)
+    source_input_mismatch["sourceInputs"]["birdsgoneTrackedFiles"][0] = (
+        "missing.json"
+    )
+    if not validate_portable_manifest_semantics(source_input_mismatch):
+        raise AssertionError("unbound source-input path was accepted")
+    source_input_separator_collision = deepcopy(test2_manifest)
+    source_input_separator_collision["sourceInputs"]["birdsgoneTrackedFiles"] = [
+        "resource/interface.json",
+        "resource\\interface.json",
+    ]
+    if not validate_portable_manifest_semantics(source_input_separator_collision):
+        raise AssertionError("separator-alias source-input collision was accepted")
+    agent_size_mismatch = deepcopy(test2_manifest)
+    agent_size_mismatch["maa"]["agent"]["inventorySize"] += 1
+    if not validate_portable_manifest_semantics(agent_size_mismatch):
+        raise AssertionError("Agent size drift from the archive inventory was accepted")
     embedded_manifest = load_json(FIXTURE_ROOT / "portable-manifest.valid.json")
     embedded_build_metadata = deepcopy(embedded_manifest)
     embedded_build_metadata["productVersion"] = "1.2.3+build"

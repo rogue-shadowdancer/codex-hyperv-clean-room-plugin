@@ -31,6 +31,21 @@ version 必须相等且 driver/browser 前三段相同。external entrypoint 只
 取得，runtime 不向它传 caller argument。P3.2 验证仍为 mock/parser/schema/static；
 不得把本文当作 P3.3 安装说明或真实 guest 操作授权。
 
+v0.4.1 的兼容分支还可以读取精确 Test2 producer 的闭合 provenance 形状。顶层
+`sourceMode`、`sourceManifestSize`、`sourceManifestSha256` 必须全部省略或全部存在；
+存在时 `sourceMode` 只能是 `fresh-exact-head`，且 size/SHA 必须精确等于
+`removedFiles` 中唯一、大小写精确的 `portable-manifest.json` identity。
+`sourceInputs.birdsgoneTrackedFiles`、`preparedAgentFiles` 与
+`maaInventoriedFiles` 各自可以使用历史 `{path,size,sha256}` 数组，或统一使用安全的
+relative-path string 数组，但不能混合两种 item。字符串路径按固定 `birdsgone/`、
+直接路径或 `maafw/` prefix 绑定完整 ZIP `files` inventory，并执行 Windows
+大小写不敏感唯一性检查；`/` 与 `\` 在碰撞检查前统一，所以不能用 separator alias
+重复引用同一 ZIP entry。新增字段名必须保持 schema 定义的精确大小写。
+`maa.agent.inventorySize` 与 `executableSize` 必须同时省略
+或同时存在；存在时各自与声明 path/SHA 对应的 ZIP entry 完全一致。未知字段、部分
+binding、路径冲突、缺少 ZIP entry 或 identity drift 均返回
+`PORTABLE_MANIFEST_INVALID`，不得通过重写 sidecar 绕过。
+
 ## Schema-v2 portable automation
 
 V2 保留原有 `legacyPackageLifecycle`，并增加

@@ -335,6 +335,37 @@ def main() -> int:
             "Test-WorkerBoolean (Get-WorkerProperty $manifest 'unsigned')",
         ),
     )
+    worker_manifest_start = worker.index("function Read-WorkerPortableManifest {")
+    worker_manifest_end = worker.index("\nfunction ", worker_manifest_start + 1)
+    worker_manifest_reader = worker[worker_manifest_start:worker_manifest_end]
+    require_tokens(
+        worker_manifest_reader,
+        "worker exact Test2 selected-source fields",
+        (
+            "'sourceMode'",
+            "'sourceManifestSize'",
+            "'sourceManifestSha256'",
+            "Resolve-WorkerStagedPortableManifest",
+        ),
+    )
+    worker_manifest_resolver_start = worker.index(
+        "function Resolve-WorkerStagedPortableManifest {"
+    )
+    worker_manifest_resolver_end = worker.index(
+        "\nfunction ", worker_manifest_resolver_start + 1
+    )
+    worker_manifest_resolver = worker[
+        worker_manifest_resolver_start:worker_manifest_resolver_end
+    ]
+    require_tokens(
+        worker_manifest_resolver,
+        "worker staged sidecar byte binding",
+        (
+            "guestSizeBytes",
+            "guestSha256",
+            "Get-WorkerSha256File",
+        ),
+    )
     require_tokens(
         common + validation,
         "single-read external sidecar identity",
@@ -461,6 +492,26 @@ def main() -> int:
             "$manifest.maa.agent",
             "$manifest.webView2",
             "contains unsupported field",
+        ),
+    )
+    require_tokens(
+        validation,
+        "exact Test2 manifest compatibility",
+        (
+            "Test-HcrV2ExternalSourceInputInventory",
+            "Test-HcrV2ExactPropertyNames",
+            "Test-HcrV2ExternalSelectedSourceBinding",
+            "Test-HcrV2ExternalSourceInputBindings",
+            "Test-HcrV2ExternalAgentFileBindings",
+            "fresh-exact-head",
+            "sourceManifestSize",
+            "sourceManifestSha256",
+            "inventorySize",
+            "executableSize",
+            "does not match removedFiles portable-manifest.json",
+            "not represented in the ZIP inventory",
+            "not byte-bound to the ZIP inventory",
+            "incorrectly cased field",
         ),
     )
     require_tokens(
@@ -620,6 +671,9 @@ def main() -> int:
     legacy_manifest = load_strict(
         fixture_root / "portable-manifest.external-legacy-historical.valid.json"
     )
+    test2_manifest = load_strict(
+        fixture_root / "portable-manifest.external-test2-provenance.valid.json"
+    )
     if external_profile["artifact"]["portableManifestSource"] != "externalProfileRelative":
         raise AssertionError("external profile fixture no longer selects the sidecar branch")
     if external_manifest["distributionBoundary"] != "end-user-complete":
@@ -657,6 +711,22 @@ def main() -> int:
         raise AssertionError("external evidence fixture lost its structural discriminator")
     if legacy_manifest["distributionBoundary"] != "runtime-and-legal-only":
         raise AssertionError("historical external manifest branch is no longer retained")
+    if (
+        test2_manifest.get("sourceMode") != "fresh-exact-head"
+        or not all(
+            isinstance(item, str)
+            for field in (
+                "birdsgoneTrackedFiles",
+                "preparedAgentFiles",
+                "maaInventoriedFiles",
+            )
+            for item in test2_manifest["sourceInputs"][field]
+        )
+        or not {"inventorySize", "executableSize"}.issubset(
+            test2_manifest["maa"]["agent"]
+        )
+    ):
+        raise AssertionError("exact Test2 compatibility fixture lost its provenance shape")
 
     artifact_root_value = os.environ.get("HCR_GATE7_ARTIFACT_ROOT")
     if not artifact_root_value:

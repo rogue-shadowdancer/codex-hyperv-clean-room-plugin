@@ -1292,6 +1292,7 @@ function Read-WorkerPortableManifest {
         )
         $allowed = @(
             $required + @(
+                'sourceMode','sourceManifestSize','sourceManifestSha256',
                 'targetTriple','compileFeature','derivedFromZipFileName',
                 'derivedFromZipSize','derivedFromZipSha256','oldFileCount',
                 'newFileCount','oldPayloadSize','newPayloadSize','removedPaths',
