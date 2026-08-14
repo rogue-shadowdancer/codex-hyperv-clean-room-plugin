@@ -11,9 +11,9 @@ the payload to
 in the default personal marketplace through the `plugin-creator` helper, and
 runs:
 
-The current exact-Test2 source Gate prepares the one precommitted
-`0.4.1+codex.20260813075830` build; the prior
-`0.4.1+codex.20260805101924` build is installed predecessor state. The source
+The current Windows token-integrity source Gate prepares the one precommitted
+`0.4.1+codex.20260814082037` build; the prior exact-Test2 manifest
+`0.4.1+codex.20260813075830` build is installed predecessor state. The source
 Gate does not install or publish the new build. After merge, the installation
 Gate requires all 31
 tracked payloads, the two installed-state records, exact per-file size/SHA-256,

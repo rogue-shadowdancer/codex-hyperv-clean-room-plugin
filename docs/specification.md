@@ -709,9 +709,24 @@ tests its parameter and prompt boundary without collecting credentials. MCP
 arguments carry only the validated profile name. Do not log either username
 unless it is required in final guest identity evidence.
 
-The initializer must require the administrator SID and high/system integrity,
-require the distinct test SID to have no Administrators SID and exact medium
-integrity, build both DPAPI files plus metadata in one private pending
+Integrity and elevation evidence must come from the current Windows access
+token through `GetTokenInformation` using `TokenIntegrityLevel`,
+`TokenElevation`, and `TokenElevationType`. The mandatory-label SID must lie
+entirely inside the returned buffer, be valid, have exactly the `S-1-16`
+authority plus one subauthority, and carry `SE_GROUP_INTEGRITY`; only exact low (`0x1000`), medium
+(`0x2000`), medium-plus (`0x2100`), high (`0x3000`), and system (`0x4000`)
+RIDs are recognized. Full elevation type with a non-elevated token and limited
+elevation type with an elevated token are invalid. Elevation type is consumed
+only as an internal consistency check. No initializer, production adapter, or
+fixed-worker path may derive integrity from `WindowsIdentity.Groups`, accept a
+numeric RID range, or hardcode elevation. Native-query, malformed-label,
+unrecognized-RID, or inconsistent-elevation failures stop before credential
+persistence or lifecycle dispatch.
+
+The initializer must require the administrator SID, actual elevation, and
+high/system integrity, require the distinct test SID to have no Administrators
+SID, no elevation, and exact medium integrity, build both DPAPI files plus
+metadata in one private pending
 directory, read-validate every component, and publish the profile by one
 exact-destination same-volume `[IO.Directory]::Move`. It must then reopen the
 final directory and verify its protected ACL, exact three-file membership,
@@ -1695,3 +1710,35 @@ its evidence; then plan and apply `gracefulShutdown` and verify Off. Credentials
 never enter MCP, shell arguments, logs, evidence, or Git. No checkpoint,
 network, VM-create, deletion, forced power-off, arbitrary command, UI/manual
 attestation, tag, Release, or unrelated mutation is authorized.
+
+## v0.4.1 Windows token-integrity repair boundary
+
+This additive repair freezes build `0.4.1+codex.20260814082037` and leaves the
+base version, exact 20-tool catalog and closed inputs, five schema-v1 bytes,
+seven schema-v2 paths/IDs, Plan/Apply, evidence semantics, credential storage,
+and 31-payload topology unchanged. It replaces only the defective Windows
+token-evidence implementation in the interactive credential initializer,
+production PowerShell Direct administrator revalidation, and standalone fixed
+worker.
+
+All three consumers must use the native access-token contract defined above.
+The initializer and production adapter capture the shared self-contained probe;
+the fixed worker carries the equivalent implementation because it is staged as
+one standalone payload. Public projections remain `isElevated` and
+`tokenIntegrity`; elevation type is not published. Administrator acceptance
+requires the enrolled SID, enabled administrator role and SID, actual
+elevation, and exact high/system integrity. Test-user lifecycle acceptance
+requires the enrolled distinct SID, no administrator role/SID, no elevation,
+and exact medium integrity. A query or consistency failure is never converted
+to `unknown`, guessed elevation, or passed inspection evidence.
+
+Source acceptance requires PowerShell 5.1 parsing and compilation, exact RID
+and elevation truth tables, invalid-handle and native safety regressions,
+current-process shared/worker agreement, removal of all `S-1-16-*`
+group-integrity inference and hardcoded elevation, unchanged tool/schema/payload
+inventories, affected Gate 2/Gate 7 validation, documentation checks, and an
+exact-staged review with zero actionable findings. This source Gate performs no
+installation, production typed tool call, VM/guest/credential operation,
+Hyper-V mutation, tag, or Release. After ordinary protected merge, one separate
+installation Gate installs the exact protected commit; only a freshly loaded
+selected-plugin task may then resume the already authorized Test2 sequence.

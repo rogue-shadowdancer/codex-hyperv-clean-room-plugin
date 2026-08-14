@@ -463,3 +463,23 @@ Install only the merged protected commit through `scripts/install_plugin.ps1`;
 do not regenerate the cachebuster or hand-edit marketplace/configuration. The
 subsequent exact Test2 VM/guest/portable/evidence/shutdown sequence uses its own
 explicit authorization and does not create a tag or GitHub Release.
+
+## v0.4.1 Windows token-integrity repair
+
+This repair replaces group-derived integrity and hardcoded/inferred elevation
+in the credential initializer, production guest adapter, and fixed worker. It
+preserves base version `0.4.1`, all 20 tool names and inputs, five schema-v1
+files, seven schema-v2 files, Plan/Apply and evidence semantics, and the exact
+31-payload topology. It adds no credential, VM, checkpoint, network, deletion,
+or arbitrary-command surface.
+
+After the native implementation, regression tests, and affected documentation
+stabilize, invoke the plugin-creator cachebuster helper exactly once. The frozen
+build is `0.4.1+codex.20260814082037`; do not regenerate it during review,
+merge, installation, or the inherited Test2 sequence. Complete impact-scoped
+Gate 2/Gate 7 validation, exact install-source and public-contract checks, and
+an exact-staged review with zero actionable findings. Publish and merge only
+through the ordinary protected pull-request path. Install only the resulting
+protected commit through `scripts/install_plugin.ps1`; do not hand-edit the
+marketplace or Codex configuration. Tag and GitHub Release remain
+`notPerformed` and unauthorized for this repair.

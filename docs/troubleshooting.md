@@ -93,8 +93,9 @@ extensions, an unexpected folder/manifest name, or a version outside the
 recognized v0.4.0/v0.4.1 patch identities plus one optional Codex cachebuster.
 Gate 1 requires the current candidate to be v0.4.1; v0.4.0 parsing remains only
 for stable old-install drift reporting. The earlier `COMPUTERNAME` repair build
-was `0.4.1+codex.20260805101924`; the current exact-Test2 candidate freezes
-exactly `0.4.1+codex.20260813075830` after the candidate is stable and performs
+was `0.4.1+codex.20260805101924`, and the exact-Test2 manifest repair build was
+`0.4.1+codex.20260813075830`. The current Windows token-integrity repair freezes
+exactly `0.4.1+codex.20260814082037` after the candidate is stable and performs
 no install or Release during its source Gate.
 The immutable historical `v0.1.1`, `v0.2.0`, `v0.3.0`, `v0.3.1`, and
 `v0.3.2`, and `v0.4.0` Releases remain separate accepted artifacts.
@@ -475,6 +476,19 @@ The standard-user worker SID, administrator status, elevation, or integrity did
 not match enrollment. Re-run identity inspection and, if accounts changed,
 enroll a new profile. An administrator or elevated test token cannot produce a
 passed current-user lifecycle.
+
+### `GUEST_TOKEN_QUERY_FAILED` or token-integrity query failure
+
+The native Windows access-token query returned an invalid handle, unexpected
+buffer contract, malformed mandatory-label SID, missing integrity attribute,
+unrecognized integrity RID, non-Boolean elevation value, or contradictory
+elevation type. Do not infer integrity from `whoami`, group membership, a
+desktop login, or an RDP session, and do not relax exact-medium or high/system
+guards. Preserve the current VM and credential state, confirm that the guest
+is supported Windows and the fixed installed worker matches its source hash,
+then inspect again. Re-enroll only after the token-query defect or account
+state is understood; an ambiguous result is not safe to retry as a lifecycle
+operation.
 
 ## Guest staging and fixed worker
 

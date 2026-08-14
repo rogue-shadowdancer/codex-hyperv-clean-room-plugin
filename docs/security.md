@@ -258,6 +258,16 @@ integrity other than exact medium, or SID mismatch. Read-only inspection reports
 the observed test token so drift can be diagnosed without performing lifecycle
 work. Evidence separately records those standard-user token facts.
 
+Both paths obtain integrity and elevation directly from the Windows access
+token with `GetTokenInformation`. Mandatory-label structure, in-buffer SID
+bounds, exact `S-1-16` authority and one-subauthority shape, SID validity,
+`SE_GROUP_INTEGRITY`, a bounded native buffer, exact recognized RID values,
+Boolean elevation, and compatible elevation type are all required. Integrity
+is never inferred from the group collection, elevation is never guessed, and
+the borrowed `WindowsIdentity.Token` handle is not closed independently of the
+identity. Any native-query or consistency failure is a fail-closed identity
+failure; it cannot create credential metadata or authorize a guest lifecycle.
+
 ### Forged worker result or escaped process tree
 
 The administrator creates each input file with create-new semantics and keeps

@@ -119,6 +119,261 @@ $script:HcrV2UiStepTypes = @(
 )
 $script:HcrUtf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
+function Get-HcrCurrentWindowsTokenEvidence {
+    try {
+        if ($null -eq ('HcrTokenEvidenceNative' -as [type])) {
+            Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HcrSidAndAttributes
+{
+    public IntPtr Sid;
+    public UInt32 Attributes;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct HcrTokenMandatoryLabel
+{
+    public HcrSidAndAttributes Label;
+}
+
+public static class HcrTokenEvidenceNative
+{
+    private const Int32 ErrorInsufficientBuffer = 122;
+    private const UInt32 MaximumTokenInformationLength = 4096;
+    private const UInt32 SeGroupIntegrity = 0x00000020;
+    private const Int32 TokenElevationType = 18;
+    private const Int32 TokenElevation = 20;
+    private const Int32 TokenIntegrityLevel = 25;
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetTokenInformation(
+        IntPtr tokenHandle,
+        Int32 tokenInformationClass,
+        IntPtr tokenInformation,
+        UInt32 tokenInformationLength,
+        out UInt32 returnLength
+    );
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsValidSid(IntPtr sid);
+
+    [DllImport("advapi32.dll")]
+    private static extern IntPtr GetSidSubAuthorityCount(IntPtr sid);
+
+    [DllImport("advapi32.dll")]
+    private static extern IntPtr GetSidSubAuthority(IntPtr sid, UInt32 subAuthority);
+
+    [DllImport("advapi32.dll")]
+    private static extern IntPtr GetSidIdentifierAuthority(IntPtr sid);
+
+    [DllImport("advapi32.dll")]
+    private static extern UInt32 GetLengthSid(IntPtr sid);
+
+    public static UInt32 GetIntegrityRid(IntPtr tokenHandle)
+    {
+        if (tokenHandle == IntPtr.Zero) {
+            throw new InvalidOperationException("Token handle is invalid.");
+        }
+
+        UInt32 length = 0;
+        Boolean sizingSucceeded = GetTokenInformation(
+            tokenHandle,
+            TokenIntegrityLevel,
+            IntPtr.Zero,
+            0,
+            out length
+        );
+        Int32 sizingError = Marshal.GetLastWin32Error();
+        UInt32 minimumLength = (UInt32)Marshal.SizeOf(typeof(HcrTokenMandatoryLabel));
+        if (sizingSucceeded ||
+            sizingError != ErrorInsufficientBuffer ||
+            length < minimumLength ||
+            length > MaximumTokenInformationLength) {
+            throw new InvalidOperationException("Token integrity information is unavailable.");
+        }
+
+        UInt32 capacity = length;
+        IntPtr buffer = Marshal.AllocHGlobal((Int32)capacity);
+        try {
+            if (!GetTokenInformation(
+                    tokenHandle,
+                    TokenIntegrityLevel,
+                    buffer,
+                    capacity,
+                    out length
+                ) || length < minimumLength || length > capacity) {
+                throw new InvalidOperationException("Token integrity information is unavailable.");
+            }
+            return ReadIntegrityRid(buffer, length);
+        }
+        finally {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    public static UInt32 ReadIntegrityRid(IntPtr tokenInformation, UInt32 tokenInformationLength)
+    {
+        UInt32 minimumLength = (UInt32)Marshal.SizeOf(typeof(HcrTokenMandatoryLabel));
+        if (tokenInformation == IntPtr.Zero ||
+            tokenInformationLength < minimumLength ||
+            tokenInformationLength > MaximumTokenInformationLength) {
+            throw new InvalidOperationException("Token integrity information is invalid.");
+        }
+        HcrTokenMandatoryLabel label = (HcrTokenMandatoryLabel)Marshal.PtrToStructure(
+            tokenInformation,
+            typeof(HcrTokenMandatoryLabel)
+        );
+        if (label.Label.Sid == IntPtr.Zero ||
+            (label.Label.Attributes & SeGroupIntegrity) == 0) {
+            throw new InvalidOperationException("Token integrity information is invalid.");
+        }
+        UInt64 bufferStart = unchecked((UInt64)tokenInformation.ToInt64());
+        UInt64 bufferEnd = bufferStart + tokenInformationLength;
+        UInt64 sidStart = unchecked((UInt64)label.Label.Sid.ToInt64());
+        if (bufferEnd < bufferStart ||
+            sidStart < bufferStart ||
+            sidStart > bufferEnd ||
+            bufferEnd - sidStart < 8) {
+            throw new InvalidOperationException("Token integrity information is invalid.");
+        }
+        Byte declaredCount = Marshal.ReadByte(label.Label.Sid, 1);
+        if (declaredCount != 1 ||
+            bufferEnd - sidStart < 12 ||
+            !IsValidSid(label.Label.Sid)) {
+            throw new InvalidOperationException("Token integrity information is invalid.");
+        }
+        UInt32 sidLength = GetLengthSid(label.Label.Sid);
+        UInt64 sidEnd = sidStart + sidLength;
+        if (sidLength != 12 || sidEnd < sidStart || sidEnd > bufferEnd) {
+            throw new InvalidOperationException("Token integrity information is invalid.");
+        }
+        IntPtr countPointer = GetSidSubAuthorityCount(label.Label.Sid);
+        if (countPointer == IntPtr.Zero) {
+            throw new InvalidOperationException("Token integrity information is invalid.");
+        }
+        Byte count = Marshal.ReadByte(countPointer);
+        if (count != 1) {
+            throw new InvalidOperationException("Token integrity information is invalid.");
+        }
+        IntPtr authorityPointer = GetSidIdentifierAuthority(label.Label.Sid);
+        if (authorityPointer == IntPtr.Zero ||
+            Marshal.ReadByte(authorityPointer, 0) != 0 ||
+            Marshal.ReadByte(authorityPointer, 1) != 0 ||
+            Marshal.ReadByte(authorityPointer, 2) != 0 ||
+            Marshal.ReadByte(authorityPointer, 3) != 0 ||
+            Marshal.ReadByte(authorityPointer, 4) != 0 ||
+            Marshal.ReadByte(authorityPointer, 5) != 16) {
+            throw new InvalidOperationException("Token integrity information is invalid.");
+        }
+        IntPtr ridPointer = GetSidSubAuthority(label.Label.Sid, (UInt32)(count - 1));
+        if (ridPointer == IntPtr.Zero) {
+            throw new InvalidOperationException("Token integrity information is invalid.");
+        }
+        return unchecked((UInt32)Marshal.ReadInt32(ridPointer));
+    }
+
+    public static String ClassifyIntegrityRid(UInt32 integrityRid)
+    {
+        switch (integrityRid) {
+            case 0x00001000:
+                return "low";
+            case 0x00002000:
+                return "medium";
+            case 0x00002100:
+                return "mediumPlus";
+            case 0x00003000:
+                return "high";
+            case 0x00004000:
+                return "system";
+            default:
+                throw new InvalidOperationException("Token integrity RID is not recognized.");
+        }
+    }
+
+    private static Int32 GetTokenInt32(IntPtr tokenHandle, Int32 informationClass)
+    {
+        UInt32 length = sizeof(Int32);
+        IntPtr buffer = Marshal.AllocHGlobal(sizeof(Int32));
+        try {
+            if (!GetTokenInformation(
+                    tokenHandle,
+                    informationClass,
+                    buffer,
+                    length,
+                    out length
+                ) || length != sizeof(Int32)) {
+                throw new InvalidOperationException("Token elevation information is unavailable.");
+            }
+            return Marshal.ReadInt32(buffer);
+        }
+        finally {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    public static Boolean GetIsElevated(IntPtr tokenHandle)
+    {
+        Int32 value = GetTokenInt32(tokenHandle, TokenElevation);
+        if (value != 0 && value != 1) {
+            throw new InvalidOperationException("Token elevation information is invalid.");
+        }
+        return value == 1;
+    }
+
+    public static Int32 GetElevationType(IntPtr tokenHandle)
+    {
+        Int32 value = GetTokenInt32(tokenHandle, TokenElevationType);
+        if (value < 1 || value > 3) {
+            throw new InvalidOperationException("Token elevation type is invalid.");
+        }
+        return value;
+    }
+
+    public static void ValidateElevationConsistency(Int32 elevationType, Boolean isElevated)
+    {
+        if (elevationType < 1 || elevationType > 3 ||
+            (elevationType == 2 && !isElevated) ||
+            (elevationType == 3 && isElevated)) {
+            throw new InvalidOperationException("Token elevation information is inconsistent.");
+        }
+    }
+}
+'@ -ErrorAction Stop
+        }
+
+        $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        try {
+            $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+            $groups = @($identity.Groups | ForEach-Object { [string]$_.Value })
+            $integrityRid = [uint32]([HcrTokenEvidenceNative]::GetIntegrityRid($identity.Token))
+            $integrity = [string]([HcrTokenEvidenceNative]::ClassifyIntegrityRid($integrityRid))
+            $isElevated = [bool]([HcrTokenEvidenceNative]::GetIsElevated($identity.Token))
+            $elevationTypeValue = [HcrTokenEvidenceNative]::GetElevationType($identity.Token)
+            [HcrTokenEvidenceNative]::ValidateElevationConsistency($elevationTypeValue, $isElevated)
+            return [pscustomobject][ordered]@{
+                sid = [string]$identity.User.Value
+                hasAdministratorsSid = $groups -contains 'S-1-5-32-544'
+                isAdministrator = $principal.IsInRole(
+                    [Security.Principal.WindowsBuiltInRole]::Administrator
+                )
+                isElevated = $isElevated
+                tokenIntegrity = $integrity
+            }
+        }
+        finally {
+            $identity.Dispose()
+        }
+    }
+    catch {
+        throw 'The current Windows access token could not be queried.'
+    }
+}
+
 function Test-HcrProperty {
     param(
         [AllowNull()][object]$Object,

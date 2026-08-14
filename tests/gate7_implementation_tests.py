@@ -477,7 +477,7 @@ def main() -> int:
             "orchestrationIdentity",
             "administratorProbe",
             "userSid",
-            "isElevated = $true",
+            "isElevated = [bool](Get-HcrPropertyValue $administratorProbe 'isElevated')",
             "tokenIntegrity",
             "-NotePropertyName orchestration",
         ),

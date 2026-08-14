@@ -60,9 +60,10 @@ Plan/Apply, guest, credential, evidence, or Hyper-V mutation operation.
 The released v0.4.0 source froze exactly one
 `0.4.0+codex.20260731141404` personal build. The earlier v0.4.1
 `COMPUTERNAME` repair froze `0.4.1+codex.20260805101924`; this exact Test2
-compatibility candidate freezes the single
-`0.4.1+codex.20260813075830` build after its code, tests, and documentation
-stabilize. That new value must not be regenerated.
+compatibility candidate froze `0.4.1+codex.20260813075830`. The subsequent
+Windows token-integrity repair freezes the single
+`0.4.1+codex.20260814082037` build after its code, tests, and documentation
+stabilized. That latest value must not be regenerated.
 The exact Test2 source/profile check is source-only until this candidate is
 merged through protected `master` and reinstalled by the repository installer.
 Only then may the separately authorized VM start, interactive credential
@@ -189,7 +190,11 @@ evidence export, and the interactive DPAPI credential initializer are
 implemented and tested. The production guest adapter now has a fixed,
 administrator-supervised PowerShell Direct implementation: a hash-verified
 plugin worker executes the closed declarative step set as the standard test
-user with operation-scoped staging and PID identity. Gate 2 validates that path
+user with operation-scoped staging and PID identity. Administrator enrollment,
+operation-context revalidation, and the fixed worker obtain integrity and
+elevation from native Windows token information, not integrity SIDs inferred
+from the token group collection. Unrecognized or internally inconsistent token
+evidence fails closed. Gate 2 validates that path
 through mock behavior, parsers, and static seams only. No real guest operation,
 Hyper-V mutation, or package workflow was authorized or executed; do not
 present this revision as clean-machine-validated automation. Clean-machine,
@@ -265,17 +270,18 @@ checkpoint success.
 `hyperv-clean-room` 是一个仅面向 Windows 的 Codex plugin 设计，用于受保护的
 Hyper-V VM 操作、声明式 current-user package lifecycle 测试和结构化 evidence。
 
-### 状态：v0.4.1 精确 Test2 manifest 兼容性修复候选
+### 状态：v0.4.1 Windows 令牌完整性修复候选
 
-当前 repair candidate 保留已合并的 `list_vms` 最小投影、冻结的 `0.3.0`
-capability target、精确 20 个公开工具、全部 input schema、Plan/Apply、恢复和
-evidence 语义。`.mcp.json` 只透传宿主提供的 `COMPUTERNAME`；若新 MCP child
-仍缺失该变量或其值仅为空白，最早的 runtime 初始化只在该 child process 内从
-`[Environment]::MachineName` 恢复它。此修复不会写 user/system environment、
-registry、Codex config、marketplace，也不会记录原始 environment。此前
-`COMPUTERNAME` repair build 为 `0.4.1+codex.20260805101924`；本次精确 Test2
-兼容候选 build 已唯一冻结为 `0.4.1+codex.20260813075830`，不得在 review、merge、
-安装或 Release 时重生成。
+当前候选保留已合并的 `list_vms` 最小投影、20 个公开工具、全部封闭输入、
+Plan/Apply、恢复与证据语义。凭据初始化器、生产 PowerShell Direct 适配器和
+独立 GuestWorker 现在都从原生 Windows 访问令牌读取完整性与提升状态，不再从
+令牌组推断 `S-1-16-*`，也不再硬编码提升状态。未知 RID、非法 mandatory-label
+SID、越界缓冲区或矛盾的提升证据都会失败关闭。
+
+此前精确 Test2 manifest 兼容构建为 `0.4.1+codex.20260813075830`；本次修复的
+唯一冻结构建为 `0.4.1+codex.20260814082037`，不得在 review、merge、安装或后续
+Test2 门禁中重新生成。源代码门禁不安装插件，也不调用生产 MCP 工具；只有普通
+受保护合并和精确安装验证完成后，才可继承已授权的 Test2 流程。
 
 同一 compatible patch line 现在也接受不可变 Birdsgone `v0.1.0-test.2` 的精确
 `end-user-complete` sidecar，但不会放宽为任意 producer metadata：完整

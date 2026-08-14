@@ -28,25 +28,7 @@ $administratorCredential = Get-Credential `
 $testUserCredential = Get-Credential `
     -Message 'Enter the distinct standard guest test-user credential.'
 
-$identityProbe = {
-    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
-    $groups = @($identity.Groups | ForEach-Object { [string]$_.Value })
-    $integrity = if ($groups -contains 'S-1-16-16384') { 'system' }
-        elseif ($groups -contains 'S-1-16-12288') { 'high' }
-        elseif ($groups -contains 'S-1-16-8448') { 'mediumPlus' }
-        elseif ($groups -contains 'S-1-16-8192') { 'medium' }
-        elseif ($groups -contains 'S-1-16-4096') { 'low' }
-        else { 'unknown' }
-    [pscustomobject][ordered]@{
-        sid = [string]$identity.User.Value
-        hasAdministratorsSid = $groups -contains 'S-1-5-32-544'
-        isAdministrator = $principal.IsInRole(
-            [Security.Principal.WindowsBuiltInRole]::Administrator
-        )
-        tokenIntegrity = $integrity
-    }
-}
+$identityProbe = ${function:Get-HcrCurrentWindowsTokenEvidence}
 
 try {
     $administratorIdentity = Invoke-Command `
@@ -72,11 +54,13 @@ catch {
 
 if (-not [bool](Get-HcrPropertyValue $administratorIdentity 'isAdministrator' $false) -or
     -not [bool](Get-HcrPropertyValue $administratorIdentity 'hasAdministratorsSid' $false) -or
+    -not [bool](Get-HcrPropertyValue $administratorIdentity 'isElevated' $false) -or
     @('high', 'system') -notcontains [string](Get-HcrPropertyValue $administratorIdentity 'tokenIntegrity')) {
     throw 'The orchestration identity is not a guest administrator.'
 }
 if ([bool](Get-HcrPropertyValue $testUserIdentity 'isAdministrator' $true) -or
     [bool](Get-HcrPropertyValue $testUserIdentity 'hasAdministratorsSid' $true) -or
+    [bool](Get-HcrPropertyValue $testUserIdentity 'isElevated' $true) -or
     [string](Get-HcrPropertyValue $testUserIdentity 'tokenIntegrity') -ne 'medium') {
     throw 'The test identity must be outside Administrators and have exact medium integrity.'
 }

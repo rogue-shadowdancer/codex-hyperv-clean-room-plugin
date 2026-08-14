@@ -67,6 +67,14 @@ authorized Test2 VM sequence. The prior
 `0.4.1+codex.20260805101924` installation is historical source/install state,
 not an acceptable cache identity for the repaired bytes.
 
+The later Windows token-integrity repair changes initializer, production
+adapter, and fixed-worker payload bytes, so it receives exactly one later
+cachebuster after its implementation, tests, and documentation stabilize. The
+frozen value is `0.4.1+codex.20260814082037`; reuse it unchanged through review,
+protected merge, repository-authorized reinstall, and the inherited Test2
+sequence. The installed `0.4.1+codex.20260813075830` build is valid predecessor
+state only and must not be relabeled as containing the native token repair.
+
 The historical `v0.1.1` release used the helper exactly once and produced
 `0.1.1+codex.20260715064728`. Release verification must preserve that value;
 do not run the helper again merely to reinstall the accepted source commit.
