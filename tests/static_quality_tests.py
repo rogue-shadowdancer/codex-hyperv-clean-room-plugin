@@ -288,6 +288,9 @@ def main() -> int:
     worker_source = decoded[
         REPO_ROOT / "hyperv-clean-room" / "mcp" / "lib" / "GuestWorker.ps1"
     ]
+    common_source = decoded[
+        REPO_ROOT / "hyperv-clean-room" / "mcp" / "lib" / "Common.ps1"
+    ]
     if "GUEST_ADAPTER_UNVALIDATED" in adapter_source:
         raise AssertionError("the former production guest fail-closed stub remains")
     for required_symbol in (
@@ -310,8 +313,57 @@ def main() -> int:
             raise AssertionError(
                 f"fixed guest worker contains forbidden surface: {forbidden_surface}"
             )
-    if not re.search(r"S-1-16-8448'[\s\S]{0,80}'mediumPlus'", worker_source):
-        raise AssertionError("medium-plus integrity is not distinguished from exact medium")
+    if "S-1-16-" in worker_source:
+        raise AssertionError("fixed guest worker still infers integrity from groups")
+    for source, label, required_token_seams in (
+        (
+            common_source,
+            "shared token probe",
+            (
+                "GetTokenInformation",
+                "TokenIntegrityLevel",
+                "TokenElevation",
+                "TokenElevationType",
+                "ErrorInsufficientBuffer = 122",
+                "MaximumTokenInformationLength = 4096",
+                "SeGroupIntegrity = 0x00000020",
+                "IsValidSid",
+                "GetLengthSid",
+                "GetSidIdentifierAuthority",
+                "ReadIntegrityRid",
+                "ClassifyIntegrityRid",
+                "ValidateElevationConsistency",
+            ),
+        ),
+        (
+            worker_source,
+            "fixed guest worker token probe",
+            (
+                "GetTokenInformation",
+                "TokenIntegrityLevel",
+                "TokenElevation",
+                "TokenElevationType",
+                "ErrorInsufficientBuffer = 122",
+                "MaximumTokenInformationLength = 4096",
+                "SeGroupIntegrity = 0x00000020",
+                "IsValidSid",
+                "GetLengthSid",
+                "GetSidIdentifierAuthority",
+                "ReadTokenIntegrityRid",
+                "ClassifyTokenIntegrityRid",
+                "ValidateTokenElevationConsistency",
+                "GUEST_TOKEN_QUERY_FAILED",
+            ),
+        ),
+    ):
+        missing_token_seams = [
+            seam for seam in required_token_seams if seam not in source
+        ]
+        if missing_token_seams:
+            raise AssertionError(
+                f"{label} is missing native token seam(s): "
+                + ", ".join(missing_token_seams)
+            )
     for required_security_seam in (
         "Initialize-WorkerDirectoryTree",
         "[Console]::OpenStandardOutput",
@@ -325,6 +377,15 @@ def main() -> int:
     initializer_source = decoded[
         REPO_ROOT / "hyperv-clean-room" / "mcp" / "Initialize-GuestCredential.ps1"
     ]
+    if "Get-HcrCurrentWindowsTokenEvidence" not in initializer_source:
+        raise AssertionError("credential initializer does not use the shared token probe")
+    if any(
+        "S-1-16-" in source
+        for source in (common_source, initializer_source, adapter_source, worker_source)
+    ):
+        raise AssertionError("production identity probes still infer integrity from groups")
+    if "isElevated = $true" in adapter_source:
+        raise AssertionError("production orchestration evidence still hardcodes elevation")
     if "$acl.SetOwner($currentSid)" not in initializer_source:
         raise AssertionError(
             "credential ACL publication does not set current-user ownership explicitly"

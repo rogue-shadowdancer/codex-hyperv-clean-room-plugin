@@ -5,8 +5,8 @@
 The v0.4.1 Windows MCP compatibility Gate retains the merged minimal-list
 repair and prepares one new source candidate for the existing ownership-marked
 personal install workflow. It freezes exactly one cachebuster,
-`0.4.1+codex.20260813075830`; the prior installed
-`0.4.1+codex.20260805101924` remains predecessor state. The source Gate
+`0.4.1+codex.20260814082037`; the prior installed
+`0.4.1+codex.20260813075830` remains predecessor state. The source Gate
 performs no installation or selected-plugin
 Gate C call. `.mcp.json` passes through only `COMPUTERNAME`, and earliest
 runtime initialization repairs a missing or whitespace child-process value
@@ -211,10 +211,18 @@ The initializer accepts only those two parameters. It prompts twice with
 with each credential. It requires:
 
 - different validated SIDs;
-- Administrators SID membership, administrator role, and high/system integrity
-  for the orchestration identity;
-- no Administrators SID or administrator role and exact medium integrity for
-  the test identity.
+- Administrators SID membership, administrator role, actual elevation, and
+  high/system integrity for the orchestration identity;
+- no Administrators SID, administrator role, or elevation and exact medium
+  integrity for the test identity.
+
+The fixed probe queries native Windows `TokenIntegrityLevel`, `TokenElevation`,
+and `TokenElevationType` information. It does not search the token group list
+for an integrity SID. Only the exact standard integrity RIDs are recognized;
+malformed labels, unknown RID values, and contradictory elevation evidence
+fail closed before either credential is persisted. The elevation type is used
+only for consistency validation and is not written to profile metadata or
+guest evidence.
 
 It builds both DPAPI `Export-Clixml` objects and non-secret metadata in one
 private `.pending-*` directory, read-checks every component, and publishes the
@@ -368,7 +376,8 @@ artifact, and dispatches only profile-declared step types.
 Production execution has fixed behavior:
 
 - the administrator PowerShell Direct session is revalidated against the
-  enrolled administrator SID and role before each guest operation context;
+  enrolled administrator SID, role, actual elevation, and high/system
+  integrity before each guest operation context;
 - every worker invocation revalidates the enrolled test-user SID, and
   lifecycle/cleanup dispatch additionally requires no administrator SID, no
   elevation, and exact medium integrity;

@@ -165,6 +165,18 @@ privilege mismatch, but lifecycle and cleanup execution fail before dispatch
 when the standard-user token is elevated, administrative, non-medium, or no
 longer matches the enrolled SID.
 
+The initializer and production adapter share one self-contained Windows token
+probe that can run unchanged through PowerShell Direct. The standalone worker
+contains the equivalent closed native implementation. Both query
+`GetTokenInformation` for `TokenIntegrityLevel`, `TokenElevation`, and
+`TokenElevationType`; require the entire mandatory-label SID to remain inside
+the returned buffer with exact `S-1-16` authority, one subauthority, and
+`SE_GROUP_INTEGRITY`; classify only the exact low, medium, medium-plus, high,
+and system RIDs; and reject inconsistent elevation/type combinations. The
+elevation type is an internal consistency check and is not added to public
+guest evidence. `WindowsIdentity.Groups` remains useful only for the separate
+local Administrators SID membership proof and is never an integrity source.
+
 ## Trust boundaries
 
 ### MCP client to server

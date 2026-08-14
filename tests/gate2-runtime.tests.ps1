@@ -60,6 +60,22 @@ function Assert-ThrowsHcrCode {
     throw "$Message The action unexpectedly succeeded."
 }
 
+function Assert-Throws {
+    param(
+        [Parameter(Mandatory = $true)][scriptblock]$Action,
+        [Parameter(Mandatory = $true)][string]$Message
+    )
+
+    $script:AssertionCount++
+    try {
+        & $Action
+    }
+    catch {
+        return
+    }
+    throw "$Message The action unexpectedly succeeded."
+}
+
 function Assert-OperationEnvelope {
     param([Parameter(Mandatory = $true)][object]$Envelope)
 
@@ -284,6 +300,185 @@ foreach ($runtimeFile in @(
     )) {
     . (Join-Path (Join-Path (Join-Path $pluginRoot 'mcp') 'lib') $runtimeFile)
 }
+$commonPath = Join-Path $pluginRoot 'mcp\lib\Common.ps1'
+$commonSource = Get-Content -LiteralPath $commonPath -Raw -Encoding UTF8
+$currentTokenEvidence = Get-HcrCurrentWindowsTokenEvidence
+Assert-True (-not [string]::IsNullOrWhiteSpace([string]$currentTokenEvidence.sid)) `
+    'The native current-token probe omitted the current SID.'
+Assert-True (@('low', 'medium', 'mediumPlus', 'high', 'system') -contains
+    [string]$currentTokenEvidence.tokenIntegrity) `
+    'The native current-token probe returned an unrecognized integrity label.'
+Assert-True ($currentTokenEvidence.isElevated -is [bool]) `
+    'The native current-token probe did not return a Boolean elevation value.'
+Assert-True ($null -eq $currentTokenEvidence.PSObject.Properties['elevationType']) `
+    'The internal token elevation type leaked into the public evidence projection.'
+
+foreach ($integrityCase in @(
+    @{ rid = [uint32]0x00001000; label = 'low' }
+    @{ rid = [uint32]0x00002000; label = 'medium' }
+    @{ rid = [uint32]0x00002100; label = 'mediumPlus' }
+    @{ rid = [uint32]0x00003000; label = 'high' }
+    @{ rid = [uint32]0x00004000; label = 'system' }
+)) {
+    Assert-Equal `
+        ([HcrTokenEvidenceNative]::ClassifyIntegrityRid($integrityCase.rid)) `
+        $integrityCase.label `
+        'The shared native token probe classified a recognized integrity RID incorrectly.'
+}
+foreach ($invalidIntegrityRid in @(
+    [uint32]0,
+    [uint32]0x00000fff,
+    [uint32]0x00001001,
+    [uint32]0x00002001,
+    [uint32]0x00002010,
+    [uint32]0x000020ff,
+    [uint32]0x00002101,
+    [uint32]0x00002fff,
+    [uint32]0x00003001,
+    [uint32]0x00004001,
+    [uint32]0x00005000
+)) {
+    Assert-Throws {
+        [void][HcrTokenEvidenceNative]::ClassifyIntegrityRid($invalidIntegrityRid)
+    } 'The shared native token probe accepted a non-exact integrity RID.'
+}
+foreach ($acceptedElevation in @(
+    @{ type = 1; elevated = $false }
+    @{ type = 1; elevated = $true }
+    @{ type = 2; elevated = $true }
+    @{ type = 3; elevated = $false }
+)) {
+    [HcrTokenEvidenceNative]::ValidateElevationConsistency(
+        $acceptedElevation.type,
+        $acceptedElevation.elevated
+    )
+    Assert-True $true 'The shared native token probe rejected consistent elevation evidence.'
+}
+foreach ($rejectedElevation in @(
+    @{ type = 0; elevated = $false }
+    @{ type = 2; elevated = $false }
+    @{ type = 3; elevated = $true }
+    @{ type = 4; elevated = $true }
+)) {
+    Assert-Throws {
+        [HcrTokenEvidenceNative]::ValidateElevationConsistency(
+            $rejectedElevation.type,
+            $rejectedElevation.elevated
+        )
+    } 'The shared native token probe accepted inconsistent elevation evidence.'
+}
+foreach ($invalidHandleCall in @(
+    { [void][HcrTokenEvidenceNative]::GetIntegrityRid([IntPtr]::Zero) }
+    { [void][HcrTokenEvidenceNative]::GetIsElevated([IntPtr]::Zero) }
+    { [void][HcrTokenEvidenceNative]::GetElevationType([IntPtr]::Zero) }
+)) {
+    Assert-Throws $invalidHandleCall 'The shared native token probe accepted an invalid token handle.'
+}
+$mediumIntegritySid = New-Object Security.Principal.SecurityIdentifier('S-1-16-8192')
+$mediumIntegritySidBytes = New-Object byte[] $mediumIntegritySid.BinaryLength
+$mediumIntegritySid.GetBinaryForm($mediumIntegritySidBytes, 0)
+$wrongAuthoritySid = New-Object Security.Principal.SecurityIdentifier('S-1-5-8192')
+$wrongAuthoritySidBytes = New-Object byte[] $wrongAuthoritySid.BinaryLength
+$wrongAuthoritySid.GetBinaryForm($wrongAuthoritySidBytes, 0)
+$multipleSubauthoritySid = New-Object Security.Principal.SecurityIdentifier('S-1-16-1-8192')
+$multipleSubauthoritySidBytes = New-Object byte[] $multipleSubauthoritySid.BinaryLength
+$multipleSubauthoritySid.GetBinaryForm($multipleSubauthoritySidBytes, 0)
+$nativeSidBuffer = [Runtime.InteropServices.Marshal]::AllocHGlobal($mediumIntegritySidBytes.Length)
+$nativeLabelBuffer = [Runtime.InteropServices.Marshal]::AllocHGlobal(64)
+try {
+    [Runtime.InteropServices.Marshal]::Copy(
+        $mediumIntegritySidBytes,
+        0,
+        $nativeSidBuffer,
+        $mediumIntegritySidBytes.Length
+    )
+    [Runtime.InteropServices.Marshal]::WriteIntPtr($nativeLabelBuffer, [IntPtr]::Zero)
+    [Runtime.InteropServices.Marshal]::WriteInt32($nativeLabelBuffer, [IntPtr]::Size, 0x20)
+    Assert-Throws {
+        [void][HcrTokenEvidenceNative]::ReadIntegrityRid($nativeLabelBuffer, 64)
+    } 'The shared native token probe accepted an absent mandatory-label SID.'
+    [Runtime.InteropServices.Marshal]::WriteIntPtr($nativeLabelBuffer, $nativeSidBuffer)
+    Assert-Throws {
+        [void][HcrTokenEvidenceNative]::ReadIntegrityRid($nativeLabelBuffer, 64)
+    } 'The shared native token probe accepted a SID outside the returned buffer.'
+    $embeddedSidPointer = [IntPtr]::Add($nativeLabelBuffer, 16)
+    [Runtime.InteropServices.Marshal]::Copy(
+        $wrongAuthoritySidBytes,
+        0,
+        $embeddedSidPointer,
+        $wrongAuthoritySidBytes.Length
+    )
+    [Runtime.InteropServices.Marshal]::WriteIntPtr($nativeLabelBuffer, $embeddedSidPointer)
+    Assert-Throws {
+        [void][HcrTokenEvidenceNative]::ReadIntegrityRid($nativeLabelBuffer, 64)
+    } 'The shared native token probe accepted a non-mandatory SID authority.'
+    [Runtime.InteropServices.Marshal]::Copy(
+        $multipleSubauthoritySidBytes,
+        0,
+        $embeddedSidPointer,
+        $multipleSubauthoritySidBytes.Length
+    )
+    Assert-Throws {
+        [void][HcrTokenEvidenceNative]::ReadIntegrityRid($nativeLabelBuffer, 64)
+    } 'The shared native token probe accepted multiple mandatory-label subauthorities.'
+    [Runtime.InteropServices.Marshal]::Copy(
+        $mediumIntegritySidBytes,
+        0,
+        $embeddedSidPointer,
+        $mediumIntegritySidBytes.Length
+    )
+    [Runtime.InteropServices.Marshal]::WriteInt32($nativeLabelBuffer, [IntPtr]::Size, 0)
+    Assert-Throws {
+        [void][HcrTokenEvidenceNative]::ReadIntegrityRid($nativeLabelBuffer, 64)
+    } 'The shared native token probe accepted a label without SE_GROUP_INTEGRITY.'
+    [Runtime.InteropServices.Marshal]::WriteInt32($nativeLabelBuffer, [IntPtr]::Size, 0x20)
+    Assert-Equal `
+        ([HcrTokenEvidenceNative]::ReadIntegrityRid($nativeLabelBuffer, 64)) `
+        ([uint32]0x00002000) `
+        'The shared native token probe did not read a valid exact-medium label.'
+}
+finally {
+    [Runtime.InteropServices.Marshal]::FreeHGlobal($nativeLabelBuffer)
+    [Runtime.InteropServices.Marshal]::FreeHGlobal($nativeSidBuffer)
+}
+foreach ($requiredNativeSafetySeam in @(
+    'ErrorInsufficientBuffer = 122',
+    'MaximumTokenInformationLength = 4096',
+    'SeGroupIntegrity = 0x00000020',
+    'IsValidSid',
+    'GetLengthSid',
+    'GetSidIdentifierAuthority',
+    'ReadIntegrityRid',
+    'Marshal.SizeOf(typeof(HcrTokenMandatoryLabel))',
+    'sizingError != ErrorInsufficientBuffer',
+    'length > MaximumTokenInformationLength',
+    '(label.Label.Attributes & SeGroupIntegrity) == 0',
+    'Marshal.FreeHGlobal(buffer)'
+)) {
+    Assert-True ($commonSource -match [regex]::Escape($requiredNativeSafetySeam)) `
+        "The shared native token probe is missing the fail-closed seam '$requiredNativeSafetySeam'."
+}
+$sharedProbeScript = ${function:Get-HcrCurrentWindowsTokenEvidence}
+$tokenProbeJob = Start-Job -ScriptBlock $sharedProbeScript
+try {
+    [void](Wait-Job -Job $tokenProbeJob -Timeout 30)
+    Assert-Equal ([string]$tokenProbeJob.State) 'Completed' `
+        'The self-contained remoting token probe did not complete in an isolated process.'
+    $isolatedTokenResults = @(Receive-Job -Job $tokenProbeJob -ErrorAction Stop)
+    Assert-Equal $isolatedTokenResults.Count 1 `
+        'The self-contained remoting token probe did not return exactly one result.'
+    $isolatedTokenEvidence = $isolatedTokenResults[0]
+}
+finally {
+    Remove-Job -Job $tokenProbeJob -Force -ErrorAction SilentlyContinue
+}
+Assert-Equal ([string]$isolatedTokenEvidence.sid) ([string]$currentTokenEvidence.sid) `
+    'The self-contained remoting token probe changed the current SID.'
+Assert-Equal ([string]$isolatedTokenEvidence.tokenIntegrity) `
+    ([string]$currentTokenEvidence.tokenIntegrity) `
+    'The self-contained remoting token probe changed token integrity.'
+Assert-Equal ([bool]$isolatedTokenEvidence.isElevated) ([bool]$currentTokenEvidence.isElevated) `
+    'The self-contained remoting token probe changed token elevation.'
 $hadComputerName = Test-Path Env:COMPUTERNAME
 $savedComputerName = $env:COMPUTERNAME
 try {
@@ -2186,6 +2381,14 @@ Assert-Equal (@($commands | Where-Object { $_ -eq 'Get-Credential' }).Count) 2 `
 Assert-Equal (@($commands | Where-Object { $_ -eq 'Export-Clixml' }).Count) 2 `
     'Credential initializer must persist two DPAPI credential objects.'
 $initializerSource = Get-Content -LiteralPath $initializerPath -Raw -Encoding UTF8
+Assert-True ($initializerSource -match 'Get-HcrCurrentWindowsTokenEvidence') `
+    'Credential initialization does not use the shared native token probe.'
+Assert-True ($initializerSource -notmatch 'S-1-16-') `
+    'Credential initialization still infers integrity from token groups.'
+Assert-True ($initializerSource -match "'isElevated' \`$false") `
+    'Credential initialization does not require an elevated administrator token.'
+Assert-True ($initializerSource -match "'isElevated' \`$true") `
+    'Credential initialization does not reject an elevated test-user token.'
 Assert-True ($initializerSource -match 'Publish-HcrCredentialDirectory') `
     'Credential initialization does not use the exact-destination publication helper.'
 Assert-True ($initializerSource -notmatch '(?m)^\s*Move-Item\b') `
@@ -2291,7 +2494,6 @@ $publicationScript = {
         $release.Dispose()
     }
 }
-$commonPath = Join-Path $pluginRoot 'mcp\lib\Common.ps1'
 $publicationJobs = @(
     (Start-Job -ScriptBlock $publicationScript -ArgumentList $commonPath, $pendingDirectories[0], $publicationDestination, $publicationRoot, $readyNames[0], $releaseName)
     (Start-Job -ScriptBlock $publicationScript -ArgumentList $commonPath, $pendingDirectories[1], $publicationDestination, $publicationRoot, $readyNames[1], $releaseName)
@@ -2323,6 +2525,15 @@ $adapterSource = Get-Content `
     -LiteralPath (Join-Path $pluginRoot 'mcp\lib\Adapters.ps1') `
     -Raw `
     -Encoding UTF8
+Assert-True ($adapterSource -match 'Get-HcrCurrentWindowsTokenEvidence') `
+    'The production adapter does not use the shared native token probe.'
+Assert-True ($adapterSource -notmatch 'S-1-16-') `
+    'The production adapter still infers integrity from token groups.'
+Assert-True ($adapterSource -notmatch 'isElevated = \$true') `
+    'The production adapter still hardcodes orchestration elevation.'
+Assert-True ($adapterSource -match
+    "isElevated = \[bool\]\(Get-HcrPropertyValue \`$administratorProbe 'isElevated'\)") `
+    'The production adapter does not project the observed orchestration elevation.'
 $deepGetterVm = [pscustomobject][ordered]@{
     Id = [Guid]::NewGuid()
     Name = ([string][char]0x6DF1 + [char]0x5EA6 + '-getter-trap')
@@ -2547,8 +2758,174 @@ Assert-True ($workerSource -match "ValidateSet\('InspectGuest', 'RunTestStep', '
     'The fixed guest worker mode dispatcher is not closed.'
 Assert-True ($workerSource -match 'Test-WorkerProcessIdentity') `
     'The fixed guest worker does not revalidate operation-scoped process identity.'
-Assert-True ($workerSource -match "S-1-16-8448'[\s\S]{0,80}'mediumPlus'") `
-    'Medium-plus integrity would be mislabeled as the required exact medium integrity.'
+Assert-True ($workerSource -notmatch 'S-1-16-') `
+    'The fixed guest worker still infers integrity from token groups.'
+foreach ($requiredWorkerTokenSeam in @(
+    'GetTokenInformation',
+    'TokenIntegrityLevel',
+    'TokenElevation',
+    'TokenElevationType',
+    'ErrorInsufficientBuffer = 122',
+    'MaximumTokenInformationLength = 4096',
+    'SeGroupIntegrity = 0x00000020',
+    'IsValidSid',
+    'GetLengthSid',
+    'GetSidIdentifierAuthority',
+    'ClassifyTokenIntegrityRid',
+    'ValidateTokenElevationConsistency',
+    'ReadTokenIntegrityRid',
+    'GUEST_TOKEN_QUERY_FAILED'
+)) {
+    Assert-True ($workerSource -match [regex]::Escape($requiredWorkerTokenSeam)) `
+        "The fixed guest worker is missing the native token seam '$requiredWorkerTokenSeam'."
+}
+$workerNativeSourceMatch = [regex]::Match(
+    $workerSource,
+    "(?s)Add-Type -TypeDefinition @'\r?\n(?<source>.*?)\r?\n'@ -ErrorAction Stop"
+)
+Assert-True $workerNativeSourceMatch.Success `
+    'The fixed guest worker native source could not be isolated.'
+if ($null -eq ('Hcr.WorkerProcessHandle' -as [type])) {
+    Add-Type -TypeDefinition $workerNativeSourceMatch.Groups['source'].Value -ErrorAction Stop
+}
+foreach ($integrityCase in @(
+    @{ rid = [uint32]0x00001000; label = 'low' }
+    @{ rid = [uint32]0x00002000; label = 'medium' }
+    @{ rid = [uint32]0x00002100; label = 'mediumPlus' }
+    @{ rid = [uint32]0x00003000; label = 'high' }
+    @{ rid = [uint32]0x00004000; label = 'system' }
+)) {
+    Assert-Equal `
+        ([Hcr.WorkerProcessHandle]::ClassifyTokenIntegrityRid($integrityCase.rid)) `
+        $integrityCase.label `
+        'The worker classified a recognized integrity RID incorrectly.'
+}
+foreach ($invalidIntegrityRid in @(
+    [uint32]0,
+    [uint32]0x00001001,
+    [uint32]0x00002010,
+    [uint32]0x000020ff,
+    [uint32]0x00002101,
+    [uint32]0x00003001,
+    [uint32]0x00004001,
+    [uint32]0x00005000
+)) {
+    Assert-Throws {
+        [void][Hcr.WorkerProcessHandle]::ClassifyTokenIntegrityRid($invalidIntegrityRid)
+    } 'The worker accepted a non-exact integrity RID.'
+}
+foreach ($acceptedElevation in @(
+    @{ type = 1; elevated = $false }
+    @{ type = 1; elevated = $true }
+    @{ type = 2; elevated = $true }
+    @{ type = 3; elevated = $false }
+)) {
+    [Hcr.WorkerProcessHandle]::ValidateTokenElevationConsistency(
+        $acceptedElevation.type,
+        $acceptedElevation.elevated
+    )
+    Assert-True $true 'The worker rejected consistent elevation evidence.'
+}
+foreach ($rejectedElevation in @(
+    @{ type = 0; elevated = $false }
+    @{ type = 2; elevated = $false }
+    @{ type = 3; elevated = $true }
+    @{ type = 4; elevated = $true }
+)) {
+    Assert-Throws {
+        [Hcr.WorkerProcessHandle]::ValidateTokenElevationConsistency(
+            $rejectedElevation.type,
+            $rejectedElevation.elevated
+        )
+    } 'The worker accepted inconsistent elevation evidence.'
+}
+foreach ($invalidHandleCall in @(
+    { [void][Hcr.WorkerProcessHandle]::GetTokenIntegrityRid([IntPtr]::Zero) }
+    { [void][Hcr.WorkerProcessHandle]::GetTokenIsElevated([IntPtr]::Zero) }
+    { [void][Hcr.WorkerProcessHandle]::GetTokenElevationType([IntPtr]::Zero) }
+)) {
+    Assert-Throws $invalidHandleCall 'The worker accepted an invalid token handle.'
+}
+$nativeSidBuffer = [Runtime.InteropServices.Marshal]::AllocHGlobal($mediumIntegritySidBytes.Length)
+$nativeLabelBuffer = [Runtime.InteropServices.Marshal]::AllocHGlobal(64)
+try {
+    [Runtime.InteropServices.Marshal]::Copy(
+        $mediumIntegritySidBytes,
+        0,
+        $nativeSidBuffer,
+        $mediumIntegritySidBytes.Length
+    )
+    [Runtime.InteropServices.Marshal]::WriteIntPtr($nativeLabelBuffer, [IntPtr]::Zero)
+    [Runtime.InteropServices.Marshal]::WriteInt32($nativeLabelBuffer, [IntPtr]::Size, 0x20)
+    Assert-Throws {
+        [void][Hcr.WorkerProcessHandle]::ReadTokenIntegrityRid($nativeLabelBuffer, 64)
+    } 'The worker accepted an absent mandatory-label SID.'
+    [Runtime.InteropServices.Marshal]::WriteIntPtr($nativeLabelBuffer, $nativeSidBuffer)
+    Assert-Throws {
+        [void][Hcr.WorkerProcessHandle]::ReadTokenIntegrityRid($nativeLabelBuffer, 64)
+    } 'The worker accepted a SID outside the returned buffer.'
+    $embeddedSidPointer = [IntPtr]::Add($nativeLabelBuffer, 16)
+    [Runtime.InteropServices.Marshal]::Copy(
+        $wrongAuthoritySidBytes,
+        0,
+        $embeddedSidPointer,
+        $wrongAuthoritySidBytes.Length
+    )
+    [Runtime.InteropServices.Marshal]::WriteIntPtr($nativeLabelBuffer, $embeddedSidPointer)
+    Assert-Throws {
+        [void][Hcr.WorkerProcessHandle]::ReadTokenIntegrityRid($nativeLabelBuffer, 64)
+    } 'The worker accepted a non-mandatory SID authority.'
+    [Runtime.InteropServices.Marshal]::Copy(
+        $multipleSubauthoritySidBytes,
+        0,
+        $embeddedSidPointer,
+        $multipleSubauthoritySidBytes.Length
+    )
+    Assert-Throws {
+        [void][Hcr.WorkerProcessHandle]::ReadTokenIntegrityRid($nativeLabelBuffer, 64)
+    } 'The worker accepted multiple mandatory-label subauthorities.'
+    [Runtime.InteropServices.Marshal]::Copy(
+        $mediumIntegritySidBytes,
+        0,
+        $embeddedSidPointer,
+        $mediumIntegritySidBytes.Length
+    )
+    [Runtime.InteropServices.Marshal]::WriteInt32($nativeLabelBuffer, [IntPtr]::Size, 0)
+    Assert-Throws {
+        [void][Hcr.WorkerProcessHandle]::ReadTokenIntegrityRid($nativeLabelBuffer, 64)
+    } 'The worker accepted a label without SE_GROUP_INTEGRITY.'
+    [Runtime.InteropServices.Marshal]::WriteInt32($nativeLabelBuffer, [IntPtr]::Size, 0x20)
+    Assert-Equal `
+        ([Hcr.WorkerProcessHandle]::ReadTokenIntegrityRid($nativeLabelBuffer, 64)) `
+        ([uint32]0x00002000) `
+        'The worker did not read a valid exact-medium label.'
+}
+finally {
+    [Runtime.InteropServices.Marshal]::FreeHGlobal($nativeLabelBuffer)
+    [Runtime.InteropServices.Marshal]::FreeHGlobal($nativeSidBuffer)
+}
+$workerTokenFunction = @($workerAst.FindAll({
+    param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -eq 'Get-WorkerTokenEvidence'
+}, $true))
+Assert-Equal $workerTokenFunction.Count 1 `
+    'The fixed guest worker token-evidence function is missing or duplicated.'
+Invoke-Expression $workerTokenFunction[0].Extent.Text
+$workerTokenEvidence = Get-WorkerTokenEvidence
+Assert-Equal ([string]$workerTokenEvidence.sid) ([string]$currentTokenEvidence.sid) `
+    'The worker token probe changed the current SID.'
+Assert-Equal ([string]$workerTokenEvidence.tokenIntegrity) `
+    ([string]$currentTokenEvidence.tokenIntegrity) `
+    'The worker token probe disagrees with the shared integrity probe.'
+Assert-Equal ([bool]$workerTokenEvidence.isElevated) ([bool]$currentTokenEvidence.isElevated) `
+    'The worker token probe disagrees with the shared elevation probe.'
+Assert-True ($workerSource -match
+    "(?s)\`$token = Get-WorkerTokenEvidence.*?\`$Mode -ne 'InspectGuest'.*?GUEST_TEST_USER_PRIVILEGE_INVALID") `
+    'Lifecycle modes do not fail closed on an invalid observed token.'
+Assert-True ($workerSource -match
+    "(?s)\`$data = if \(\`$Mode -eq 'InspectGuest'\).*?Invoke-WorkerInspectGuest \`$token") `
+    'InspectGuest no longer reports the observed token independently of lifecycle acceptance.'
 Assert-True ($workerSource -match 'Initialize-WorkerDirectoryTree') `
     'The standard-user sentinel path is not created with segment-by-segment reparse checks.'
 Assert-True ($workerSource -match '\[Console\]::OpenStandardOutput') `

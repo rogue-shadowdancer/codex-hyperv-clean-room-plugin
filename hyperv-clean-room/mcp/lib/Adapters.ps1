@@ -1639,29 +1639,16 @@ function New-HcrRealGuestContext {
             Set-Variable -Name PSSessionOption -Scope Local -Value $previousOption.Value
         }
     }
+    $tokenEvidenceProbe = ${function:Get-HcrCurrentWindowsTokenEvidence}
     try {
-        $administratorProbe = Invoke-Command -Session $session -ScriptBlock {
-            $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-            $principal = New-Object Security.Principal.WindowsPrincipal($identity)
-            $groups = @($identity.Groups | ForEach-Object { [string]$_.Value })
-            $integrity = if ($groups -contains 'S-1-16-16384') { 'system' }
-                elseif ($groups -contains 'S-1-16-12288') { 'high' }
-                elseif ($groups -contains 'S-1-16-8448') { 'mediumPlus' }
-                elseif ($groups -contains 'S-1-16-8192') { 'medium' }
-                elseif ($groups -contains 'S-1-16-4096') { 'low' }
-                else { 'unknown' }
-            return [pscustomobject]@{
-                sid = [string]$identity.User.Value
-                hasAdministratorsSid = $groups -contains 'S-1-5-32-544'
-                isAdministrator = $principal.IsInRole(
-                    [Security.Principal.WindowsBuiltInRole]::Administrator
-                )
-                tokenIntegrity = $integrity
-            }
-        } -ErrorAction Stop
+        $administratorProbe = Invoke-Command `
+            -Session $session `
+            -ScriptBlock $tokenEvidenceProbe `
+            -ErrorAction Stop
         if ([string](Get-HcrPropertyValue $administratorProbe 'sid') -ne $administratorSid -or
             -not [bool](Get-HcrPropertyValue $administratorProbe 'hasAdministratorsSid' $false) -or
             -not [bool](Get-HcrPropertyValue $administratorProbe 'isAdministrator' $false) -or
+            -not [bool](Get-HcrPropertyValue $administratorProbe 'isElevated' $false) -or
             @('high', 'system') -notcontains [string](Get-HcrPropertyValue $administratorProbe 'tokenIntegrity')) {
             Throw-HcrError 'GUEST_ADMINISTRATOR_IDENTITY_DRIFT' 'The PowerShell Direct supervisor no longer matches the enrolled administrator role.'
         }
@@ -1683,7 +1670,7 @@ function New-HcrRealGuestContext {
         orchestrationIdentity = [pscustomobject][ordered]@{
             userSid = [string](Get-HcrPropertyValue $administratorProbe 'sid')
             isAdministrator = $true
-            isElevated = $true
+            isElevated = [bool](Get-HcrPropertyValue $administratorProbe 'isElevated')
             tokenIntegrity = [string](Get-HcrPropertyValue $administratorProbe 'tokenIntegrity')
         }
         administrator = $bundle.administrator
