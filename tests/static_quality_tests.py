@@ -379,6 +379,24 @@ def main() -> int:
     ]
     if "Get-HcrCurrentWindowsTokenEvidence" not in initializer_source:
         raise AssertionError("credential initializer does not use the shared token probe")
+    for credential_environment_seam in (
+        "Initialize-HcrWindowsPowerShellCredentialEnvironment",
+        "[Environment+SpecialFolder]::MyDocuments",
+        "[Environment+SpecialFolder]::ProgramFiles",
+        "PSVersion.Minor -ne 1",
+        "$env:PSModulePath =",
+        "Microsoft.PowerShell.Security.psd1",
+        "Get-Credential is not bound to the in-box Windows PowerShell Security module",
+    ):
+        if credential_environment_seam not in initializer_source:
+            raise AssertionError(
+                "credential initializer is missing Windows PowerShell environment seam: "
+                + credential_environment_seam
+            )
+    if "SetEnvironmentVariable" in initializer_source:
+        raise AssertionError(
+            "credential initializer can write persistent environment state"
+        )
     if any(
         "S-1-16-" in source
         for source in (common_source, initializer_source, adapter_source, worker_source)

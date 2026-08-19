@@ -2381,6 +2381,22 @@ Assert-Equal (@($commands | Where-Object { $_ -eq 'Get-Credential' }).Count) 2 `
 Assert-Equal (@($commands | Where-Object { $_ -eq 'Export-Clixml' }).Count) 2 `
     'Credential initializer must persist two DPAPI credential objects.'
 $initializerSource = Get-Content -LiteralPath $initializerPath -Raw -Encoding UTF8
+Assert-True ($initializerSource -match
+    'Initialize-HcrWindowsPowerShellCredentialEnvironment') `
+    'Credential initialization does not normalize its Windows PowerShell module environment.'
+$securityBootstrapOffset = $initializerSource.LastIndexOf(
+    'Initialize-HcrWindowsPowerShellCredentialEnvironment',
+    [StringComparison]::Ordinal
+)
+$getVmOffset = $initializerSource.IndexOf('Get-VM', [StringComparison]::Ordinal)
+$getCredentialOffset = $initializerSource.IndexOf(
+    '$administratorCredential = Get-Credential',
+    [StringComparison]::Ordinal
+)
+Assert-True ($securityBootstrapOffset -ge 0 -and
+    $securityBootstrapOffset -lt $getVmOffset -and
+    $securityBootstrapOffset -lt $getCredentialOffset) `
+    'Credential module bootstrap does not precede module autoload and credential prompts.'
 Assert-True ($initializerSource -match 'Get-HcrCurrentWindowsTokenEvidence') `
     'Credential initialization does not use the shared native token probe.'
 Assert-True ($initializerSource -notmatch 'S-1-16-') `
@@ -2393,6 +2409,162 @@ Assert-True ($initializerSource -match 'Publish-HcrCredentialDirectory') `
     'Credential initialization does not use the exact-destination publication helper.'
 Assert-True ($initializerSource -notmatch '(?m)^\s*Move-Item\b') `
     'Credential initialization still uses container-merging Move-Item publication.'
+$environmentFunctions = @($initializerAst.FindAll({
+    param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -eq 'Initialize-HcrWindowsPowerShellCredentialEnvironment'
+}, $true))
+Assert-Equal $environmentFunctions.Count 1 `
+    'Credential module environment initializer is missing or duplicated.'
+$environmentFunctionSource = $environmentFunctions[0].Extent.Text
+Assert-True ($environmentFunctionSource -match '\$PSHOME' -and
+    $environmentFunctionSource -match "'Microsoft\.PowerShell\.Security'" -and
+    $environmentFunctionSource -match "'Microsoft\.PowerShell\.Security\.psd1'") `
+    'Credential module bootstrap does not select the in-box manifest under PSHOME.'
+Assert-True ($environmentFunctionSource -match "'WindowsPowerShell', 'Modules'") `
+    'Credential module bootstrap does not reconstruct Windows PowerShell module paths.'
+Assert-True ($environmentFunctionSource -match 'PSVersion\.Minor -ne 1') `
+    'Credential module bootstrap does not require exact Windows PowerShell 5.1.'
+Assert-True ($environmentFunctionSource -match '(?m)^\s*\$env:PSModulePath\s*=') `
+    'Credential module bootstrap does not replace the contaminated child-process module path.'
+Assert-True ($environmentFunctionSource -notmatch 'SetEnvironmentVariable') `
+    'Credential module bootstrap can write persistent environment state.'
+
+$foreignModuleRoot = Join-Path $testRoot 'foreign-powershell-modules'
+$foreignSecurityRoot = Join-Path $foreignModuleRoot `
+    'Microsoft.PowerShell.Security\99.0.0.0'
+[void](New-Item -ItemType Directory -Path $foreignSecurityRoot -Force)
+$foreignSecurityModule = Join-Path $foreignSecurityRoot 'Microsoft.PowerShell.Security.psm1'
+$foreignSecurityManifest = Join-Path $foreignSecurityRoot 'Microsoft.PowerShell.Security.psd1'
+[IO.File]::WriteAllText(
+    $foreignSecurityModule,
+    "# Deliberately empty foreign higher-version candidate.`n",
+    (New-Object System.Text.UTF8Encoding($false))
+)
+[IO.File]::WriteAllText(
+    $foreignSecurityManifest,
+    (@"
+@{
+    RootModule = 'Microsoft.PowerShell.Security.psm1'
+    ModuleVersion = '99.0.0.0'
+    GUID = '9d5437bc-dd25-47aa-8870-c47a1f6c327b'
+    FunctionsToExport = @()
+    CmdletsToExport = @()
+    VariablesToExport = @()
+    AliasesToExport = @()
+}
+"@),
+    (New-Object System.Text.UTF8Encoding($false))
+)
+$securityBootstrapChild = @"
+`$ErrorActionPreference = 'Stop'
+$environmentFunctionSource
+`$userPathBefore = [Environment]::GetEnvironmentVariable(
+    'PSModulePath',
+    [EnvironmentVariableTarget]::User
+)
+`$machinePathBefore = [Environment]::GetEnvironmentVariable(
+    'PSModulePath',
+    [EnvironmentVariableTarget]::Machine
+)
+`$foreignVisible = @(
+    Get-Module -ListAvailable Microsoft.PowerShell.Security |
+        Where-Object { `$_.Version -eq [version]'99.0.0.0' }
+).Count -eq 1
+Initialize-HcrWindowsPowerShellCredentialEnvironment
+`$command = Get-Command Get-Credential -CommandType Cmdlet -ErrorAction Stop
+`$module = Get-Module Microsoft.PowerShell.Security |
+    Where-Object { `$_.Path -ieq `$command.Module.Path } |
+    Select-Object -First 1
+[pscustomobject]@{
+    foreignVisible = `$foreignVisible
+    moduleVersion = [string]`$module.Version
+    modulePath = [string]`$module.Path
+    commandModulePath = [string]`$command.Module.Path
+    foreignPathRemoved = (`$env:PSModulePath -split [regex]::Escape(
+        [IO.Path]::PathSeparator
+    )) -inotcontains '$($foreignModuleRoot.Replace("'", "''"))'
+    psHomeModulesPresent = (`$env:PSModulePath -split [regex]::Escape(
+        [IO.Path]::PathSeparator
+    )) -icontains (Join-Path `$PSHOME 'Modules')
+    userPathUnchanged = [string]::Equals(
+        [string]`$userPathBefore,
+        [string][Environment]::GetEnvironmentVariable(
+            'PSModulePath',
+            [EnvironmentVariableTarget]::User
+        ),
+        [StringComparison]::Ordinal
+    )
+    machinePathUnchanged = [string]::Equals(
+        [string]`$machinePathBefore,
+        [string][Environment]::GetEnvironmentVariable(
+            'PSModulePath',
+            [EnvironmentVariableTarget]::Machine
+        ),
+        [StringComparison]::Ordinal
+    )
+} | ConvertTo-Json -Compress
+"@
+$securityBootstrapEncoded = [Convert]::ToBase64String(
+    [Text.Encoding]::Unicode.GetBytes($securityBootstrapChild)
+)
+$windowsPowerShell = Join-Path $env:SystemRoot `
+    'System32\WindowsPowerShell\v1.0\powershell.exe'
+$securityBootstrapInfo = New-Object Diagnostics.ProcessStartInfo
+$securityBootstrapInfo.FileName = $windowsPowerShell
+$securityBootstrapInfo.Arguments =
+    "-NoLogo -NoProfile -NonInteractive -EncodedCommand $securityBootstrapEncoded"
+$securityBootstrapInfo.UseShellExecute = $false
+$securityBootstrapInfo.RedirectStandardOutput = $true
+$securityBootstrapInfo.RedirectStandardError = $true
+$securityBootstrapInfo.CreateNoWindow = $true
+$securityBootstrapInfo.EnvironmentVariables['PSModulePath'] =
+    $foreignModuleRoot + [IO.Path]::PathSeparator + [string]$env:PSModulePath
+$securityBootstrapProcess = New-Object Diagnostics.Process
+$securityBootstrapProcess.StartInfo = $securityBootstrapInfo
+[void]$securityBootstrapProcess.Start()
+$securityBootstrapExited = $securityBootstrapProcess.WaitForExit(15000)
+if (-not $securityBootstrapExited) {
+    $securityBootstrapProcess.Kill()
+    throw 'Contaminated Windows PowerShell Security bootstrap did not exit.'
+}
+$securityBootstrapStdout = $securityBootstrapProcess.StandardOutput.ReadToEnd()
+$securityBootstrapStderr = $securityBootstrapProcess.StandardError.ReadToEnd()
+Assert-True $securityBootstrapExited `
+    'Contaminated Windows PowerShell Security bootstrap did not exit cleanly.'
+Assert-Equal $securityBootstrapProcess.ExitCode 0 `
+    "Contaminated Windows PowerShell Security bootstrap failed: $securityBootstrapStderr"
+$securityBootstrapJson = @($securityBootstrapStdout -split "`r?`n" | Where-Object {
+    $_ -match '^\{.*\}$'
+})
+Assert-Equal $securityBootstrapJson.Count 1 `
+    'Contaminated Windows PowerShell Security bootstrap returned unexpected output.'
+$securityBootstrapResult = $securityBootstrapJson[0] | ConvertFrom-Json
+Assert-True ([bool]$securityBootstrapResult.foreignVisible) `
+    'Credential Security regression did not expose a foreign higher-version module candidate.'
+Assert-Equal ([string]$securityBootstrapResult.moduleVersion) '3.0.0.0' `
+    'Credential Security bootstrap selected a foreign module version.'
+$expectedSecurityManifest = Join-Path `
+    (Split-Path -Parent $windowsPowerShell) `
+    'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1'
+Assert-True ([string]::Equals(
+    [IO.Path]::GetFullPath([string]$securityBootstrapResult.modulePath),
+    [IO.Path]::GetFullPath($expectedSecurityManifest),
+    [StringComparison]::OrdinalIgnoreCase
+)) 'Credential Security bootstrap loaded a module outside Windows PowerShell PSHOME.'
+Assert-True ([string]::Equals(
+    [IO.Path]::GetFullPath([string]$securityBootstrapResult.commandModulePath),
+    [IO.Path]::GetFullPath($expectedSecurityManifest),
+    [StringComparison]::OrdinalIgnoreCase
+)) 'Get-Credential did not bind to the in-box Windows PowerShell Security module.'
+Assert-True ([bool]$securityBootstrapResult.foreignPathRemoved) `
+    'Credential module bootstrap retained a foreign PowerShell module path.'
+Assert-True ([bool]$securityBootstrapResult.psHomeModulesPresent) `
+    'Credential module bootstrap omitted the Windows PowerShell PSHOME module path.'
+Assert-True ([bool]$securityBootstrapResult.userPathUnchanged) `
+    'Credential module bootstrap changed the user-scoped module path.'
+Assert-True ([bool]$securityBootstrapResult.machinePathUnchanged) `
+    'Credential module bootstrap changed the machine-scoped module path.'
 $initializerFunctions = @($initializerAst.FindAll({
     param($node)
     $node -is [Management.Automation.Language.FunctionDefinitionAst] -and

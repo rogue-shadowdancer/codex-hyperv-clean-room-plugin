@@ -198,7 +198,7 @@ Documentation can be checked independently without Python:
 ## Credential enrollment
 
 Credential setup is intentionally outside MCP. Run it interactively on the
-Hyper-V host:
+Hyper-V host under Windows PowerShell 5.1:
 
 ```powershell
 .\hyperv-clean-room\mcp\Initialize-GuestCredential.ps1 `
@@ -215,6 +215,13 @@ with each credential. It requires:
   high/system integrity for the orchestration identity;
 - no Administrators SID, administrator role, or elevation and exact medium
   integrity for the test identity.
+
+Before either prompt, the initializer reconstructs only its current process's
+standard Windows PowerShell module path and imports the in-box Security module
+from `$PSHOME` by exact manifest path. This makes an interactive 5.1 child safe
+when it was launched indirectly from PowerShell 7 or Codex with a foreign
+module path. The initializer does not persist that process-local path or change
+the user, machine, registry, marketplace, or Codex environment.
 
 The fixed probe queries native Windows `TokenIntegrityLevel`, `TokenElevation`,
 and `TokenElevationType` information. It does not search the token group list

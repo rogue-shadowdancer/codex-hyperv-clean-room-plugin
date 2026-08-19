@@ -8,6 +8,13 @@ the local plugin cache.
 
 ### Fixed
 
+- Normalize only the interactive initializer's Windows PowerShell 5.1 child
+  process module path before any module discovery, then import and read-verify
+  the in-box `Microsoft.PowerShell.Security` manifest from `$PSHOME`. This
+  prevents a PowerShell 7/Codex parent launched through `Start-Process` from
+  making Windows PowerShell select the incompatible higher-version Security
+  module while leaving user, machine, marketplace, and Codex configuration
+  unchanged.
 - Accept the exact published Birdsgone `v0.1.0-test.2` end-user-complete
   sidecar without weakening the external-manifest boundary. The compatible
   branch recognizes only the complete `fresh-exact-head` source-manifest

@@ -12,6 +12,87 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Initialize-HcrWindowsPowerShellCredentialEnvironment {
+    if ([string]$PSVersionTable.PSEdition -cne 'Desktop' -or
+        [int]$PSVersionTable.PSVersion.Major -ne 5 -or
+        [int]$PSVersionTable.PSVersion.Minor -ne 1) {
+        throw 'The interactive credential initializer requires Windows PowerShell 5.1.'
+    }
+
+    $documentsPath = [Environment]::GetFolderPath(
+        [Environment+SpecialFolder]::MyDocuments
+    )
+    $programFilesPath = [Environment]::GetFolderPath(
+        [Environment+SpecialFolder]::ProgramFiles
+    )
+    $psHomeModules = [IO.Path]::Combine($PSHOME, 'Modules')
+    $modulePaths = @(
+        [IO.Path]::Combine($documentsPath, 'WindowsPowerShell', 'Modules'),
+        [IO.Path]::Combine($programFilesPath, 'WindowsPowerShell', 'Modules'),
+        $psHomeModules
+    )
+    $normalizedPaths = @()
+    foreach ($candidatePath in $modulePaths) {
+        if ([string]::IsNullOrWhiteSpace($candidatePath)) { continue }
+        $fullPath = [IO.Path]::GetFullPath($candidatePath)
+        if ($normalizedPaths -inotcontains $fullPath) {
+            $normalizedPaths += $fullPath
+        }
+    }
+    if ($normalizedPaths.Count -ne 3 -or
+        -not [IO.Directory]::Exists($psHomeModules)) {
+        throw 'The standard Windows PowerShell module paths are unavailable.'
+    }
+    $env:PSModulePath = [string]::Join(
+        [IO.Path]::PathSeparator,
+        [string[]]$normalizedPaths
+    )
+
+    $manifestPath = [IO.Path]::Combine(
+        $psHomeModules,
+        'Microsoft.PowerShell.Security',
+        'Microsoft.PowerShell.Security.psd1'
+    )
+    if (-not [IO.File]::Exists($manifestPath)) {
+        throw 'The in-box Windows PowerShell Security module is unavailable.'
+    }
+    $expectedPath = [IO.Path]::GetFullPath($manifestPath)
+    try {
+        $imported = @(Import-Module `
+            -Name $expectedPath `
+            -PassThru `
+            -ErrorAction Stop)
+    }
+    catch {
+        throw 'The in-box Windows PowerShell Security module could not be loaded.'
+    }
+    if ($imported.Count -ne 1 -or
+        [string]::IsNullOrWhiteSpace([string]$imported[0].Path) -or
+        -not [string]::Equals(
+            [IO.Path]::GetFullPath([string]$imported[0].Path),
+            $expectedPath,
+            [StringComparison]::OrdinalIgnoreCase
+        )) {
+        throw 'The loaded Windows PowerShell Security module identity is invalid.'
+    }
+
+    $credentialCommand = Get-Command `
+        Get-Credential `
+        -CommandType Cmdlet `
+        -ErrorAction SilentlyContinue
+    if ($null -eq $credentialCommand -or
+        $null -eq $credentialCommand.Module -or
+        [string]::IsNullOrWhiteSpace([string]$credentialCommand.Module.Path) -or
+        -not [string]::Equals(
+            [IO.Path]::GetFullPath([string]$credentialCommand.Module.Path),
+            $expectedPath,
+            [StringComparison]::OrdinalIgnoreCase
+        )) {
+        throw 'Get-Credential is not bound to the in-box Windows PowerShell Security module.'
+    }
+}
+
+Initialize-HcrWindowsPowerShellCredentialEnvironment
 . (Join-Path (Join-Path $PSScriptRoot 'lib') 'Common.ps1')
 . (Join-Path (Join-Path $PSScriptRoot 'lib') 'State.ps1')
 
