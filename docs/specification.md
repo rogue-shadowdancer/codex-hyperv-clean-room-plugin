@@ -709,6 +709,16 @@ tests its parameter and prompt boundary without collecting credentials. MCP
 arguments carry only the validated profile name. Do not log either username
 unless it is required in final guest identity evidence.
 
+The initializer runs only under Windows PowerShell 5.1. Before dot-sourcing
+plugin libraries or resolving any module command, it replaces only its current
+process `PSModulePath` with the standard Windows PowerShell current-user,
+all-users, and `$PSHOME` module locations. It then imports the in-box
+`Microsoft.PowerShell.Security` manifest by exact `$PSHOME` path and verifies
+that `Get-Credential` is bound to those exact module bytes. This blocks an
+indirect PowerShell 7 parent from injecting a higher-version module into the
+5.1 process. It does not edit user or machine environment state, the registry,
+marketplace data, or Codex configuration.
+
 Integrity and elevation evidence must come from the current Windows access
 token through `GetTokenInformation` using `TokenIntegrityLevel`,
 `TokenElevation`, and `TokenElevationType`. The mandatory-label SID must lie

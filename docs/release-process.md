@@ -483,3 +483,27 @@ through the ordinary protected pull-request path. Install only the resulting
 protected commit through `scripts/install_plugin.ps1`; do not hand-edit the
 marketplace or Codex configuration. Tag and GitHub Release remain
 `notPerformed` and unauthorized for this repair.
+
+## v0.4.1 Windows PowerShell credential-module bootstrap repair
+
+This repair closes the interactive initializer failure observed when Codex's
+PowerShell 7 process launches Windows PowerShell 5.1 through `Start-Process`.
+Only the initializer's child-process module environment changes: before any
+plugin dot-source, module discovery, VM lookup, or credential prompt, it
+reconstructs the standard Windows PowerShell current-user, all-users, and
+`$PSHOME` module paths, imports the in-box
+`Microsoft.PowerShell.Security` manifest by exact path, and verifies the actual
+`Get-Credential` binding. User/machine environment state, registry, Codex
+configuration, marketplace data, tool/schema contracts, credential file
+shape, and the 31-payload topology remain unchanged.
+
+The plugin-creator cachebuster helper ran exactly once after the repair and
+affected documentation stabilized. The frozen build is
+`0.4.1+codex.20260819075913`; do not regenerate it during review, merge,
+installation, or the Birdsgone G8 continuation. Complete impact-scoped Gate 2,
+install-source, manifest, documentation, and exact-staged review locally;
+publish and merge only through the ordinary protected pull-request path.
+Install only the resulting protected `master` commit through
+`scripts/install_plugin.ps1`, then use a fresh Codex task to prove the new
+20-tool registry before any renewed G8 credential attempt. No tag or GitHub
+Release is authorized by this repair.

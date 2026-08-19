@@ -222,6 +222,14 @@ weaker schema and prohibit invented success evidence.
 interactive prompts collect credentials in memory. PowerShell Direct probes
 prove distinct SIDs and the required roles before persistence.
 
+The initializer fails closed unless it is running under Windows PowerShell
+5.1. Before any module autoload, it replaces only the child process
+`PSModulePath` with the standard Windows PowerShell locations, imports the
+in-box `Microsoft.PowerShell.Security` manifest by exact `$PSHOME` path, and
+verifies the actual `Get-Credential` module path. This prevents a PowerShell 7
+parent's same-name, higher-version modules from crossing the 5.1 trust
+boundary. No user- or machine-scoped environment value is written.
+
 Each credential is serialized separately with DPAPI-backed `Export-Clixml`.
 Both credential files and metadata are first built, ACL-protected, size-checked,
 and read-validated in one private pending directory. Publication uses an

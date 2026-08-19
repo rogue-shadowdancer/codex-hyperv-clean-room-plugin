@@ -428,6 +428,25 @@ checkpoint/disk chain.
 
 ## Credential profiles and PowerShell Direct
 
+### `Get-Credential` module load or duplicate `ObjectSecurity` type data
+
+The interactive initializer must run under Windows PowerShell 5.1. A 5.1
+window launched indirectly from PowerShell 7 can otherwise inherit PowerShell
+7 module paths and try to load the incompatible higher-version
+`Microsoft.PowerShell.Security` module. Typical symptoms include
+`CouldNotAutoloadMatchingModule`, `FormatXmlUpdateException`, and duplicate
+`AuditToString`, `AccessToString`, `Sddl`, `Access`, `Group`, `Owner`, or `Path`
+members.
+
+Current builds reconstruct only the initializer process's standard Windows
+PowerShell module path before autoload, import the in-box Security manifest by
+exact `$PSHOME` path, and verify the `Get-Credential` binding. Do not work
+around this error by uninstalling PowerShell 7, editing system modules, calling
+`Remove-TypeData`, changing persistent `PSModulePath`, or hand-building DPAPI
+files. If the error persists, stop without retrying credentials and verify that
+the installed plugin identity and `Initialize-GuestCredential.ps1` bytes match
+the repaired protected source.
+
 ### `CREDENTIAL_PROFILE_NOT_FOUND`
 
 Verify the profile name and the Windows account running the MCP server. DPAPI
