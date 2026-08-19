@@ -42,6 +42,11 @@ ACCEPTED_LEGACY_COMMIT_SHA256 = {
     "d7879604e2f84b92f52fac1171c5e94f194c478eba503dd67614705e0e431c04",
     "8f96527be228138c809a18c7a7f6d1c86c22b702f3bd6efa701926725a0fb7db",
     "044deeb3cc609fb461f3d1189b7c4b269aea9bc8bda51136b31417bc98781cbc",
+    # One GitHub-generated protected squash commit for the v0.4.1 Windows
+    # PowerShell module-path repair. GitHub preserved the approved public
+    # noreply email but substituted the account profile display name and its
+    # web-flow committer on the exact protected commit object.
+    "e04247929903b5eaabcdf93911366a4402a23a5470bff4773f8fd60fd2b3a560",
 }
 PUBLIC_COMMIT_NAME = "rogue-shadowdancer"
 PUBLIC_COMMIT_EMAIL = "78423508+rogue-shadowdancer@users.noreply.github.com"

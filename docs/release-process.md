@@ -507,3 +507,37 @@ Install only the resulting protected `master` commit through
 `scripts/install_plugin.ps1`, then use a fresh Codex task to prove the new
 20-tool registry before any renewed G8 credential attempt. No tag or GitHub
 Release is authorized by this repair.
+
+## v0.4.1 fixed-worker input-binding repair
+
+This additive repair closes a production-only PowerShell binding failure found
+after the repaired Birdsgone G8 credential profile was atomically published.
+`Invoke-HcrFixedGuestWorker` and thirteen standalone worker functions declared
+an `Input` parameter. Because PowerShell variable names are case-insensitive,
+the automatic `$input` pipeline enumerator replaced the caller's request object;
+the supervisor therefore read a null `schemaVersion` and stopped with
+`GUEST_WORKER_INPUT_INVALID` before guest inspection.
+
+The repair renames only those internal parameter variables and their scoped
+references to `$WorkerInput`. Positional calls, request JSON field names,
+`InputPath`, tool schemas, envelopes, error semantics, credential storage,
+Plan/Apply behavior, evidence derivation, the exact 20-tool surface, five
+schema-v1 files, seven schema-v2 files, and the 31-payload topology remain
+unchanged. A PowerShell AST regression rejects any future production function
+parameter whose name is case-insensitively equal to `Input`.
+
+The plugin-creator cachebuster helper ran exactly once after the runtime and
+focused regressions stabilized. The frozen build is
+`0.4.1+codex.20260819091500`; do not regenerate it during review, merge,
+installation, or the resumed G8 gate. Complete affected Gate 2/Gate 7,
+install-source, documentation, public-release, and exact-staged review gates
+locally; publish and merge only through the ordinary protected pull-request
+path. Install the merged protected commit exactly once through
+`scripts/install_plugin.ps1`, then require a fresh task and exactly 20 typed
+tools before retrying `inspect_guest`. No tag or GitHub Release is authorized.
+
+The public-history validator also preserves the immediately preceding
+protected module-path repair squash commit by its exact raw commit-object
+SHA-256. GitHub retained the approved public noreply address but substituted
+the account display name and web-flow committer; the exception is object-bound
+and does not broaden the accepted identity patterns.

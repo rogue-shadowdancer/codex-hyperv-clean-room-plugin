@@ -245,6 +245,16 @@ package.
 
 Enrollment itself is a real guest credential operation. Gate 2 did not run it.
 
+After enrollment, `inspect_guest` and lifecycle calls pass a closed request
+object through the fixed-worker supervisor and standalone worker. Repaired
+builds bind that internal object as `$WorkerInput`; they never declare an
+`Input` parameter because PowerShell's case-insensitive automatic `$input`
+variable would replace it with a pipeline enumerator and remove the request
+`schemaVersion`. Operators must not work around
+`GUEST_WORKER_INPUT_INVALID` by editing a profile or constructing a worker
+input manually. Verify the installed protected build and retry only in a fresh
+task after a source repair and controlled reinstall.
+
 ## Host inspection
 
 Start every real-host workflow with `inspect_host`. With no arguments it

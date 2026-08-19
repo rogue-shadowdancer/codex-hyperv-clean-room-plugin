@@ -11,11 +11,11 @@ the payload to
 in the default personal marketplace through the `plugin-creator` helper, and
 runs:
 
-The current Windows token-integrity source Gate prepares the one precommitted
-`0.4.1+codex.20260814082037` build; the prior exact-Test2 manifest
-`0.4.1+codex.20260813075830` build is installed predecessor state. The source
-Gate does not install or publish the new build. After merge, the installation
-Gate requires all 31
+The current fixed-worker input-binding source Gate prepares the one frozen
+`0.4.1+codex.20260819091500` build; the credential-module bootstrap build
+`0.4.1+codex.20260819075913` is installed predecessor state. The source Gate
+does not install or publish the new build. After merge, the installation Gate
+requires all 31
 tracked payloads, the two installed-state records, exact per-file size/SHA-256,
 source commit, version, cachebuster, one canonical marketplace entry, and Codex
 installed/enabled state to agree. Production typed read-only acceptance follows

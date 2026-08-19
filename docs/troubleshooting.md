@@ -529,6 +529,22 @@ The plugin-owned `GuestWorker.ps1` did not copy or hash identically. Check
 PowerShell Direct, guest storage, ACLs, and endpoint-security events. Do not
 execute a caller-provided replacement script.
 
+### `GUEST_WORKER_INPUT_INVALID`: fixed-worker schema version unsupported
+
+If credential enrollment succeeds but `inspect_guest` reports that the fixed
+worker schema version is unsupported, first verify the exact installed build.
+Affected source used `Input` as a function parameter in the supervisor and
+standalone worker. PowerShell treats that name as its case-insensitive
+automatic `$input` enumerator, so the closed request object's `schemaVersion`
+was lost before dispatch.
+
+Do not recreate the credential profile, edit DPAPI files, hand-write worker
+JSON, invoke the worker directly, or bypass schema validation. Use a protected
+build containing the `$WorkerInput` binding repair, reinstall it through the
+owned installer, start a fresh task, prove exactly 20 typed tools, and rerun
+the read-only inspection. Preserve the original error operation ID and keep
+guest/package/checkpoint evidence `notPerformed` until that call succeeds.
+
 ### Guest workspace or reparse failure
 
 The fixed `ProgramData` operation path could not be created or contained a

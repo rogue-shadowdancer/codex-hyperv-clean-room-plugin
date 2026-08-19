@@ -318,6 +318,14 @@ guest dispatch. `GuestWorker.ps1` has only three modes and its own allowed step
 type lists. It never evaluates a string as code and never calls an arbitrary
 command supplied by the client.
 
+Internal request parameters are named `$WorkerInput`, never `Input`. This is a
+security-relevant PowerShell binding invariant: `$input` is an automatic,
+case-insensitive pipeline enumerator, so a colliding parameter can erase the
+validated request object's schema and binding fields. Parser/AST validation
+rejects that parameter name in both the administrator supervisor and the
+standalone worker; it does not weaken closed-field validation or introduce a
+caller-controlled command surface.
+
 Package execution is necessarily code execution, but its source is constrained:
 
 - the file must be a host-local ordinary artifact selected for the operation;
