@@ -1752,3 +1752,31 @@ installation, production typed tool call, VM/guest/credential operation,
 Hyper-V mutation, tag, or Release. After ordinary protected merge, one separate
 installation Gate installs the exact protected commit; only a freshly loaded
 selected-plugin task may then resume the already authorized Test2 sequence.
+
+## v0.4.1 fixed-worker input-binding repair boundary
+
+This compatible repair freezes build `0.4.1+codex.20260819091500` and changes
+only internal PowerShell parameter variables in the real fixed-worker
+supervisor and standalone worker. PowerShell reserves the case-insensitive
+automatic variable `$input`; declaring a function parameter named `Input`
+therefore yields an input enumerator instead of the positional request object.
+The observed production failure occurred after successful credential-profile
+publication but before `inspect_guest` dispatched the worker: the supervisor
+read a null request `schemaVersion` and returned
+`GUEST_WORKER_INPUT_INVALID` with `changed: false`.
+
+All fourteen affected production functions bind the same positional request as
+`$WorkerInput`. JSON field names, `InputPath`, request hashes, invocation/mode
+bindings, public MCP inputs, tool names, schema dispatch, credential roles,
+DPAPI profile shape, evidence semantics, Plan/Apply consumption, and the
+31-payload inventory are unchanged. A source AST regression rejects any
+function parameter named `Input` in `Adapters.ps1` or `GuestWorker.ps1`.
+
+Source acceptance is PowerShell 5.1 parser/runtime, Gate 2/Gate 7 mock/static,
+install-source, documentation, and public-release validation with exactly 20
+tools and zero real host, Hyper-V, guest, portable, WebDriver, or UI operations.
+The source gate does not call `inspect_guest`, mutate a VM, reinstall the
+plugin, create a tag, or publish a Release. Only the exact ordinary protected
+merge may be installed once; a newly created selected-plugin task must then
+reprove exactly 20 tools and resume the separately authorized Birdsgone G8
+read-only guest inspection.

@@ -533,7 +533,7 @@ def main() -> int:
             "[string]::Join('.', $browserParts[0..2])",
             "[string]::Join('.', $driverParts[0..2])",
             "(-not $uiRequired -and $null -ne $webDriver)",
-            "Get-WorkerProperty $Input 'uiRequired' $false",
+            "Get-WorkerProperty $WorkerInput 'uiRequired' $false",
         ),
     )
     require_tokens(

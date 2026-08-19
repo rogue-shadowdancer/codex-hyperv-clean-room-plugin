@@ -2904,6 +2904,15 @@ Assert-Equal (Get-HcrBoundedCleanupTimeout -DeclaredSeconds 120 -RemainingSecond
     'Cleanup timeout was not capped to the remaining total budget.'
 Assert-Equal (Get-HcrBoundedCleanupTimeout -DeclaredSeconds 30 -RemainingSeconds 0) 0 `
     'Cleanup attempted to start after the total budget was exhausted.'
+$adapterPath = Join-Path $pluginRoot 'mcp\lib\Adapters.ps1'
+$adapterTokens = $null
+$adapterParseErrors = $null
+$adapterAst = [Management.Automation.Language.Parser]::ParseFile(
+    $adapterPath,
+    [ref]$adapterTokens,
+    [ref]$adapterParseErrors
+)
+Assert-Equal (@($adapterParseErrors).Count) 0 'The production adapter has parse errors.'
 $workerPath = Join-Path $pluginRoot 'mcp\lib\GuestWorker.ps1'
 $workerTokens = $null
 $workerParseErrors = $null
@@ -2913,6 +2922,15 @@ $workerAst = [Management.Automation.Language.Parser]::ParseFile(
     [ref]$workerParseErrors
 )
 Assert-Equal (@($workerParseErrors).Count) 0 'The fixed guest worker has parse errors.'
+$automaticInputParameterCollisions = @(foreach ($runtimeAst in @($adapterAst, $workerAst)) {
+    @($runtimeAst.FindAll({
+        param($node)
+        $node -is [Management.Automation.Language.ParameterAst] -and
+        $node.Name.VariablePath.UserPath -ieq 'Input'
+    }, $true))
+})
+Assert-Equal $automaticInputParameterCollisions.Count 0 `
+    'Production guest functions must not bind PowerShell automatic variable $input as a parameter.'
 $workerSource = Get-Content -LiteralPath $workerPath -Raw -Encoding UTF8
 foreach ($forbiddenSource in @(
     'Invoke-Expression',

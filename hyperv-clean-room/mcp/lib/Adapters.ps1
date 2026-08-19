@@ -1983,7 +1983,7 @@ function Invoke-HcrFixedGuestWorker {
         [Parameter(Mandatory = $true)]
         [ValidateSet('InspectGuest', 'RunTestStep', 'RunCleanupStep')]
         [string]$Mode,
-        [Parameter(Mandatory = $true)][object]$Input,
+        [Parameter(Mandatory = $true)][object]$WorkerInput,
         [Parameter(Mandatory = $true)][int]$TimeoutSeconds
     )
 
@@ -1992,7 +1992,7 @@ function Invoke-HcrFixedGuestWorker {
     $workerPath = Install-HcrFixedGuestWorker $Context
     $invocationId = [Guid]::NewGuid().ToString('N')
     $inputPath = Join-Path ([string](Get-HcrPropertyValue $workspace 'controlRoot')) "input-$invocationId.json"
-    $boundInput = Copy-HcrObject $Input
+    $boundInput = Copy-HcrObject $WorkerInput
     $boundInput | Add-Member -NotePropertyName invocationId -NotePropertyValue $invocationId -Force
     $boundInput | Add-Member -NotePropertyName mode -NotePropertyValue $Mode -Force
     $inputJson = ConvertTo-HcrJson $boundInput 50

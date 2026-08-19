@@ -159,6 +159,12 @@ The guest lifecycle flow is separate:
    hash, and process exit code;
 9. record automatic results, operation-scoped PIDs, and evidence state.
 
+The supervisor and fixed worker bind their internal request object through a
+`$WorkerInput` parameter. Production guest functions must never declare a
+parameter named `Input`: PowerShell variable names are case-insensitive, so
+that spelling collides with the automatic `$input` enumerator and can replace
+the validated request object before schema dispatch.
+
 The administrator session is supervision and transfer infrastructure. It is
 never ordinary-user package evidence. Read-only guest inspection can report a
 privilege mismatch, but lifecycle and cleanup execution fail before dispatch

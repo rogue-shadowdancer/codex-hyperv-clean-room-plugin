@@ -8,6 +8,12 @@ the local plugin cache.
 
 ### Fixed
 
+- Rename every production fixed-worker function parameter that collided with
+  PowerShell's case-insensitive automatic `$input` variable. The supervisor and
+  standalone worker now retain the caller's closed request object as
+  `$WorkerInput`, so schema-v1 guest inspection and schema-v2 lifecycle/UI
+  dispatch no longer collapse to an input enumerator with a missing
+  `schemaVersion`.
 - Normalize only the interactive initializer's Windows PowerShell 5.1 child
   process module path before any module discovery, then import and read-verify
   the in-box `Microsoft.PowerShell.Security` manifest from `$PSHOME`. This

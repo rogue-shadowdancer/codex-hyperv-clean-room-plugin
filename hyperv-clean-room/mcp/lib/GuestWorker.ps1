@@ -722,11 +722,11 @@ function New-WorkerStepResult {
 
 function Get-WorkerApplication {
     param(
-        [Parameter(Mandatory = $true)][object]$Input,
+        [Parameter(Mandatory = $true)][object]$WorkerInput,
         [Parameter(Mandatory = $true)][string]$ApplicationId
     )
 
-    $matches = @(@((Get-WorkerProperty $Input 'applications' @())) | Where-Object {
+    $matches = @(@((Get-WorkerProperty $WorkerInput 'applications' @())) | Where-Object {
         [string](Get-WorkerProperty $_ 'id') -eq $ApplicationId
     })
     if ($matches.Count -ne 1) {
@@ -738,12 +738,12 @@ function Get-WorkerApplication {
 function Get-WorkerApplicationPath {
     param(
         [Parameter(Mandatory = $true)][object]$Application,
-        [AllowNull()][object]$Input = $null
+        [AllowNull()][object]$WorkerInput = $null
     )
 
-    if ($null -ne $Input -and [int](Get-WorkerProperty $Input 'schemaVersion' 1) -eq 2 -and
+    if ($null -ne $WorkerInput -and [int](Get-WorkerProperty $WorkerInput 'schemaVersion' 1) -eq 2 -and
         (Get-WorkerProperty $Application 'packageKind') -eq 'portableZip') {
-        $active = Get-WorkerBoundPortableDeployment $Application $Input
+        $active = Get-WorkerBoundPortableDeployment $Application $WorkerInput
         return Resolve-WorkerPath ([string](Get-WorkerProperty $active 'slotPath')) `
             ([string](Get-WorkerProperty $Application 'executableRelativePath'))
     }
@@ -885,11 +885,11 @@ function Invoke-WorkerBoundedProcess {
 
 function Resolve-WorkerStagedArtifact {
     param(
-        [Parameter(Mandatory = $true)][object]$Input,
+        [Parameter(Mandatory = $true)][object]$WorkerInput,
         [Parameter(Mandatory = $true)][string]$OperationId
     )
 
-    $artifact = Get-WorkerProperty $Input 'artifact'
+    $artifact = Get-WorkerProperty $WorkerInput 'artifact'
     $destination = ([string](Get-WorkerProperty $artifact 'guestDestination')).Replace('/', '\')
     $prefix = "operations\$OperationId\"
     if (-not $destination.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
@@ -914,10 +914,10 @@ function Resolve-WorkerStagedArtifact {
 
 function Resolve-WorkerStagedPortableManifest {
     param(
-        [Parameter(Mandatory = $true)][object]$Input,
+        [Parameter(Mandatory = $true)][object]$WorkerInput,
         [Parameter(Mandatory = $true)][string]$OperationId
     )
-    $manifest = Get-WorkerProperty $Input 'portableManifest'
+    $manifest = Get-WorkerProperty $WorkerInput 'portableManifest'
     $destination = ([string](Get-WorkerProperty $manifest 'guestDestination')).Replace('/', '\')
     $prefix = "operations\$OperationId\"
     if (-not $destination.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
@@ -972,7 +972,7 @@ function Get-WorkerTokenProjection {
 function Invoke-WorkerStopApplication {
     param(
         [Parameter(Mandatory = $true)][object]$Step,
-        [Parameter(Mandatory = $true)][object]$Input,
+        [Parameter(Mandatory = $true)][object]$WorkerInput,
         [Parameter(Mandatory = $true)][string]$OperationId,
         [Parameter(Mandatory = $true)][object]$Token,
         [bool]$Cleanup
@@ -980,10 +980,10 @@ function Invoke-WorkerStopApplication {
 
     $applicationId = [string](Get-WorkerProperty $Step 'application')
     $recorded = if ($Cleanup) {
-        Get-WorkerProperty $Input 'launchedProcess'
+        Get-WorkerProperty $WorkerInput 'launchedProcess'
     }
     else {
-        $matches = @(@((Get-WorkerProperty $Input 'launchedProcesses' @())) | Where-Object {
+        $matches = @(@((Get-WorkerProperty $WorkerInput 'launchedProcesses' @())) | Where-Object {
             [string](Get-WorkerProperty $_ 'application') -eq $applicationId -and
             [string](Get-WorkerProperty $_ 'operationId') -eq $OperationId
         })
@@ -1184,10 +1184,10 @@ function Get-WorkerPortableActiveDeployment {
 function Get-WorkerBoundPortableDeployment {
     param(
         [Parameter(Mandatory = $true)][object]$Application,
-        [Parameter(Mandatory = $true)][object]$Input
+        [Parameter(Mandatory = $true)][object]$WorkerInput
     )
 
-    $deployment = Get-WorkerProperty $Input 'deployment'
+    $deployment = Get-WorkerProperty $WorkerInput 'deployment'
     $fields = @(
         'applicationId', 'deploymentId', 'deploymentFingerprint', 'slotId',
         'entrypointRelativePath', 'entrypointSizeBytes', 'entrypointSha256'
@@ -1301,10 +1301,10 @@ function Open-WorkerVerifiedPortableEntrypoint {
     param(
         [Parameter(Mandatory = $true)][string]$Executable,
         [Parameter(Mandatory = $true)][object]$Application,
-        [Parameter(Mandatory = $true)][object]$Input
+        [Parameter(Mandatory = $true)][object]$WorkerInput
     )
 
-    $deployment = Get-WorkerProperty $Input 'deployment'
+    $deployment = Get-WorkerProperty $WorkerInput 'deployment'
     $expectedRelative = (
         [string](Get-WorkerProperty $deployment 'entrypointRelativePath')
     ).Replace('/', '\')
@@ -1439,10 +1439,10 @@ function Copy-WorkerPortableData {
 function Read-WorkerPortableManifest {
     param(
         [Parameter(Mandatory = $true)][IO.Compression.ZipArchive]$Archive,
-        [Parameter(Mandatory = $true)][object]$Input
+        [Parameter(Mandatory = $true)][object]$WorkerInput
     )
 
-    if ([bool](Get-WorkerProperty $Input 'externalPortable' $false)) {
+    if ([bool](Get-WorkerProperty $WorkerInput 'externalPortable' $false)) {
         $forbidden = @(
             'portable-manifest.json', 'SHA256SUMS', 'SBOM.cdx.json',
             'licenses/SBOM.cdx.json'
@@ -1455,12 +1455,12 @@ function Read-WorkerPortableManifest {
                 Throw-WorkerError 'PORTABLE_ARCHIVE_UNDECLARED_ENTRY' 'The external archive contains a forbidden sidecar, companion, or mutable-data entry.'
             }
         }
-        $staged = Resolve-WorkerStagedPortableManifest $Input (
-            [string](Get-WorkerProperty $Input 'operationId')
+        $staged = Resolve-WorkerStagedPortableManifest $WorkerInput (
+            [string](Get-WorkerProperty $WorkerInput 'operationId')
         )
         $bytes = [IO.File]::ReadAllBytes([string]$staged.path)
         $manifest = ConvertFrom-WorkerStrictJsonBytes $bytes
-        $bound = Get-WorkerProperty (Get-WorkerProperty $Input 'portableManifest') 'document'
+        $bound = Get-WorkerProperty (Get-WorkerProperty $WorkerInput 'portableManifest') 'document'
         $required = @(
             'schemaVersion','packageKind','distributionBoundary','fileName',
             'version','architecture','entrypoint','distributionMode','dataRoot',
@@ -1510,9 +1510,9 @@ function Read-WorkerPortableManifest {
             @($externalDocumentation).Count -lt 1 -or
             @($externalDocumentation).Count -gt 4096 -or
             [string](Get-WorkerProperty $manifest 'packagingCommit') -cne
-                [string](Get-WorkerProperty $Input 'sourceCommit') -or
+                [string](Get-WorkerProperty $WorkerInput 'sourceCommit') -or
             [string](Get-WorkerProperty $manifest 'newZipSha256') -cne
-                [string](Get-WorkerProperty (Get-WorkerProperty $Input 'artifact') 'guestSha256')) {
+                [string](Get-WorkerProperty (Get-WorkerProperty $WorkerInput 'artifact') 'guestSha256')) {
             Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The external sidecar violates its frozen execution boundary.'
         }
         foreach ($name in $required) {
@@ -1549,9 +1549,9 @@ function Read-WorkerPortableManifest {
                 Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The external documentation inventory is invalid.'
             }
         }
-        $uiRequired = [bool](Get-WorkerProperty $Input 'uiRequired' $false)
+        $uiRequired = [bool](Get-WorkerProperty $WorkerInput 'uiRequired' $false)
         $webView2 = Get-WorkerProperty $manifest 'webView2'
-        $webDriver = Get-WorkerProperty $Input 'webDriver'
+        $webDriver = Get-WorkerProperty $WorkerInput 'webDriver'
         if (($uiRequired -and (
                     $null -eq $webView2 -or $null -eq $webDriver -or
                     [string](Get-WorkerProperty $webView2 'version') -cne
@@ -1585,7 +1585,7 @@ function Read-WorkerPortableManifest {
     finally {
         $sha.Dispose()
     }
-    $declared = [string](Get-WorkerProperty (Get-WorkerProperty $Input 'portableArtifact') 'portableManifestSha256')
+    $declared = [string](Get-WorkerProperty (Get-WorkerProperty $WorkerInput 'portableArtifact') 'portableManifestSha256')
     if ($hash -ne $declared) { Throw-WorkerError 'PORTABLE_MANIFEST_HASH_MISMATCH' 'The portable manifest hash does not match the profile.' }
     $json = (New-Object Text.UTF8Encoding($false, $true)).GetString($bytes)
     $manifest = $json | ConvertFrom-Json -ErrorAction Stop
@@ -1602,7 +1602,7 @@ function Read-WorkerPortableManifest {
         [string]$manifest.distributionMode -ne 'portable' -or [string]$manifest.dataDirectoryRelativePath -ne 'data' -or
         @($manifest.portableArguments).Count -ne 1 -or [string]$manifest.portableArguments[0] -ne '--portable' -or
         -not (Test-WorkerPortableRelativePath ([string]$manifest.entryPointRelativePath)) -or
-        [string]$manifest.sourceCommit -ne [string](Get-WorkerProperty $Input 'sourceCommit')) {
+        [string]$manifest.sourceCommit -ne [string](Get-WorkerProperty $WorkerInput 'sourceCommit')) {
         Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The portable manifest violates the frozen identity contract.'
     }
     $policy=$manifest.archivePolicy
@@ -1635,7 +1635,7 @@ function Read-WorkerPortableManifest {
             Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'A portable component identity is invalid.'
         }
     }
-    $webDriver = Get-WorkerProperty $Input 'webDriver'
+    $webDriver = Get-WorkerProperty $WorkerInput 'webDriver'
     if ([string]$manifest.identities.webView2.version -ne [string](Get-WorkerProperty $webDriver 'browserVersion')) {
         Throw-WorkerError 'PORTABLE_MANIFEST_INVALID' 'The portable fixed WebView2 version does not match the fixed driver contract.'
     }
@@ -1648,16 +1648,16 @@ function Read-WorkerPortableManifest {
 function Invoke-WorkerDeployPortable {
     param(
         [Parameter(Mandatory = $true)][object]$Step,
-        [Parameter(Mandatory = $true)][object]$Input,
+        [Parameter(Mandatory = $true)][object]$WorkerInput,
         [Parameter(Mandatory = $true)][string]$OperationId,
         [Parameter(Mandatory = $true)][object]$Token
     )
 
     Add-Type -AssemblyName System.IO.Compression -ErrorAction Stop
     Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
-    $application=Get-WorkerApplication $Input ([string](Get-WorkerProperty $Step 'application'))
+    $application=Get-WorkerApplication $WorkerInput ([string](Get-WorkerProperty $Step 'application'))
     if ((Get-WorkerProperty $application 'packageKind') -ne 'portableZip') { Throw-WorkerError 'PORTABLE_APPLICATION_INVALID' 'deployPortable requires a portableZip application.' }
-    $archivePath=Resolve-WorkerStagedArtifact $Input $OperationId
+    $archivePath=Resolve-WorkerStagedArtifact $WorkerInput $OperationId
     $stream=[IO.File]::Open($archivePath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
     $archive=$null
     $staging=$null
@@ -1670,7 +1670,7 @@ function Invoke-WorkerDeployPortable {
     try {
         $archive=New-Object IO.Compression.ZipArchive($stream,[IO.Compression.ZipArchiveMode]::Read,$false)
         if ($archive.Entries.Count -gt 4096) { Throw-WorkerError 'PORTABLE_ARCHIVE_TOO_MANY_ENTRIES' 'The portable archive exceeds 4096 entries.' }
-        $manifestBound=Read-WorkerPortableManifest $archive $Input
+        $manifestBound=Read-WorkerPortableManifest $archive $WorkerInput
         $manifest=$manifestBound.document
         $externalPortable = [bool]$manifestBound.externalPortable
         $manifestSizeField = if ($externalPortable) { 'size' } else { 'sizeBytes' }
@@ -1713,7 +1713,7 @@ function Invoke-WorkerDeployPortable {
             $portableInventorySizeBytes += [int64](Get-WorkerProperty $identity $manifestSizeField)
         }
         if ($externalPortable) {
-            $boundInventory = Get-WorkerProperty (Get-WorkerProperty $Input 'portableManifest') 'inventory'
+            $boundInventory = Get-WorkerProperty (Get-WorkerProperty $WorkerInput 'portableManifest') 'inventory'
             if ($portableInventorySha256 -cne [string](Get-WorkerProperty $boundInventory 'sha256') -or
                 $declared.Count -ne [int](Get-WorkerProperty $boundInventory 'fileCount') -or
                 $portableInventorySizeBytes -ne [int64](Get-WorkerProperty $boundInventory 'payloadSizeBytes')) {
@@ -1770,7 +1770,7 @@ function Invoke-WorkerDeployPortable {
             productId=$(if($externalPortable){[string]$application.id}else{[string]$manifest.productId})
             slotId=$slotId;slotPath=$slotPath;deploymentId=[Guid]::NewGuid().ToString()
             deployedAt=[DateTimeOffset]::UtcNow.ToString('o')
-            portableZipSha256=[string](Get-WorkerProperty (Get-WorkerProperty $Input 'artifact') 'guestSha256')
+            portableZipSha256=[string](Get-WorkerProperty (Get-WorkerProperty $WorkerInput 'artifact') 'guestSha256')
             portableManifestSha256=$manifestBound.sha256
             portableInventorySha256=$inventoryDigest
             dataInventorySha256=$deployedInventory.sha256
@@ -1793,7 +1793,7 @@ function Invoke-WorkerDeployPortable {
             portableInventoryFileCount=[int]$declared.Count
             portableInventorySizeBytes=$portableInventorySizeBytes
             fixedWebView2Version=$(if($externalPortable){
-                if([bool](Get-WorkerProperty $Input 'uiRequired' $false) -and
+                if([bool](Get-WorkerProperty $WorkerInput 'uiRequired' $false) -and
                     (Test-WorkerProperty $manifest 'webView2')){
                     [string]$manifest.webView2.version
                 }else{$null}
@@ -1943,11 +1943,11 @@ function Test-WorkerPeX64 {
 
 function Invoke-WorkerAcquireWebDriver {
     param(
-        [Parameter(Mandatory = $true)][object]$Input,
+        [Parameter(Mandatory = $true)][object]$WorkerInput,
         [Parameter(Mandatory = $true)][string]$OperationId,
         [Parameter(Mandatory = $true)][object]$Token
     )
-    $manifest=Get-WorkerProperty $Input 'webDriver';$version=[string](Get-WorkerProperty $manifest 'driverVersion');$acquisition=Get-WorkerProperty $manifest 'acquisition';$executableIdentity=Get-WorkerProperty $manifest 'executable'
+    $manifest=Get-WorkerProperty $WorkerInput 'webDriver';$version=[string](Get-WorkerProperty $manifest 'driverVersion');$acquisition=Get-WorkerProperty $manifest 'acquisition';$executableIdentity=Get-WorkerProperty $manifest 'executable'
     if(-not(Test-WorkerDriverVersionCompatibility `
                 (Get-WorkerProperty $manifest 'browserVersion') `
                 $version)-or
@@ -1999,9 +1999,9 @@ function Get-WorkerWebDriverElement {
 }
 
 function Invoke-WorkerStartUiSession {
-    param([Parameter(Mandatory=$true)][object]$Step,[Parameter(Mandatory=$true)][object]$Input,[Parameter(Mandatory=$true)][string]$OperationId,[Parameter(Mandatory=$true)][object]$Token)
+    param([Parameter(Mandatory=$true)][object]$Step,[Parameter(Mandatory=$true)][object]$WorkerInput,[Parameter(Mandatory=$true)][string]$OperationId,[Parameter(Mandatory=$true)][object]$Token)
     $driverPath=Join-Path (Get-WorkerWebDriverRoot $OperationId) 'msedgedriver.exe';if(-not(Test-Path -LiteralPath $driverPath -PathType Leaf)){Throw-WorkerError 'WEBDRIVER_NOT_ACQUIRED' 'The fixed driver must be acquired before UI session start.'}
-    $applicationId=[string](Get-WorkerProperty $Step 'application');$applicationProcesses=@((Get-WorkerProperty $Input 'launchedProcesses' @())|Where-Object{[string](Get-WorkerProperty $_ 'application')-eq$applicationId});if($applicationProcesses.Count-ne1){Throw-WorkerError 'UI_APPLICATION_NOT_BOUND' 'The UI session requires one current-operation application process.'};$debugPort=[int](Get-WorkerProperty $applicationProcesses[0] 'uiDebugPort');if($debugPort-lt1-or$debugPort-gt65535){Throw-WorkerError 'UI_APPLICATION_NOT_BOUND' 'The application WebView2 debug port is unavailable.'}
+    $applicationId=[string](Get-WorkerProperty $Step 'application');$applicationProcesses=@((Get-WorkerProperty $WorkerInput 'launchedProcesses' @())|Where-Object{[string](Get-WorkerProperty $_ 'application')-eq$applicationId});if($applicationProcesses.Count-ne1){Throw-WorkerError 'UI_APPLICATION_NOT_BOUND' 'The UI session requires one current-operation application process.'};$debugPort=[int](Get-WorkerProperty $applicationProcesses[0] 'uiDebugPort');if($debugPort-lt1-or$debugPort-gt65535){Throw-WorkerError 'UI_APPLICATION_NOT_BOUND' 'The application WebView2 debug port is unavailable.'}
     $port=Get-WorkerLoopbackEphemeralPort;$process=Start-Process -FilePath $driverPath -ArgumentList @("--port=$port",'--host=127.0.0.1') -PassThru -WindowStyle Hidden -ErrorAction Stop
     $driverHandle=[IntPtr]$process.Handle;$started=$false
     try{
@@ -2021,7 +2021,7 @@ function Invoke-WorkerStartUiSession {
 }
 
 function Invoke-WorkerUiStep {
-    param([Parameter(Mandatory=$true)][object]$Step,[Parameter(Mandatory=$true)][object]$Input,[Parameter(Mandatory=$true)][string]$OperationId,[Parameter(Mandatory=$true)][object]$Token)
+    param([Parameter(Mandatory=$true)][object]$Step,[Parameter(Mandatory=$true)][object]$WorkerInput,[Parameter(Mandatory=$true)][string]$OperationId,[Parameter(Mandatory=$true)][object]$Token)
     $type=[string](Get-WorkerProperty $Step 'type');$state=Read-WorkerWebDriverState $OperationId
     if($type-eq'stopUiSession'){
         $driver=Get-Process -Id ([int]$state.driverPid) -ErrorAction SilentlyContinue
@@ -2056,7 +2056,7 @@ function Invoke-WorkerUiStep {
     elseif($type-eq'uiSetText'){[void](Invoke-WorkerWebDriverRequest $state POST ($base+'/clear') ([ordered]@{}));$text=[string](Get-WorkerProperty $Step 'text');if($text.Length-gt4096){Throw-WorkerError 'UI_TEXT_TOO_LONG' 'The fixed non-secret UI text exceeds its bound.'};[void](Invoke-WorkerWebDriverRequest $state POST ($base+'/value') ([ordered]@{text=$text;value=@($text)}))}
     elseif($type-eq'uiPressKey'){$keys=@{Enter=[char]0xE007;Escape=[char]0xE00C;Tab=[char]0xE004;ArrowUp=[char]0xE013;ArrowDown=[char]0xE015;ArrowLeft=[char]0xE012;ArrowRight=[char]0xE014};$key=[string](Get-WorkerProperty $Step 'key');if(-not$keys.ContainsKey($key)){Throw-WorkerError 'UI_KEY_FORBIDDEN' 'The key is outside the closed set.'};$value=[string]$keys[$key];[void](Invoke-WorkerWebDriverRequest $state POST ($base+'/value') ([ordered]@{text=$value;value=@($value)}))}
     elseif($type-eq'uiSelectOption'){$value=[string](Get-WorkerProperty $Step 'value');if($value.Length-gt1024){Throw-WorkerError 'UI_OPTION_INVALID' 'The option literal exceeds its bound.'};$options=Invoke-WorkerWebDriverRequest $state POST ($base+'/elements') ([ordered]@{using='tag name';value='option'});$matched=$null;foreach($option in @((Get-WorkerProperty $options 'value' @()))){$property=@($option.PSObject.Properties|Where-Object{$_.Name-eq'element-6066-11e4-a52e-4f735466cecf'});if($property.Count-ne1){continue};$optionId=[string]$property[0].Value;$textResponse=Invoke-WorkerWebDriverRequest $state GET ("/session/{0}/element/{1}/text"-f$state.sessionId,$optionId);if([string](Get-WorkerProperty $textResponse 'value')-ceq$value){if($null-ne$matched){Throw-WorkerError 'UI_OPTION_AMBIGUOUS' 'The fixed option literal matched more than once.'};$matched=$optionId}};if($null-eq$matched){Throw-WorkerError 'UI_OPTION_NOT_FOUND' 'The fixed option literal was not found.'};[void](Invoke-WorkerWebDriverRequest $state POST ("/session/{0}/element/{1}/click"-f$state.sessionId,$matched) ([ordered]@{}))}
-    elseif($type-eq'uiUploadFixture'){$fixtureId=[string](Get-WorkerProperty $Step 'fixtureId');$matches=@((Get-WorkerProperty $Input 'fixtures' @())|Where-Object{[string](Get-WorkerProperty $_ 'id')-eq$fixtureId});if($matches.Count-ne1){Throw-WorkerError 'UI_FIXTURE_INVALID' 'The declared fixture identity is unavailable.'};$destination=[string](Get-WorkerProperty $matches[0] 'guestDestination');$prefix="operations\$OperationId\";if(-not$destination.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)){Throw-WorkerError 'UI_FIXTURE_INVALID' 'The staged fixture is outside the operation.'};$path=Resolve-WorkerPath (Join-Path (Get-WorkerOperationRoot $OperationId) 'staging') $destination.Substring($prefix.Length);if((Get-WorkerSha256File $path)-ne[string](Get-WorkerProperty $matches[0] 'guestSha256')){Throw-WorkerError 'UI_FIXTURE_HASH_MISMATCH' 'The staged UI fixture hash changed.'};[void](Invoke-WorkerWebDriverRequest $state POST ($base+'/value') ([ordered]@{text=$path;value=@($path)}))}
+    elseif($type-eq'uiUploadFixture'){$fixtureId=[string](Get-WorkerProperty $Step 'fixtureId');$matches=@((Get-WorkerProperty $WorkerInput 'fixtures' @())|Where-Object{[string](Get-WorkerProperty $_ 'id')-eq$fixtureId});if($matches.Count-ne1){Throw-WorkerError 'UI_FIXTURE_INVALID' 'The declared fixture identity is unavailable.'};$destination=[string](Get-WorkerProperty $matches[0] 'guestDestination');$prefix="operations\$OperationId\";if(-not$destination.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)){Throw-WorkerError 'UI_FIXTURE_INVALID' 'The staged fixture is outside the operation.'};$path=Resolve-WorkerPath (Join-Path (Get-WorkerOperationRoot $OperationId) 'staging') $destination.Substring($prefix.Length);if((Get-WorkerSha256File $path)-ne[string](Get-WorkerProperty $matches[0] 'guestSha256')){Throw-WorkerError 'UI_FIXTURE_HASH_MISMATCH' 'The staged UI fixture hash changed.'};[void](Invoke-WorkerWebDriverRequest $state POST ($base+'/value') ([ordered]@{text=$path;value=@($path)}))}
     elseif($type-eq'assertUiElement'){$assertion=[string](Get-WorkerProperty $Step 'state');$actual=$null;$expected=[string](Get-WorkerProperty $Step 'expected');if(@('visible','hidden')-contains$assertion){$actual=[bool](Get-WorkerProperty (Invoke-WorkerWebDriverRequest $state GET ($base+'/displayed')) 'value');$passed=if($assertion-eq'visible'){$actual}else{-not$actual}}elseif(@('enabled','disabled')-contains$assertion){$actual=[bool](Get-WorkerProperty (Invoke-WorkerWebDriverRequest $state GET ($base+'/enabled')) 'value');$passed=if($assertion-eq'enabled'){$actual}else{-not$actual}}elseif(@('checked','unchecked')-contains$assertion){$actual=[bool](Get-WorkerProperty (Invoke-WorkerWebDriverRequest $state GET ($base+'/selected')) 'value');$passed=if($assertion-eq'checked'){$actual}else{-not$actual}}elseif(@('textEquals','textContains')-contains$assertion){$actual=[string](Get-WorkerProperty (Invoke-WorkerWebDriverRequest $state GET ($base+'/text')) 'value');$passed=if($assertion-eq'textEquals'){$actual-ceq$expected}else{$actual.Contains($expected)}}elseif($assertion-eq'valueEquals'){$actual=[string](Get-WorkerProperty (Invoke-WorkerWebDriverRequest $state GET ($base+'/property/value')) 'value');$passed=$actual-ceq$expected}else{Throw-WorkerError 'UI_ASSERTION_FORBIDDEN' 'The UI assertion is outside the closed set.'};return New-WorkerStepResult $(if($passed){'passed'}else{'failed'}) 'The closed data-testid UI assertion was evaluated.' ([pscustomobject]@{state=$assertion;matched=[bool]$passed;token=Get-WorkerTokenProjection $Token})}
     else{Throw-WorkerError 'UI_STEP_TYPE_FORBIDDEN' 'The fixed UI dispatcher rejected the step type.'}
     return New-WorkerStepResult 'passed' 'The closed data-testid UI step completed.' ([pscustomobject]@{testId=[string](Get-WorkerProperty $Step 'testId');stepType=$type;token=Get-WorkerTokenProjection $Token})
@@ -2065,14 +2065,14 @@ function Invoke-WorkerUiStep {
 function Invoke-WorkerStep {
     param(
         [Parameter(Mandatory = $true)][object]$Step,
-        [Parameter(Mandatory = $true)][object]$Input,
+        [Parameter(Mandatory = $true)][object]$WorkerInput,
         [Parameter(Mandatory = $true)][string]$OperationId,
         [Parameter(Mandatory = $true)][object]$Token,
         [bool]$Cleanup
     )
 
     $type = [string](Get-WorkerProperty $Step 'type')
-    $schemaVersion = [int](Get-WorkerProperty $Input 'schemaVersion' 1)
+    $schemaVersion = [int](Get-WorkerProperty $WorkerInput 'schemaVersion' 1)
     $allowed = if ($schemaVersion -eq 2) {
         if ($Cleanup) { $script:AllowedCleanupTypesV2 } else { $script:AllowedStepTypesV2 }
     }
@@ -2087,20 +2087,20 @@ function Invoke-WorkerStep {
     }
 
     if ($type -eq 'stopApplication') {
-        return Invoke-WorkerStopApplication $Step $Input $OperationId $Token $Cleanup
+        return Invoke-WorkerStopApplication $Step $WorkerInput $OperationId $Token $Cleanup
     }
     if ($type -eq 'acquireWebDriver') {
-        return Invoke-WorkerAcquireWebDriver $Input $OperationId $Token
+        return Invoke-WorkerAcquireWebDriver $WorkerInput $OperationId $Token
     }
     if ($type -eq 'startUiSession') {
-        return Invoke-WorkerStartUiSession $Step $Input $OperationId $Token
+        return Invoke-WorkerStartUiSession $Step $WorkerInput $OperationId $Token
     }
     if (@(
         'stopUiSession', 'uiClick', 'uiSetText', 'uiPressKey',
         'uiSelectOption', 'uiUploadFixture', 'assertUiElement',
         'captureUiScreenshot'
     ) -contains $type) {
-        return Invoke-WorkerUiStep $Step $Input $OperationId $Token
+        return Invoke-WorkerUiStep $Step $WorkerInput $OperationId $Token
     }
     if ($type -eq 'wait') {
         $milliseconds = [Math]::Max(1, ($timeout * 1000) - 250)
@@ -2109,11 +2109,11 @@ function Invoke-WorkerStep {
             ([pscustomobject]@{ waitedMilliseconds = $milliseconds; token = Get-WorkerTokenProjection $Token })
     }
     if ($type -eq 'deployPortable') {
-        return Invoke-WorkerDeployPortable $Step $Input $OperationId $Token
+        return Invoke-WorkerDeployPortable $Step $WorkerInput $OperationId $Token
     }
     if ($type -eq 'installPackage') {
-        $application = Get-WorkerApplication $Input ([string](Get-WorkerProperty $Step 'application'))
-        $artifactPath = Resolve-WorkerStagedArtifact $Input $OperationId
+        $application = Get-WorkerApplication $WorkerInput ([string](Get-WorkerProperty $Step 'application'))
+        $artifactPath = Resolve-WorkerStagedArtifact $WorkerInput $OperationId
         $installerType = [string](Get-WorkerProperty $application 'installerType')
         $filePath = $null
         $arguments = @()
@@ -2145,11 +2145,11 @@ function Invoke-WorkerStep {
     }
     if ($type -eq 'launchApplication') {
         $applicationId = [string](Get-WorkerProperty $Step 'application')
-        $application = Get-WorkerApplication $Input $applicationId
+        $application = Get-WorkerApplication $WorkerInput $applicationId
         $portableApplication = $schemaVersion -eq 2 -and
             (Get-WorkerProperty $application 'packageKind') -eq 'portableZip'
         try {
-            $executable = Get-WorkerApplicationPath $application $Input
+            $executable = Get-WorkerApplicationPath $application $WorkerInput
         }
         catch {
             if ($portableApplication -and
@@ -2171,12 +2171,12 @@ function Invoke-WorkerStep {
             }
         }
         $externalPortableLaunch = $portableApplication -and
-            [bool](Get-WorkerProperty $Input 'externalPortable' $false)
+            [bool](Get-WorkerProperty $WorkerInput 'externalPortable' $false)
         $arguments = if ($portableApplication -and -not $externalPortableLaunch) {
             @('--portable')
         } else { @() }
         $uiPortableLaunch = $portableApplication -and
-            [bool](Get-WorkerProperty $Input 'uiRequired' $true)
+            [bool](Get-WorkerProperty $WorkerInput 'uiRequired' $true)
         $uiDebugPort = if ($uiPortableLaunch) { Get-WorkerLoopbackEphemeralPort } else { $null }
         $priorWebView2Arguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
         $portableEntrypointBinding = $null
@@ -2188,7 +2188,7 @@ function Invoke-WorkerStep {
                 $portableEntrypointBinding = Open-WorkerVerifiedPortableEntrypoint `
                     $executable `
                     $application `
-                    $Input
+                    $WorkerInput
             }
             $process = if ($arguments.Count -gt 0) {
                 Start-Process -FilePath $executable -ArgumentList $arguments -PassThru -WindowStyle Hidden -ErrorAction Stop
@@ -2221,8 +2221,8 @@ function Invoke-WorkerStep {
             $recorded
     }
     if ($type -eq 'uninstallPackage') {
-        $application = Get-WorkerApplication $Input ([string](Get-WorkerProperty $Step 'application'))
-        $executable = Get-WorkerApplicationPath $application $Input
+        $application = Get-WorkerApplication $WorkerInput ([string](Get-WorkerProperty $Step 'application'))
+        $executable = Get-WorkerApplicationPath $application $WorkerInput
         $applicationDirectory = Split-Path -Parent $executable
         $entries = @(Get-WorkerUninstallEntries | Where-Object {
             Test-WorkerEntryMatchesApplication $_ $applicationDirectory $executable
@@ -2308,7 +2308,7 @@ function Invoke-WorkerStep {
         $applicationId = [string](Get-WorkerProperty $Step 'application')
         $processName = [string](Get-WorkerProperty $Step 'processName')
         if (-not [string]::IsNullOrWhiteSpace($applicationId)) {
-            $processName = Get-WorkerProcessName (Get-WorkerApplication $Input $applicationId)
+            $processName = Get-WorkerProcessName (Get-WorkerApplication $WorkerInput $applicationId)
         }
         if ($processName -notmatch '^[a-zA-Z0-9._-]+$') {
             Throw-WorkerError 'GUEST_PROCESS_NAME_INVALID' 'The declarative process name is invalid.'
@@ -2322,8 +2322,8 @@ function Invoke-WorkerStep {
             ([pscustomobject]@{ processName = $processName; pids = @($processes | ForEach-Object { [int]$_.Id }); token = Get-WorkerTokenProjection $Token })
     }
     if ($type -eq 'assertModule') {
-        $application = Get-WorkerApplication $Input ([string](Get-WorkerProperty $Step 'application'))
-        $executable = Get-WorkerApplicationPath $application $Input
+        $application = Get-WorkerApplication $WorkerInput ([string](Get-WorkerProperty $Step 'application'))
+        $executable = Get-WorkerApplicationPath $application $WorkerInput
         $moduleRelative = [string](Get-WorkerProperty $Step 'moduleRelativePath')
         $modulePath = Resolve-WorkerPath (Split-Path -Parent $executable) $moduleRelative
         $loaded = $false
