@@ -14,12 +14,13 @@ the local plugin cache.
   continues draining and discarding excess bytes to avoid pipe backpressure,
   and never accumulates, persists, or exposes stderr content. Stdout remains
   the only strict UTF-8 JSON result channel.
-- Interrupt a still-pending stderr pipe read with `CancelIoEx` before releasing
-  a deliberately surviving UI descendant. The supervisor accepts only its own
-  requested cancellation, requires the drain to finish within two seconds,
-  and otherwise fails containment. A real anonymous-pipe regression keeps the
-  writer open and proves prompt count-only cancellation on Windows PowerShell
-  5.1/.NET Framework.
+- Run the synchronous stderr drain on a plugin-owned background thread and
+  interrupt its still-pending pipe read with `CancelSynchronousIo` before
+  releasing a deliberately surviving UI descendant. The cancellation handle
+  has only `THREAD_TERMINATE` access, the supervisor accepts only its own
+  request, and a two-second join remains fail-closed. A real anonymous-pipe
+  regression keeps the writer open and proves prompt count-only cancellation
+  on Windows PowerShell 5.1/.NET Framework.
 - Bind the preceding protected input-binding squash commit's GitHub-substituted
   display-name/web-flow identity to its exact raw commit-object SHA-256 in the
   publication-history validator without broadening accepted identity patterns.

@@ -564,9 +564,11 @@ the transient fixed buffer. A bounded overflow maps to
 mode, input-hash, exit-code, credential, Plan/Apply, and evidence bindings
 remain unchanged. Regression coverage uses invalid byte sequences and a stream
 larger than 64 KiB without any real host or guest call. It also uses a real
-local anonymous pipe whose writer remains open to prove that `CancelIoEx`
-interrupts a pending read and yields a count-only cancelled result within two
-seconds before any intended launch/UI descendant can be released.
+local anonymous pipe whose writer remains open to prove that the plugin-owned
+drain thread is interrupted with `CancelSynchronousIo` and yields a count-only
+cancelled result within two seconds before any intended launch/UI descendant
+can be released. `CancelIoEx` is rejected because `CreatePipe` supplies a
+synchronous, non-overlapped handle.
 
 The plugin-creator cachebuster helper ran exactly once for this repair gate and
 the resulting build remains frozen across review fixes. The build is

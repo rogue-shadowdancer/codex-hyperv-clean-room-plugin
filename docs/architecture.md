@@ -242,10 +242,12 @@ discarded while draining continues so a full pipe cannot block the worker.
 The supervisor never decodes, accumulates beyond the fixed buffer, persists,
 or exposes stderr content.
 
+The synchronous raw drain runs on a plugin-owned background thread and opens a
+non-inheritable handle to that exact thread with only `THREAD_TERMINATE` access.
 An accepted `launchApplication`/UI descendant may keep its inherited stderr
 writer open after the root worker exits. Before that declared descendant can
 be released, the supervisor sets its private cancellation state, calls
-`CancelIoEx` on the protected read handle, and requires the raw drain to finish
+`CancelSynchronousIo` on the drain-thread handle, and requires the task to join
 within two seconds. Only an exception observed after that private cancellation
 request becomes `Cancelled`; an uninterruptible or faulted drain fails
 containment and the job is terminated instead of releasing the descendant.

@@ -561,12 +561,14 @@ transport. Preserve the operation ID, reconcile the VM read-only, and stop. A
 protected repair must keep stdout as the strict bounded JSON result channel
 while draining stderr as raw bytes with constant memory, a saturated 64 KiB
 count, continued discard after overflow, and no accumulated or persisted
-content. It must also use `CancelIoEx` and a bounded join before releasing a
-declared launch/UI descendant whose inherited writer leaves the read pending;
-plain stream disposal is not sufficient on Windows PowerShell 5.1/.NET
-Framework. Reinstall the protected repair exactly once, start a fresh task,
-prove exactly 20 typed tools, and repeat ordered read-only admission before any
-later guest operation.
+content. Because `CreatePipe` supplies a synchronous handle, it must run that
+read on a plugin-owned background thread, use `CancelSynchronousIo`, and perform
+a bounded join before releasing a declared launch/UI descendant whose inherited
+writer leaves the read pending. `CancelIoEx` and plain stream disposal are not
+the supported cancellation contract on Windows PowerShell 5.1/.NET Framework.
+Reinstall the protected repair exactly once, start a fresh task, prove exactly
+20 typed tools, and repeat ordered read-only admission before any later guest
+operation.
 
 ### Guest workspace or reparse failure
 

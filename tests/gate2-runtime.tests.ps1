@@ -2940,8 +2940,10 @@ Assert-True $boundedDrainMatch.Success `
     'The raw bounded stderr-drain implementation could not be isolated.'
 $boundedDrainSource = @"
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 namespace Hcr {
 $($boundedDrainMatch.Groups['source'].Value)
@@ -2956,12 +2958,26 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 namespace HcrTest {
-    public sealed class CancellationProbe {
-        private volatile bool requested;
-        public Func<bool> Callback {
-            get { return delegate { return requested; }; }
+    public sealed class FailingReadStream : Stream {
+        public override bool CanRead { get { return true; } }
+        public override bool CanSeek { get { return false; } }
+        public override bool CanWrite { get { return false; } }
+        public override long Length { get { throw new NotSupportedException(); } }
+        public override long Position {
+            get { throw new NotSupportedException(); }
+            set { throw new NotSupportedException(); }
         }
-        public void Request() { requested = true; }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) {
+            throw new IOException("Configured unrequested read failure.");
+        }
+        public override long Seek(long offset, SeekOrigin origin) {
+            throw new NotSupportedException();
+        }
+        public override void SetLength(long value) { throw new NotSupportedException(); }
+        public override void Write(byte[] buffer, int offset, int count) {
+            throw new NotSupportedException();
+        }
     }
     public sealed class AnonymousPipePair : IDisposable {
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -3050,22 +3066,18 @@ finally {
 }
 
 $pendingPipe = New-Object HcrTest.AnonymousPipePair
-$cancellationProbe = New-Object HcrTest.CancellationProbe
+$pendingCancellation = New-Object Hcr.BoundedDrainCancellation
 try {
     $pendingStderrDrain = [Hcr.BoundedRawStreamDrain]::DrainAsync(
         $pendingPipe.Reader,
         65536,
-        $cancellationProbe.Callback
+        $pendingCancellation
     )
     Start-Sleep -Milliseconds 100
     Assert-True (-not $pendingStderrDrain.IsCompleted) `
         'The anonymous-pipe stderr drain did not remain pending with its writer open.'
-    $cancellationProbe.Request()
-    Assert-True (
-        [Hcr.BoundedRawStreamDrain]::CancelPendingRead(
-            $pendingPipe.Reader.SafeFileHandle
-        )
-    ) 'CancelIoEx did not accept the pending anonymous-pipe stderr read.'
+    Assert-True ($pendingCancellation.Request(2000)) `
+        'CancelSynchronousIo did not accept the pending anonymous-pipe stderr read.'
     Assert-True ($pendingStderrDrain.Wait(2000)) `
         'The pending anonymous-pipe stderr drain did not cancel within two seconds.'
     $cancelledStderrDrain = $pendingStderrDrain.Result
@@ -3080,33 +3092,18 @@ finally {
     $pendingPipe.Dispose()
 }
 
-$unexpectedCancellationPipe = New-Object HcrTest.AnonymousPipePair
-try {
-    $unexpectedCancellationDrain = [Hcr.BoundedRawStreamDrain]::DrainAsync(
-        $unexpectedCancellationPipe.Reader,
-        65536
-    )
-    Start-Sleep -Milliseconds 100
-    Assert-True (-not $unexpectedCancellationDrain.IsCompleted) `
-        'The unrequested-cancellation probe did not leave its pipe read pending.'
-    Assert-True (
-        [Hcr.BoundedRawStreamDrain]::CancelPendingRead(
-            $unexpectedCancellationPipe.Reader.SafeFileHandle
-        )
-    ) 'CancelIoEx did not accept the unrequested-cancellation probe.'
-    $unexpectedCancellationRejected = $false
-    try { [void]$unexpectedCancellationDrain.Wait(2000) }
-    catch { $unexpectedCancellationRejected = $true }
-    Assert-True $unexpectedCancellationRejected `
-        'An unrequested pipe cancellation was converted into a successful drain result.'
-    Assert-True (
-        $unexpectedCancellationDrain.IsCanceled -or
-        $unexpectedCancellationDrain.IsFaulted
-    ) 'An unrequested pipe cancellation did not remain a task failure.'
-}
-finally {
-    $unexpectedCancellationPipe.Dispose()
-}
+$unrequestedFailureStream = New-Object HcrTest.FailingReadStream
+$unrequestedFailureDrain = [Hcr.BoundedRawStreamDrain]::DrainAsync(
+    $unrequestedFailureStream,
+    65536
+)
+$unrequestedFailureRejected = $false
+try { [void]$unrequestedFailureDrain.Wait(2000) }
+catch { $unrequestedFailureRejected = $true }
+Assert-True $unrequestedFailureRejected `
+    'An unrequested stderr I/O failure was converted into a successful drain result.'
+Assert-True $unrequestedFailureDrain.IsFaulted `
+    'An unrequested stderr I/O failure did not remain a faulted task.'
 $boundedDrainProperties = @(
     [Hcr.BoundedDrainResult].GetProperties() | ForEach-Object { $_.Name } | Sort-Object
 )

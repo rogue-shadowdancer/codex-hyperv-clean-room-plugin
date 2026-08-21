@@ -35,11 +35,12 @@ Its fixed worker continues to accept only stdout as strict UTF-8 JSON; stderr
 is drained as raw bytes with a fixed 4 KiB buffer and a 64 KiB saturated count,
 then discarded without text decoding, accumulation, or persistence. A pending
 read inherited by an intended launch/UI survivor is interrupted with
-`CancelIoEx` and joined before that process is released. Source regressions use
-only local memory streams and a local kernel anonymous pipe; they do not call a
-host, VM, guest, or credential profile. After protected merge, the installer
-may run exactly once from the clean exact protected commit. A fresh task must
-still prove exactly 20 typed tools before any production call.
+`CancelSynchronousIo` on its plugin-owned drain thread and joined before that
+process is released. Source regressions use only local memory streams and a
+local kernel anonymous pipe; they do not call a host, VM, guest, or credential
+profile. After protected merge, the installer may run exactly once from the
+clean exact protected commit. A fresh task must still prove exactly 20 typed
+tools before any production call.
 
 The exact Test2 manifest repair follows the same boundary. Source validation
 may prove the immutable sidecar/profile compatible, but the currently installed

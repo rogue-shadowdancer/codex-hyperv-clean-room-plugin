@@ -265,11 +265,12 @@ reconcile VM state read-only, stop without retry, and move through a protected
 source repair, controlled reinstall, and fresh selected-plugin task.
 
 For a declared launch/UI child that intentionally survives its root worker,
-the supervisor must cancel any inherited pending stderr read with `CancelIoEx`
-and join the drain before releasing the child from job containment. Only the
-supervisor's private cancellation state permits a cancelled result. Failure to
-interrupt or join the drain is a containment failure, not a successful launch
-and not permission to capture diagnostics manually.
+the supervisor must cancel any inherited pending synchronous stderr read with
+`CancelSynchronousIo` on the plugin-owned drain thread and join the task before
+releasing the child from job containment. Only the supervisor's private
+cancellation state permits a cancelled result. Failure to interrupt or join the
+drain is a containment failure, not a successful launch and not permission to
+capture diagnostics manually.
 
 ## Host inspection
 

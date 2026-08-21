@@ -1800,24 +1800,26 @@ the drain continues while excess bytes are discarded to prevent pipe
 backpressure. No stderr byte is decoded, persisted, logged, returned, redacted, or
 admitted as evidence, and no content is retained beyond the transient fixed
 buffer. A completed overflow maps to the bounded safe error
-`GUEST_WORKER_DIAGNOSTIC_TOO_LARGE`. If an intentionally surviving launch/UI
+`GUEST_WORKER_DIAGNOSTIC_TOO_LARGE`. The synchronous drain runs on a dedicated
+plugin-owned background thread. If an intentionally surviving launch/UI
 descendant keeps the writer open, the supervisor sets private cancellation
-state, invokes `CancelIoEx` on the safely referenced read handle, and requires
-the drain to finish within two seconds before releasing that descendant. Only
-an I/O exception after that request becomes `Cancelled`; cancellation or join
-failure is a containment failure.
+state, invokes `CancelSynchronousIo` through a non-inheritable
+`THREAD_TERMINATE`-only handle to the exact drain thread, and requires the task
+to join within two seconds before releasing that descendant. Only an I/O
+exception after that request becomes `Cancelled`; cancellation or join failure
+is a containment failure.
 
 Executable regressions cover a valid strict-UTF-8 stdout JSON result alongside
-invalid stderr bytes and a stderr stream larger than 64 KiB. A real local
+invalid stderr bytes and a raw stderr byte stream larger than 64 KiB. A real local
 `CreatePipe` regression keeps its writer open, proves the read is pending,
 requests cancellation, and requires `Cancelled: true` within two seconds under
 Windows PowerShell 5.1/.NET Framework. Reflection checks require the drain
 result to expose only byte count, overflow, and cancellation. Static checks
 preserve exactly one strict UTF-8 decoder in the supervisor, require the
-`CancelIoEx` seam, and reject the old stderr `ReadToEndAsync` path. Public MCP
-names and inputs, schema files, positional worker inputs, credential profiles,
-DPAPI behavior, Plan/Apply consumption, evidence semantics, the 20-tool
-registry, and the 31-payload topology are unchanged.
+`CancelSynchronousIo` seam, and reject the old stderr `ReadToEndAsync` path.
+Public MCP names and inputs, schema files, positional worker inputs, credential
+profiles, DPAPI behavior, Plan/Apply consumption, evidence semantics, the
+20-tool registry, and the 31-payload topology are unchanged.
 
 The source gate performs no real host, Hyper-V, VM, guest, credential,
 checkpoint, package, portable, WebDriver, or UI operation. It may publish only

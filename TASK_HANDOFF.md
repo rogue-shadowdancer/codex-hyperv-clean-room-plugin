@@ -80,10 +80,12 @@ tag, or GitHub Release. Installation is allowed only after protected merge.
 - Completed stderr overflow maps to the bounded safe code
   `GUEST_WORKER_DIAGNOSTIC_TOO_LARGE`.
 - Before releasing an intentionally surviving launch/UI descendant, the
-  supervisor sets private cancellation state, calls `CancelIoEx` on the safely
-  referenced stderr read handle, and requires the pending drain to join within
-  two seconds. Only I/O exceptions after that request become count-only
-  cancellation; failure preserves job containment.
+  supervisor runs the synchronous stderr read on a plugin-owned background
+  thread, sets private cancellation state, calls `CancelSynchronousIo` through
+  a non-inheritable `THREAD_TERMINATE`-only handle to that exact thread, and
+  requires the pending drain to join within two seconds. Only I/O exceptions
+  after that request become count-only cancellation; failure preserves job
+  containment.
 - `tests/gate2-runtime.tests.ps1` covers valid strict-UTF-8 stdout, invalid
   stderr bytes, more than 64 KiB of stderr, exact saturated accounting, the
   minimal public drain-result shape, and a real local anonymous pipe whose
@@ -107,11 +109,15 @@ profiles, DPAPI behavior, Plan/Apply semantics, evidence semantics, and the
 
 ## Verification state
 
-- The current post-review fixed-worker regression passed with 1,845 assertions,
+- The current post-review fixed-worker regression passed with 1,843 assertions,
   exactly 20 tools, four protocol versions, and `realHyperVMutations=0`. Its
-  pending-pipe writer remained open while `CancelIoEx` produced a joined
+  pending-pipe writer remained open while `CancelSynchronousIo` produced a joined
   `Cancelled: true` result within two seconds; an otherwise identical
-  unrequested cancellation remained a failed task.
+  unrequested I/O failure remained a faulted task.
+- Pull request #41 produced an actionable review finding that `CreatePipe`
+  supplies a synchronous, non-overlapped handle. Microsoft documents
+  `CancelSynchronousIo`, not `CancelIoEx`, as the supported cancellation API for
+  that operation. The dedicated-thread repair above closes that finding.
 - Final Gate 2 passed with `-SkipRealHostSmoke`: five schema-v1 files, strict
   documentation/static checks, isolated dependencies, `realHostOperations=[]`,
   and `realHyperVMutations=0`.
@@ -124,17 +130,14 @@ profiles, DPAPI behavior, Plan/Apply semantics, evidence semantics, and the
   payload files. The plugin-creator validator passed from the isolated Python
   environment.
 - Documentation validation passed 17 documents and 101 local links with strict
-  UTF-8 and zero mojibake markers.
-- Publication hygiene passed 134 commits and 1,017 historical blob paths with
-  29 exact-object identity exceptions, zero forbidden artifacts, and zero
-  sensitive findings.
+  UTF-8 and zero mojibake markers. Publication hygiene passed 134 commits and
+  1,017 historical blob paths with 29 exact-object identity exceptions, zero
+  forbidden artifacts, and zero sensitive findings.
 - `validate-public-release.ps1` passed all 13 checks with
   `realGuestOperations=0` and `realHyperVMutations=0`.
-- Independent review of staged tree
-  `b8dccd891b95332554872703a87dc21937540784` reached
-  `ZERO ACTIONABLE FINDINGS` after the fail-closed stderr-task fix.
-- The commit gate requires one exact-candidate readback and review after this
-  handoff-only evidence update; no source or test change may follow it.
+- Remaining before the additive review-fix commit: rerun the exact candidate
+  after this handoff-only update, reach `ZERO ACTIONABLE FINDINGS`, push
+  normally, and reconcile every PR conversation and hosted check again.
 - Installed-copy and production guest acceptance remain `notPerformed` for the
   dirty source candidate. Never reinterpret source/mock validation as installed
   or real-guest proof.

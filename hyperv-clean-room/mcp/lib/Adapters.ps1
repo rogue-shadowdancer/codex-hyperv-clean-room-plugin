@@ -2048,6 +2048,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32.SafeHandles;
 namespace Hcr {
@@ -2061,74 +2062,156 @@ namespace Hcr {
             Cancelled = cancelled;
         }
     }
-    public static class BoundedRawStreamDrain {
+    public sealed class BoundedDrainCancellation {
         private const int ErrorNotFound = 1168;
+        private const uint ThreadTerminate = 0x0001;
         [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool CancelIoEx(IntPtr file, IntPtr overlapped);
+        private static extern bool CancelSynchronousIo(IntPtr threadHandle);
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr OpenThread(
+            uint desiredAccess,
+            bool inheritHandle,
+            uint threadId);
+        [DllImport("kernel32.dll")]
+        private static extern bool CloseHandle(IntPtr handle);
 
-        public static bool CancelPendingRead(SafeHandle readHandle) {
-            if (readHandle == null) { throw new ArgumentNullException("readHandle"); }
-            if (readHandle.IsClosed || readHandle.IsInvalid) { return true; }
-            bool referenceAdded = false;
-            try {
-                readHandle.DangerousAddRef(ref referenceAdded);
-                if (CancelIoEx(readHandle.DangerousGetHandle(), IntPtr.Zero)) {
-                    return true;
+        private readonly object syncRoot = new object();
+        private readonly ManualResetEventSlim threadBound = new ManualResetEventSlim(false);
+        private volatile bool requested;
+        private bool completed;
+        private IntPtr threadHandle;
+
+        public bool IsRequested { get { return requested; } }
+
+        internal void BindToCurrentThread() {
+            IntPtr openedThread = OpenThread(
+                ThreadTerminate,
+                false,
+                GetCurrentThreadId());
+            if (openedThread == IntPtr.Zero) {
+                throw new Win32Exception(
+                    Marshal.GetLastWin32Error(),
+                    "The stderr drain thread could not be opened for cancellation.");
+            }
+            lock (syncRoot) {
+                if (completed) {
+                    CloseHandle(openedThread);
                 }
+                else {
+                    threadHandle = openedThread;
+                }
+            }
+            threadBound.Set();
+        }
+
+        public bool Request(int milliseconds) {
+            if (milliseconds < 0) { throw new ArgumentOutOfRangeException("milliseconds"); }
+            requested = true;
+            if (!threadBound.Wait(milliseconds)) { return false; }
+            lock (syncRoot) {
+                if (completed || threadHandle == IntPtr.Zero) { return true; }
+                if (CancelSynchronousIo(threadHandle)) { return true; }
                 return Marshal.GetLastWin32Error() == ErrorNotFound;
             }
-            catch (ObjectDisposedException) {
-                return true;
-            }
-            finally {
-                if (referenceAdded) { readHandle.DangerousRelease(); }
-            }
         }
 
-        public static async Task<BoundedDrainResult> DrainAsync(
+        internal void Complete() {
+            IntPtr handleToClose = IntPtr.Zero;
+            lock (syncRoot) {
+                completed = true;
+                handleToClose = threadHandle;
+                threadHandle = IntPtr.Zero;
+            }
+            threadBound.Set();
+            if (handleToClose != IntPtr.Zero) { CloseHandle(handleToClose); }
+        }
+    }
+
+    public static class BoundedRawStreamDrain {
+
+        public static Task<BoundedDrainResult> DrainAsync(
             Stream stream,
             int maximumBytes) {
-            return await DrainAsync(stream, maximumBytes, null).ConfigureAwait(false);
+            return DrainAsync(stream, maximumBytes, new BoundedDrainCancellation());
         }
 
-        public static async Task<BoundedDrainResult> DrainAsync(
+        public static Task<BoundedDrainResult> DrainAsync(
             Stream stream,
             int maximumBytes,
-            Func<bool> cancellationRequested) {
+            BoundedDrainCancellation cancellation) {
             if (stream == null) { throw new ArgumentNullException("stream"); }
             if (maximumBytes < 1) { throw new ArgumentOutOfRangeException("maximumBytes"); }
-            byte[] buffer = new byte[4096];
-            int byteCount = 0;
-            bool overflow = false;
-            try {
-                while (true) {
-                    int read = await stream.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
-                    if (read == 0) { break; }
-                    if (!overflow) {
-                        int remaining = maximumBytes - byteCount;
-                        if (read > remaining) {
-                            byteCount = maximumBytes;
-                            overflow = true;
+            if (cancellation == null) { throw new ArgumentNullException("cancellation"); }
+            TaskCompletionSource<BoundedDrainResult> completion =
+                new TaskCompletionSource<BoundedDrainResult>();
+            Thread drainThread = new Thread(new ThreadStart(delegate {
+                byte[] buffer = new byte[4096];
+                int byteCount = 0;
+                bool overflow = false;
+                BoundedDrainResult result = null;
+                Exception failure = null;
+                bool taskCancelled = false;
+                try {
+                    cancellation.BindToCurrentThread();
+                    while (true) {
+                        if (cancellation.IsRequested) {
+                            result = new BoundedDrainResult(byteCount, overflow, true);
+                            break;
                         }
-                        else {
-                            byteCount += read;
+                        int read = stream.Read(buffer, 0, buffer.Length);
+                        if (read == 0) {
+                            result = new BoundedDrainResult(byteCount, overflow, false);
+                            break;
+                        }
+                        if (!overflow) {
+                            int remaining = maximumBytes - byteCount;
+                            if (read > remaining) {
+                                byteCount = maximumBytes;
+                                overflow = true;
+                            }
+                            else {
+                                byteCount += read;
+                            }
                         }
                     }
                 }
-            }
-            catch (OperationCanceledException) {
-                if (cancellationRequested == null || !cancellationRequested()) { throw; }
-                return new BoundedDrainResult(byteCount, overflow, true);
-            }
-            catch (ObjectDisposedException) {
-                if (cancellationRequested == null || !cancellationRequested()) { throw; }
-                return new BoundedDrainResult(byteCount, overflow, true);
-            }
-            catch (IOException) {
-                if (cancellationRequested == null || !cancellationRequested()) { throw; }
-                return new BoundedDrainResult(byteCount, overflow, true);
-            }
-            return new BoundedDrainResult(byteCount, overflow, false);
+                catch (OperationCanceledException) {
+                    if (cancellation.IsRequested) {
+                        result = new BoundedDrainResult(byteCount, overflow, true);
+                    }
+                    else { taskCancelled = true; }
+                }
+                catch (ObjectDisposedException error) {
+                    if (cancellation.IsRequested) {
+                        result = new BoundedDrainResult(byteCount, overflow, true);
+                    }
+                    else { failure = error; }
+                }
+                catch (IOException error) {
+                    if (cancellation.IsRequested) {
+                        result = new BoundedDrainResult(byteCount, overflow, true);
+                    }
+                    else { failure = error; }
+                }
+                catch (Exception error) {
+                    failure = error;
+                }
+                finally {
+                    cancellation.Complete();
+                }
+                if (result != null) { completion.TrySetResult(result); }
+                else if (taskCancelled) { completion.TrySetCanceled(); }
+                else {
+                    completion.TrySetException(
+                        failure ?? new InvalidOperationException(
+                            "The stderr drain ended without a bounded result."));
+                }
+            }));
+            drainThread.IsBackground = true;
+            drainThread.Start();
+            return completion.Task;
         }
     }
     public sealed class SupervisedProcess : IDisposable {
@@ -2294,7 +2377,7 @@ namespace Hcr {
         private IntPtr threadHandle;
         private IntPtr jobHandle;
         private bool acceptedProcessReleased;
-        private volatile bool cancelStandardErrorDrain;
+        private readonly BoundedDrainCancellation standardErrorCancellation;
         private FileStream standardErrorStream;
         public StreamReader StandardOutput { get; private set; }
 
@@ -2309,20 +2392,18 @@ namespace Hcr {
                 new UTF8Encoding(false, true));
             standardErrorStream = new FileStream(
                 new SafeFileHandle(stderrRead, true), FileAccess.Read, 4096, false);
+            standardErrorCancellation = new BoundedDrainCancellation();
         }
 
         public Task<BoundedDrainResult> DrainStandardErrorAsync(int maximumBytes) {
             return BoundedRawStreamDrain.DrainAsync(
                 standardErrorStream,
                 maximumBytes,
-                delegate { return cancelStandardErrorDrain; });
+                standardErrorCancellation);
         }
 
-        public bool CancelStandardErrorDrain() {
-            cancelStandardErrorDrain = true;
-            if (standardErrorStream == null) { return true; }
-            return BoundedRawStreamDrain.CancelPendingRead(
-                standardErrorStream.SafeFileHandle);
+        public bool CancelStandardErrorDrain(int milliseconds) {
+            return standardErrorCancellation.Request(milliseconds);
         }
 
         private static void ThrowLastError(string message) {
@@ -2558,8 +2639,8 @@ namespace Hcr {
             }
             finally {
                 if (StandardOutput != null) { StandardOutput.Dispose(); StandardOutput = null; }
-                try { CancelStandardErrorDrain(); }
-                catch { cancelStandardErrorDrain = true; }
+                try { CancelStandardErrorDrain(2000); }
+                catch { }
                 if (standardErrorStream != null) {
                     standardErrorStream.Dispose();
                     standardErrorStream = null;
@@ -2679,7 +2760,7 @@ namespace Hcr {
                     }
                     $stdout = [string]$stdoutTask.Result
                     if ($allowsDescendant -and -not $stderrTask.IsCompleted) {
-                        $stderrCancellationAccepted = $supervised.CancelStandardErrorDrain()
+                        $stderrCancellationAccepted = $supervised.CancelStandardErrorDrain(2000)
                         if ((-not $stderrCancellationAccepted -and -not $stderrTask.IsCompleted) -or
                             -not $stderrTask.Wait(2000)) {
                             $terminationVerified = $supervised.TerminateAndVerify(125, 5000)

@@ -426,8 +426,10 @@ def main() -> int:
         "BoundedRawStreamDrain",
         "DrainStandardErrorAsync(65536)",
         "byte[] buffer = new byte[4096]",
-        "CancelIoEx",
-        "CancelStandardErrorDrain()",
+        "CancelSynchronousIo",
+        "ThreadTerminate = 0x0001",
+        "new Thread(new ThreadStart(delegate",
+        "CancelStandardErrorDrain(2000)",
         "$stderrTask.IsFaulted -or",
         "$stderrTask.IsCanceled",
         "GUEST_WORKER_DIAGNOSTIC_TOO_LARGE",
@@ -438,12 +440,14 @@ def main() -> int:
             )
     if "$supervised.StandardError.ReadToEndAsync()" in adapter_source:
         raise AssertionError("fixed-worker stderr is still decoded and buffered as text")
+    if "CancelIoEx" in adapter_source:
+        raise AssertionError("synchronous stderr still uses asynchronous-I/O cancellation")
     if adapter_source.count("new UTF8Encoding(false, true)") != 1:
         raise AssertionError(
             "strict UTF-8 must remain exclusive to the fixed-worker stdout result channel"
         )
     stderr_cancel_call = adapter_source.find(
-        "$supervised.CancelStandardErrorDrain()"
+        "$supervised.CancelStandardErrorDrain(2000)"
     )
     survivor_release_call = adapter_source.find(
         "$supervised.ReleaseVerifiedSingleProcess("

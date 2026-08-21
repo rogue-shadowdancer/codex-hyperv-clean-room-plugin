@@ -308,11 +308,13 @@ the whole job is terminated. Later stop authority is bound to its
 operation-scoped process identity.
 
 The declared survivor is not released while an inherited stderr read remains
-unaccounted for. The supervisor first records a private cancellation request,
-uses `CancelIoEx` on the safely referenced read handle, and requires the raw
-drain to join within two seconds. Only I/O exceptions following that request
-become a count-only cancelled result. A cancellation or join failure preserves
-the fail-closed job-containment path.
+unaccounted for. The synchronous drain runs on a plugin-owned background thread
+whose non-inheritable cancellation handle has only `THREAD_TERMINATE` access.
+The supervisor first records a private cancellation request, uses
+`CancelSynchronousIo` on that exact thread, and requires the task to join within
+two seconds. Only I/O exceptions following that request become a count-only
+cancelled result. A cancellation or join failure preserves the fail-closed
+job-containment path.
 
 ### Arbitrary code execution through a test profile
 
