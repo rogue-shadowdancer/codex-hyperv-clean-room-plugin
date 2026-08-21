@@ -11,9 +11,9 @@ the payload to
 in the default personal marketplace through the `plugin-creator` helper, and
 runs:
 
-The current fixed-worker input-binding source Gate prepares the one frozen
-`0.4.1+codex.20260819091500` build; the credential-module bootstrap build
-`0.4.1+codex.20260819075913` is installed predecessor state. The source Gate
+The current fixed-worker stderr-drain source Gate prepares the one frozen
+`0.4.1+codex.20260821104322` build; the fixed-worker input-binding build
+`0.4.1+codex.20260819091500` is installed predecessor state. The source Gate
 does not install or publish the new build. After merge, the installation Gate
 requires all 31
 tracked payloads, the two installed-state records, exact per-file size/SHA-256,
@@ -29,6 +29,18 @@ also restores a missing or whitespace value from `[Environment]::MachineName`
 inside the MCP child before adapter or state initialization. The source repair
 Gate validates this behavior but does not copy it into the personal plugin,
 edit marketplace/Codex configuration, or claim installed runtime acceptance.
+
+The stderr-drain repair preserves the exact public tool and schema surface.
+Its fixed worker continues to accept only stdout as strict UTF-8 JSON; stderr
+is drained as raw bytes with a fixed 4 KiB buffer and a 64 KiB saturated count,
+then discarded without text decoding, accumulation, or persistence. A pending
+read inherited by an intended launch/UI survivor is interrupted with
+`CancelSynchronousIo` on its plugin-owned drain thread and joined before that
+process is released. Source regressions use only local memory streams and a
+local kernel anonymous pipe; they do not call a host, VM, guest, or credential
+profile. After protected merge, the installer may run exactly once from the
+clean exact protected commit. A fresh task must still prove exactly 20 typed
+tools before any production call.
 
 The exact Test2 manifest repair follows the same boundary. Source validation
 may prove the immutable sidecar/profile compatible, but the currently installed

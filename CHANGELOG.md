@@ -8,6 +8,22 @@ the local plugin cache.
 
 ### Fixed
 
+- Drain the fixed guest worker's stderr as untrusted raw bytes instead of
+  decoding Windows PowerShell 5.1 diagnostic CLIXML as strict UTF-8. The
+  supervisor uses a fixed 4 KiB buffer, saturates its byte count at 64 KiB,
+  continues draining and discarding excess bytes to avoid pipe backpressure,
+  and never accumulates, persists, or exposes stderr content. Stdout remains
+  the only strict UTF-8 JSON result channel.
+- Run the synchronous stderr drain on a plugin-owned background thread and
+  interrupt its still-pending pipe read with `CancelSynchronousIo` before
+  releasing a deliberately surviving UI descendant. The cancellation handle
+  has only `THREAD_TERMINATE` access, the supervisor accepts only its own
+  request, and a two-second join remains fail-closed. A real anonymous-pipe
+  regression keeps the writer open and proves prompt count-only cancellation
+  on Windows PowerShell 5.1/.NET Framework.
+- Bind the preceding protected input-binding squash commit's GitHub-substituted
+  display-name/web-flow identity to its exact raw commit-object SHA-256 in the
+  publication-history validator without broadening accepted identity patterns.
 - Rename every production fixed-worker function parameter that collided with
   PowerShell's case-insensitive automatic `$input` variable. The supervisor and
   standalone worker now retain the caller's closed request object as
