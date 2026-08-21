@@ -2932,6 +2932,187 @@ $automaticInputParameterCollisions = @(foreach ($runtimeAst in @($adapterAst, $w
 Assert-Equal $automaticInputParameterCollisions.Count 0 `
     'Production guest functions must not bind PowerShell automatic variable $input as a parameter.'
 $workerSource = Get-Content -LiteralPath $workerPath -Raw -Encoding UTF8
+$boundedDrainMatch = [regex]::Match(
+    $adapterSource,
+    '(?s)(?<source>public sealed class BoundedDrainResult.*?)(?=\s+public sealed class SupervisedProcess)'
+)
+Assert-True $boundedDrainMatch.Success `
+    'The raw bounded stderr-drain implementation could not be isolated.'
+$boundedDrainSource = @"
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+namespace Hcr {
+$($boundedDrainMatch.Groups['source'].Value)
+}
+"@
+if (-not ('Hcr.BoundedRawStreamDrain' -as [type])) {
+    Add-Type -TypeDefinition $boundedDrainSource -ErrorAction Stop
+}
+$boundedDrainTestPipeSource = @"
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+namespace HcrTest {
+    public sealed class CancellationProbe {
+        private volatile bool requested;
+        public Func<bool> Callback {
+            get { return delegate { return requested; }; }
+        }
+        public void Request() { requested = true; }
+    }
+    public sealed class AnonymousPipePair : IDisposable {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CreatePipe(
+            out IntPtr readPipe,
+            out IntPtr writePipe,
+            IntPtr pipeAttributes,
+            uint size);
+        public FileStream Reader { get; private set; }
+        public FileStream Writer { get; private set; }
+        public AnonymousPipePair() {
+            IntPtr readPipe;
+            IntPtr writePipe;
+            if (!CreatePipe(out readPipe, out writePipe, IntPtr.Zero, 0)) {
+                throw new System.ComponentModel.Win32Exception(
+                    Marshal.GetLastWin32Error(),
+                    "The anonymous test pipe could not be created.");
+            }
+            Reader = new FileStream(
+                new SafeFileHandle(readPipe, true), FileAccess.Read, 4096, false);
+            Writer = new FileStream(
+                new SafeFileHandle(writePipe, true), FileAccess.Write, 4096, false);
+        }
+        public void Dispose() {
+            if (Writer != null) { Writer.Dispose(); Writer = null; }
+            if (Reader != null) { Reader.Dispose(); Reader = null; }
+        }
+    }
+}
+"@
+if (-not ('HcrTest.AnonymousPipePair' -as [type])) {
+    Add-Type -TypeDefinition $boundedDrainTestPipeSource -ErrorAction Stop
+}
+
+$validStdoutBytes = (New-Object Text.UTF8Encoding($false)).GetBytes(
+    '{"workerSchemaVersion":1,"ok":true}' + "`n"
+)
+$validStdoutStream = New-Object IO.MemoryStream(,$validStdoutBytes)
+$validStdoutReader = New-Object IO.StreamReader(
+    $validStdoutStream,
+    (New-Object Text.UTF8Encoding($false, $true))
+)
+try {
+    $validStdoutDocument = $validStdoutReader.ReadLine() | ConvertFrom-Json -ErrorAction Stop
+    Assert-True ([bool]$validStdoutDocument.ok) `
+        'The strict UTF-8 worker result channel rejected valid bound JSON.'
+}
+finally {
+    $validStdoutReader.Dispose()
+}
+
+$invalidStderrBytes = [byte[]]@(0x23, 0x3c, 0x20, 0xff, 0xfe, 0x80)
+$invalidStderrStream = New-Object IO.MemoryStream(,$invalidStderrBytes)
+try {
+    $invalidStderrDrain = [Hcr.BoundedRawStreamDrain]::DrainAsync(
+        $invalidStderrStream,
+        65536
+    ).GetAwaiter().GetResult()
+    Assert-Equal $invalidStderrDrain.ByteCount $invalidStderrBytes.Length `
+        'The raw stderr drain did not count invalid text bytes exactly.'
+    Assert-True (-not $invalidStderrDrain.Overflow) `
+        'A bounded invalid-byte stderr sample was reported as overflow.'
+    Assert-True (-not $invalidStderrDrain.Cancelled) `
+        'A completed invalid-byte stderr drain was reported as cancelled.'
+}
+finally {
+    $invalidStderrStream.Dispose()
+}
+
+$oversizedStderrBytes = New-Object byte[] 70000
+$oversizedStderrStream = New-Object IO.MemoryStream(,$oversizedStderrBytes)
+try {
+    $oversizedStderrDrain = [Hcr.BoundedRawStreamDrain]::DrainAsync(
+        $oversizedStderrStream,
+        65536
+    ).GetAwaiter().GetResult()
+    Assert-Equal $oversizedStderrDrain.ByteCount 65536 `
+        'The stderr byte count did not saturate at the privacy bound.'
+    Assert-True $oversizedStderrDrain.Overflow `
+        'The raw stderr drain did not report a greater-than-64-KiB stream.'
+    Assert-True (-not $oversizedStderrDrain.Cancelled) `
+        'A completed overflow drain was reported as cancelled.'
+}
+finally {
+    $oversizedStderrStream.Dispose()
+}
+
+$pendingPipe = New-Object HcrTest.AnonymousPipePair
+$cancellationProbe = New-Object HcrTest.CancellationProbe
+try {
+    $pendingStderrDrain = [Hcr.BoundedRawStreamDrain]::DrainAsync(
+        $pendingPipe.Reader,
+        65536,
+        $cancellationProbe.Callback
+    )
+    Start-Sleep -Milliseconds 100
+    Assert-True (-not $pendingStderrDrain.IsCompleted) `
+        'The anonymous-pipe stderr drain did not remain pending with its writer open.'
+    $cancellationProbe.Request()
+    Assert-True (
+        [Hcr.BoundedRawStreamDrain]::CancelPendingRead(
+            $pendingPipe.Reader.SafeFileHandle
+        )
+    ) 'CancelIoEx did not accept the pending anonymous-pipe stderr read.'
+    Assert-True ($pendingStderrDrain.Wait(2000)) `
+        'The pending anonymous-pipe stderr drain did not cancel within two seconds.'
+    $cancelledStderrDrain = $pendingStderrDrain.Result
+    Assert-True $cancelledStderrDrain.Cancelled `
+        'The cancelled anonymous-pipe stderr drain did not report cancellation.'
+    Assert-Equal $cancelledStderrDrain.ByteCount 0 `
+        'The cancelled empty stderr pipe reported retained bytes.'
+    Assert-True (-not $cancelledStderrDrain.Overflow) `
+        'The cancelled empty stderr pipe reported overflow.'
+}
+finally {
+    $pendingPipe.Dispose()
+}
+
+$unexpectedCancellationPipe = New-Object HcrTest.AnonymousPipePair
+try {
+    $unexpectedCancellationDrain = [Hcr.BoundedRawStreamDrain]::DrainAsync(
+        $unexpectedCancellationPipe.Reader,
+        65536
+    )
+    Start-Sleep -Milliseconds 100
+    Assert-True (-not $unexpectedCancellationDrain.IsCompleted) `
+        'The unrequested-cancellation probe did not leave its pipe read pending.'
+    Assert-True (
+        [Hcr.BoundedRawStreamDrain]::CancelPendingRead(
+            $unexpectedCancellationPipe.Reader.SafeFileHandle
+        )
+    ) 'CancelIoEx did not accept the unrequested-cancellation probe.'
+    $unexpectedCancellationRejected = $false
+    try { [void]$unexpectedCancellationDrain.Wait(2000) }
+    catch { $unexpectedCancellationRejected = $true }
+    Assert-True $unexpectedCancellationRejected `
+        'An unrequested pipe cancellation was converted into a successful drain result.'
+    Assert-True (
+        $unexpectedCancellationDrain.IsCanceled -or
+        $unexpectedCancellationDrain.IsFaulted
+    ) 'An unrequested pipe cancellation did not remain a task failure.'
+}
+finally {
+    $unexpectedCancellationPipe.Dispose()
+}
+$boundedDrainProperties = @(
+    [Hcr.BoundedDrainResult].GetProperties() | ForEach-Object { $_.Name } | Sort-Object
+)
+Assert-Equal ($boundedDrainProperties -join ',') 'ByteCount,Cancelled,Overflow' `
+    'The bounded stderr result exposes content instead of count-only state.'
+
 foreach ($forbiddenSource in @(
     'Invoke-Expression',
     'ScriptBlock]::Create',

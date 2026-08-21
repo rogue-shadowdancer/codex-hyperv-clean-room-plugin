@@ -545,6 +545,29 @@ owned installer, start a fresh task, prove exactly 20 typed tools, and rerun
 the read-only inspection. Preserve the original error operation ID and keep
 guest/package/checkpoint evidence `notPerformed` until that call succeeds.
 
+### `GUEST_WORKER_FAILED`: fixed-worker stderr decoder failure
+
+Protected build `0.4.1+codex.20260819091500` could return the generic
+`GUEST_WORKER_FAILED` even when the fixed worker wrote a valid stdout result.
+The supervisor strictly decoded both redirected streams as UTF-8; Windows
+PowerShell 5.1 progress CLIXML on stderr may contain invalid UTF-8 bytes, so the
+asynchronous stderr reader faulted before the result could be accepted. The
+same reader also buffered the complete stream before applying its nominal
+64 KiB limit.
+
+Do not inspect or publish raw stderr, retry the ambiguous guest call, recreate
+the credential profile, invoke the worker directly, or substitute another
+transport. Preserve the operation ID, reconcile the VM read-only, and stop. A
+protected repair must keep stdout as the strict bounded JSON result channel
+while draining stderr as raw bytes with constant memory, a saturated 64 KiB
+count, continued discard after overflow, and no accumulated or persisted
+content. It must also use `CancelIoEx` and a bounded join before releasing a
+declared launch/UI descendant whose inherited writer leaves the read pending;
+plain stream disposal is not sufficient on Windows PowerShell 5.1/.NET
+Framework. Reinstall the protected repair exactly once, start a fresh task,
+prove exactly 20 typed tools, and repeat ordered read-only admission before any
+later guest operation.
+
 ### Guest workspace or reparse failure
 
 The fixed `ProgramData` operation path could not be created or contained a

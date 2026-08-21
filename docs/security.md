@@ -307,6 +307,13 @@ active process; it is then resumed. Extra descendants make the launch fail and
 the whole job is terminated. Later stop authority is bound to its
 operation-scoped process identity.
 
+The declared survivor is not released while an inherited stderr read remains
+unaccounted for. The supervisor first records a private cancellation request,
+uses `CancelIoEx` on the safely referenced read handle, and requires the raw
+drain to join within two seconds. Only I/O exceptions following that request
+become a count-only cancelled result. A cancellation or join failure preserves
+the fail-closed job-containment path.
+
 ### Arbitrary code execution through a test profile
 
 The public profile schema and native semantic validator reject unknown fields,
@@ -432,6 +439,15 @@ preference and by explicit per-request stream redirection, so imported modules
 or handlers cannot corrupt stdio framing. Stderr diagnostics are bounded and
 redact common credential/token assignments. Tool failures expose stable codes,
 short actionable messages, and intentionally bounded details.
+
+The fixed guest worker has a stricter boundary. Stdout alone is decoded as
+strict UTF-8 and may carry its bounded JSON result. The worker's redirected
+stderr is treated as untrusted raw bytes because Windows PowerShell 5.1 may
+emit non-UTF-8 CLIXML. It is drained through a fixed 4 KiB buffer; only a byte
+count saturated at 64 KiB and an overflow bit survive. Excess data is discarded
+while draining continues. Content is retained only transiently in the fixed
+buffer and is never decoded, accumulated, persisted, redacted, logged, returned,
+or admitted as evidence.
 
 Do not add debug output that prints:
 

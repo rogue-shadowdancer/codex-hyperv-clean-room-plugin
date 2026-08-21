@@ -2048,8 +2048,89 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using System.Threading.Tasks;
 using Microsoft.Win32.SafeHandles;
 namespace Hcr {
+    public sealed class BoundedDrainResult {
+        public int ByteCount { get; private set; }
+        public bool Overflow { get; private set; }
+        public bool Cancelled { get; private set; }
+        public BoundedDrainResult(int byteCount, bool overflow, bool cancelled) {
+            ByteCount = byteCount;
+            Overflow = overflow;
+            Cancelled = cancelled;
+        }
+    }
+    public static class BoundedRawStreamDrain {
+        private const int ErrorNotFound = 1168;
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CancelIoEx(IntPtr file, IntPtr overlapped);
+
+        public static bool CancelPendingRead(SafeHandle readHandle) {
+            if (readHandle == null) { throw new ArgumentNullException("readHandle"); }
+            if (readHandle.IsClosed || readHandle.IsInvalid) { return true; }
+            bool referenceAdded = false;
+            try {
+                readHandle.DangerousAddRef(ref referenceAdded);
+                if (CancelIoEx(readHandle.DangerousGetHandle(), IntPtr.Zero)) {
+                    return true;
+                }
+                return Marshal.GetLastWin32Error() == ErrorNotFound;
+            }
+            catch (ObjectDisposedException) {
+                return true;
+            }
+            finally {
+                if (referenceAdded) { readHandle.DangerousRelease(); }
+            }
+        }
+
+        public static async Task<BoundedDrainResult> DrainAsync(
+            Stream stream,
+            int maximumBytes) {
+            return await DrainAsync(stream, maximumBytes, null).ConfigureAwait(false);
+        }
+
+        public static async Task<BoundedDrainResult> DrainAsync(
+            Stream stream,
+            int maximumBytes,
+            Func<bool> cancellationRequested) {
+            if (stream == null) { throw new ArgumentNullException("stream"); }
+            if (maximumBytes < 1) { throw new ArgumentOutOfRangeException("maximumBytes"); }
+            byte[] buffer = new byte[4096];
+            int byteCount = 0;
+            bool overflow = false;
+            try {
+                while (true) {
+                    int read = await stream.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
+                    if (read == 0) { break; }
+                    if (!overflow) {
+                        int remaining = maximumBytes - byteCount;
+                        if (read > remaining) {
+                            byteCount = maximumBytes;
+                            overflow = true;
+                        }
+                        else {
+                            byteCount += read;
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException) {
+                if (cancellationRequested == null || !cancellationRequested()) { throw; }
+                return new BoundedDrainResult(byteCount, overflow, true);
+            }
+            catch (ObjectDisposedException) {
+                if (cancellationRequested == null || !cancellationRequested()) { throw; }
+                return new BoundedDrainResult(byteCount, overflow, true);
+            }
+            catch (IOException) {
+                if (cancellationRequested == null || !cancellationRequested()) { throw; }
+                return new BoundedDrainResult(byteCount, overflow, true);
+            }
+            return new BoundedDrainResult(byteCount, overflow, false);
+        }
+    }
     public sealed class SupervisedProcess : IDisposable {
         [StructLayout(LayoutKind.Sequential)]
         private struct SecurityAttributes {
@@ -2213,8 +2294,9 @@ namespace Hcr {
         private IntPtr threadHandle;
         private IntPtr jobHandle;
         private bool acceptedProcessReleased;
+        private volatile bool cancelStandardErrorDrain;
+        private FileStream standardErrorStream;
         public StreamReader StandardOutput { get; private set; }
-        public StreamReader StandardError { get; private set; }
 
         private SupervisedProcess(
             IntPtr process, IntPtr thread, IntPtr job,
@@ -2225,9 +2307,22 @@ namespace Hcr {
             StandardOutput = new StreamReader(
                 new FileStream(new SafeFileHandle(stdoutRead, true), FileAccess.Read, 4096, false),
                 new UTF8Encoding(false, true));
-            StandardError = new StreamReader(
-                new FileStream(new SafeFileHandle(stderrRead, true), FileAccess.Read, 4096, false),
-                new UTF8Encoding(false, true));
+            standardErrorStream = new FileStream(
+                new SafeFileHandle(stderrRead, true), FileAccess.Read, 4096, false);
+        }
+
+        public Task<BoundedDrainResult> DrainStandardErrorAsync(int maximumBytes) {
+            return BoundedRawStreamDrain.DrainAsync(
+                standardErrorStream,
+                maximumBytes,
+                delegate { return cancelStandardErrorDrain; });
+        }
+
+        public bool CancelStandardErrorDrain() {
+            cancelStandardErrorDrain = true;
+            if (standardErrorStream == null) { return true; }
+            return BoundedRawStreamDrain.CancelPendingRead(
+                standardErrorStream.SafeFileHandle);
         }
 
         private static void ThrowLastError(string message) {
@@ -2463,7 +2558,12 @@ namespace Hcr {
             }
             finally {
                 if (StandardOutput != null) { StandardOutput.Dispose(); StandardOutput = null; }
-                if (StandardError != null) { StandardError.Dispose(); StandardError = null; }
+                try { CancelStandardErrorDrain(); }
+                catch { cancelStandardErrorDrain = true; }
+                if (standardErrorStream != null) {
+                    standardErrorStream.Dispose();
+                    standardErrorStream = null;
+                }
                 CloseIfValid(ref threadHandle);
                 CloseIfValid(ref processHandle);
                 CloseIfValid(ref jobHandle);
@@ -2535,7 +2635,7 @@ namespace Hcr {
                 )
                 try {
                     $stdoutTask = $supervised.StandardOutput.ReadLineAsync()
-                    $stderrTask = $supervised.StandardError.ReadToEndAsync()
+                    $stderrTask = $supervised.DrainStandardErrorAsync(65536)
                     # CreateProcessWithLogonW returned the primary thread suspended;
                     # CreateSuspendedInJob assigned it before this explicit resume.
                     if ([DateTimeOffset]::UtcNow -ge $deadline) {
@@ -2578,10 +2678,40 @@ namespace Hcr {
                         }
                     }
                     $stdout = [string]$stdoutTask.Result
-                    $stderr = if ($stderrTask.IsCompleted) { [string]$stderrTask.Result } else { '' }
-                    if ([Text.Encoding]::UTF8.GetByteCount($stdout) -gt 1048576 -or
-                        [Text.Encoding]::UTF8.GetByteCount($stderr) -gt 65536) {
+                    if ($allowsDescendant -and -not $stderrTask.IsCompleted) {
+                        $stderrCancellationAccepted = $supervised.CancelStandardErrorDrain()
+                        if ((-not $stderrCancellationAccepted -and -not $stderrTask.IsCompleted) -or
+                            -not $stderrTask.Wait(2000)) {
+                            $terminationVerified = $supervised.TerminateAndVerify(125, 5000)
+                            return [pscustomobject]@{
+                                timedOut = $false
+                                exitCode = [int]$supervised.ExitCode
+                                terminationVerified = [bool]$terminationVerified
+                                containmentFailure = $true
+                                reportedTimeout = $false
+                                stdout = ''
+                            }
+                        }
+                    }
+                    if (-not $stderrTask.IsCompleted -or
+                        $stderrTask.IsFaulted -or
+                        $stderrTask.IsCanceled) {
+                        $terminationVerified = $supervised.TerminateAndVerify(125, 5000)
+                        return [pscustomobject]@{
+                            timedOut = $false
+                            exitCode = [int]$supervised.ExitCode
+                            terminationVerified = [bool]$terminationVerified
+                            containmentFailure = $true
+                            reportedTimeout = $false
+                            stdout = ''
+                        }
+                    }
+                    $stderrDrain = $stderrTask.Result
+                    if ([Text.Encoding]::UTF8.GetByteCount($stdout) -gt 1048576) {
                         throw 'The fixed worker returned oversized output.'
+                    }
+                    if ($null -ne $stderrDrain -and [bool]$stderrDrain.Overflow) {
+                        throw 'HCR_WORKER_STDERR_OVERFLOW: fixed worker diagnostics exceeded 64 KiB.'
                     }
                     $preview = $null
                     try { $preview = $stdout | ConvertFrom-Json -ErrorAction Stop }
@@ -2709,6 +2839,9 @@ namespace Hcr {
         if ($_.Exception.Data.Contains('HcrCode')) { throw }
         if ([string]$_ -match 'HCR_WORKER_CONTAINMENT_FAILED') {
             Throw-HcrError 'GUEST_WORKER_CONTAINMENT_FAILED' 'The fixed worker process tree did not satisfy its containment contract.'
+        }
+        if ([string]$_ -match 'HCR_WORKER_STDERR_OVERFLOW') {
+            Throw-HcrError 'GUEST_WORKER_DIAGNOSTIC_TOO_LARGE' 'The fixed guest worker returned oversized diagnostics.'
         }
         Throw-HcrError 'GUEST_WORKER_FAILED' 'The supervised fixed guest worker did not return a valid bounded result.'
     }

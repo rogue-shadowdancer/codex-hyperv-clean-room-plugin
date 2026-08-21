@@ -1780,3 +1780,50 @@ plugin, create a tag, or publish a Release. Only the exact ordinary protected
 merge may be installed once; a newly created selected-plugin task must then
 reprove exactly 20 tools and resume the separately authorized Birdsgone G8
 read-only guest inspection.
+
+## v0.4.1 fixed-worker stderr-drain repair boundary
+
+This compatible repair freezes build `0.4.1+codex.20260821104322` after
+Birdsgone G8 operation `c9334675-1453-4b5c-9fe0-d301f95c33d3` reached the
+real fixed worker but returned `GUEST_WORKER_FAILED`, `ok: false`, and
+`changed: false`. Source-aligned, no-Hyper-V probes established that Windows
+PowerShell 5.1 progress CLIXML may contain non-UTF-8 bytes. The supervisor
+strictly decoded stderr even though it is not a result channel, so
+`ReadToEndAsync` faulted before the bounded stdout result could be accepted.
+That reader also buffered arbitrary stderr before the post-hoc 64 KiB check.
+
+Stdout remains the sole strict UTF-8 JSON result channel and retains its one
+MiB limit plus operation ID, invocation ID, mode, input SHA-256, and exit-code
+bindings. Stderr is drained as untrusted raw bytes through a fixed 4 KiB
+buffer. The byte count saturates at 65,536, an overflow bit is recorded, and
+the drain continues while excess bytes are discarded to prevent pipe
+backpressure. No stderr byte is decoded, persisted, logged, returned, redacted, or
+admitted as evidence, and no content is retained beyond the transient fixed
+buffer. A completed overflow maps to the bounded safe error
+`GUEST_WORKER_DIAGNOSTIC_TOO_LARGE`. If an intentionally surviving launch/UI
+descendant keeps the writer open, the supervisor sets private cancellation
+state, invokes `CancelIoEx` on the safely referenced read handle, and requires
+the drain to finish within two seconds before releasing that descendant. Only
+an I/O exception after that request becomes `Cancelled`; cancellation or join
+failure is a containment failure.
+
+Executable regressions cover a valid strict-UTF-8 stdout JSON result alongside
+invalid stderr bytes and a stderr stream larger than 64 KiB. A real local
+`CreatePipe` regression keeps its writer open, proves the read is pending,
+requests cancellation, and requires `Cancelled: true` within two seconds under
+Windows PowerShell 5.1/.NET Framework. Reflection checks require the drain
+result to expose only byte count, overflow, and cancellation. Static checks
+preserve exactly one strict UTF-8 decoder in the supervisor, require the
+`CancelIoEx` seam, and reject the old stderr `ReadToEndAsync` path. Public MCP
+names and inputs, schema files, positional worker inputs, credential profiles,
+DPAPI behavior, Plan/Apply consumption, evidence semantics, the 20-tool
+registry, and the 31-payload topology are unchanged.
+
+The source gate performs no real host, Hyper-V, VM, guest, credential,
+checkpoint, package, portable, WebDriver, or UI operation. It may publish only
+through an ordinary protected pull request. After merge, one separate
+installation gate installs the exact protected commit exactly once. Only a
+newly created selected-plugin Birdsgone G8 task may prove exactly 20 typed
+tools, repeat ordered read-only admission, obtain fresh confirmation for any
+Start plan, and retry the existing profile's `inspect_guest`. No tag or GitHub
+Release is authorized.

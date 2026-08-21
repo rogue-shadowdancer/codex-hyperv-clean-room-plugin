@@ -233,10 +233,22 @@ worker script and input remain administrator-written, and the copied worker
 hash must match the plugin source hash before execution.
 
 Worker results use the child process's redirected stdout, not a
-standard-user-writable file. The administrator parses at most one MiB of JSON
-and accepts it only when `operationId`, invocation ID, mode, input SHA-256, and
-the worker exit code all agree. Stderr is separately bounded and is never used
-as the result channel.
+standard-user-writable file. The administrator strictly decodes and parses at
+most one MiB of UTF-8 JSON and accepts it only when `operationId`, invocation
+ID, mode, input SHA-256, and the worker exit code all agree. Stderr is an
+untrusted raw-byte diagnostic stream, not a result channel: a fixed 4 KiB
+buffer drains it, the byte count saturates at 64 KiB, and excess bytes are
+discarded while draining continues so a full pipe cannot block the worker.
+The supervisor never decodes, accumulates beyond the fixed buffer, persists,
+or exposes stderr content.
+
+An accepted `launchApplication`/UI descendant may keep its inherited stderr
+writer open after the root worker exits. Before that declared descendant can
+be released, the supervisor sets its private cancellation state, calls
+`CancelIoEx` on the protected read handle, and requires the raw drain to finish
+within two seconds. Only an exception observed after that private cancellation
+request becomes `Cancelled`; an uninterruptible or faulted drain fails
+containment and the job is terminated instead of releasing the descendant.
 
 The worker mode is one of `InspectGuest`, `RunTestStep`, or
 `RunCleanupStep`. Step types are enumerated again inside the guest. Package
@@ -276,8 +288,9 @@ the single deliberate exception that may leave its declared child running
 after the worker exits. The child is released only after its bound PID is
 suspended and its PID, creation time, executable path, job membership, and
 identity are rebound while it is the job's only active process. It is then
-resumed. Extra descendants fail containment, and later stop authority is
-limited to the recorded, revalidated process identity.
+resumed only after any inherited pending stderr read has been cancelled and
+joined as described above. Extra descendants fail containment, and later stop
+authority is limited to the recorded, revalidated process identity.
 
 Before stopping a process, the worker retains one opened process handle and
 uses that handle to read creation time and path and to recompute the bound PID,

@@ -423,11 +423,39 @@ def main() -> int:
         "GetProcessImagePath",
         "inputSha256",
         "invocationId",
+        "BoundedRawStreamDrain",
+        "DrainStandardErrorAsync(65536)",
+        "byte[] buffer = new byte[4096]",
+        "CancelIoEx",
+        "CancelStandardErrorDrain()",
+        "$stderrTask.IsFaulted -or",
+        "$stderrTask.IsCanceled",
+        "GUEST_WORKER_DIAGNOSTIC_TOO_LARGE",
     ):
         if result_channel_seam not in adapter_source:
             raise AssertionError(
                 f"process-bound worker result seam is missing: {result_channel_seam}"
             )
+    if "$supervised.StandardError.ReadToEndAsync()" in adapter_source:
+        raise AssertionError("fixed-worker stderr is still decoded and buffered as text")
+    if adapter_source.count("new UTF8Encoding(false, true)") != 1:
+        raise AssertionError(
+            "strict UTF-8 must remain exclusive to the fixed-worker stdout result channel"
+        )
+    stderr_cancel_call = adapter_source.find(
+        "$supervised.CancelStandardErrorDrain()"
+    )
+    survivor_release_call = adapter_source.find(
+        "$supervised.ReleaseVerifiedSingleProcess("
+    )
+    if (
+        stderr_cancel_call < 0
+        or survivor_release_call < 0
+        or stderr_cancel_call > survivor_release_call
+    ):
+        raise AssertionError(
+            "pending stderr must be cancelled before an intended descendant is released"
+        )
     if "outputRoot; rights = [Security.AccessControl.FileSystemRights]::Modify" in adapter_source:
         raise AssertionError("standard user can modify the whole guest output directory")
     if "SetAccessRuleProtection($true, $false)" not in adapter_source:

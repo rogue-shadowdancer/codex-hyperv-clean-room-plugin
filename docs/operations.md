@@ -255,6 +255,22 @@ variable would replace it with a pipeline enumerator and remove the request
 input manually. Verify the installed protected build and retry only in a fresh
 task after a source repair and controlled reinstall.
 
+The fixed-worker result is only the strict UTF-8 JSON object on stdout. Its
+stderr may contain Windows PowerShell 5.1 CLIXML or other non-UTF-8 diagnostic
+bytes. Repaired builds drain that channel as raw bytes with constant memory,
+record only a saturated byte count and overflow state, and discard all content.
+Do not capture, decode, log, or use stderr as fallback evidence. If an older
+build returns the generic `GUEST_WORKER_FAILED`, preserve the operation ID,
+reconcile VM state read-only, stop without retry, and move through a protected
+source repair, controlled reinstall, and fresh selected-plugin task.
+
+For a declared launch/UI child that intentionally survives its root worker,
+the supervisor must cancel any inherited pending stderr read with `CancelIoEx`
+and join the drain before releasing the child from job containment. Only the
+supervisor's private cancellation state permits a cancelled result. Failure to
+interrupt or join the drain is a containment failure, not a successful launch
+and not permission to capture diagnostics manually.
+
 ## Host inspection
 
 Start every real-host workflow with `inspect_host`. With no arguments it
