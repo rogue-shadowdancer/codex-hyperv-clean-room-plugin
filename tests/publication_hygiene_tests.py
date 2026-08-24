@@ -270,7 +270,7 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
         keyring = home_path / "github-web-flow.gpg"
         keyring.write_bytes(dearmored.stdout)
         (home_path / "gpg.conf").write_text(
-            "no-default-keyring\nkeyring github-web-flow.gpg\n",
+            f"no-default-keyring\nkeyring {keyring.as_posix()}\n",
             encoding="ascii",
         )
         # The isolated GPG configuration supplies an explicit keyring without
