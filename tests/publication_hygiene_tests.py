@@ -266,10 +266,15 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
     if dearmored.returncode != 0 or not dearmored.stdout:
         raise AssertionError("pinned GitHub web-flow public key dearmor failed")
     with tempfile.TemporaryDirectory(prefix="hyperv-publication-gpg-") as home:
-        Path(home, "pubring.gpg").write_bytes(dearmored.stdout)
-        # A legacy read-only public keyring avoids GPG agent/trustdb import
-        # behavior. The source-bundle fingerprints above and every subsequent
-        # cryptographic commit verification remain the hard gates.
+        home_path = Path(home)
+        keyring = home_path / "github-web-flow.gpg"
+        keyring.write_bytes(dearmored.stdout)
+        (home_path / "gpg.conf").write_text(
+            "no-default-keyring\nkeyring github-web-flow.gpg\n",
+            encoding="ascii",
+        )
+        # The isolated GPG configuration supplies an explicit keyring without
+        # import, agent, or version-dependent default-keyring behavior.
         environment = os.environ.copy()
         environment["GNUPGHOME"] = home
         for commit in commits:
