@@ -216,8 +216,17 @@ def assert_github_signature_status(
         for match in GPG_VALIDSIG.finditer(status)
     }
     if return_code != 0 or len(fingerprints) != 1:
+        status_tags = sorted(
+            {
+                match.decode("ascii")
+                for match in re.findall(
+                    rb"^\[GNUPG:\] ([A-Z_]+)", status, re.MULTILINE
+                )
+            }
+        )
         raise AssertionError(
-            f"GitHub web-flow signature is not cryptographically valid: {commit}"
+            "GitHub web-flow signature is not cryptographically valid: "
+            f"{commit} (exit={return_code}, status={','.join(status_tags) or 'none'})"
         )
     fingerprint = fingerprints.pop()
     if fingerprint not in GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS:
