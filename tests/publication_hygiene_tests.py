@@ -219,6 +219,13 @@ def resolve_gpgv(gpg: str) -> str:
     raise AssertionError("GPGV is unavailable for GitHub web-flow verification")
 
 
+def gpg_path(path: Path) -> str:
+    resolved = path.resolve()
+    if os.name == "nt" and resolved.drive:
+        return f"/{resolved.drive[0].lower()}{resolved.as_posix()[2:]}"
+    return str(resolved)
+
+
 def assert_github_signature_status(
     commit: str, return_code: int, status: bytes
 ) -> str:
@@ -322,13 +329,13 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
                 [
                     gpgv,
                     "--homedir",
-                    home,
+                    gpg_path(home_path),
                     "--keyring",
-                    keyring.name,
+                    gpg_path(keyring),
                     "--status-fd",
                     "1",
-                    str(signature_path),
-                    str(payload_path),
+                    gpg_path(signature_path),
+                    gpg_path(payload_path),
                 ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

@@ -600,7 +600,9 @@ validator reconstructs Git's signed commit payload by removing exactly one
 directly with the extracted signature, payload, and explicit temporary keyring.
 The complete embedded key-bundle fingerprint set is checked before use. This
 avoids persistent or agent-dependent key import, trust databases, program
-wrappers, and version-dependent default-keyring behavior. The accepted signing
+wrappers, and version-dependent default-keyring behavior. Windows paths passed
+to Git for Windows GPG/GPGV are normalized to MSYS absolute form so keyring
+resolution cannot drift between runner versions. The accepted signing
 fingerprint is pinned separately to
 `968479A1AFF927E37D1A566BB5690EEEBB952194`, so an official key rotation fails
 closed until it is reviewed and updated. Verification uses a fresh temporary
