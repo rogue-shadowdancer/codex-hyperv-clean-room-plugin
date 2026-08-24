@@ -1,4 +1,4 @@
-# Task handoff: fixed-worker stderr-drain repair
+# Task handoff: post-merge Hyper-V validation closure
 
 `relayProtocolVersion: 1`
 
@@ -6,28 +6,63 @@
 
 ## Objective and authorization
 
-Repair the confirmed production `GUEST_WORKER_FAILED` boundary discovered by
-Birdsgone G8, complete local source validation and exact review, publish and
-merge through the ordinary protected pull-request path, install the exact
-protected commit once, and relay a new G8 task without starting its Hyper-V
-work in this source task.
+Close the post-merge validation gap on protected commit
+`16c3b7faf6fa353afead47cbf02b7e67fc0fa39c`: preserve the already installed
+stderr-drain payload, make publication-history validation accept the recurring
+GitHub protected squash shape without an endless exact-hash follow-up cycle,
+revalidate the exact candidate, and publish the test/documentation-only repair
+through the ordinary protected pull-request path before resuming Birdsgone G8.
 
-The source gate performs no Hyper-V tool call, VM/checkpoint/network mutation,
-credential prompt or persistence, guest operation, package lifecycle, restore,
-tag, or GitHub Release. Installation is allowed only after protected merge.
+This closure gate performs no VM/checkpoint/network mutation, credential prompt
+or persistence, guest operation, package lifecycle, restore, tag, or GitHub
+Release. Its only live Hyper-V evidence is the separately recorded typed
+read-only admission and the repository-defined bounded installed-copy smoke,
+both with `changed=false` and zero Hyper-V mutations.
+
+## Current follow-up state
+
+- Protected `master`, the installer-bound checkout, and the installed manifest
+  identify commit `16c3b7faf6fa353afead47cbf02b7e67fc0fa39c`, build
+  `0.4.1+codex.20260821104322`, and 31 payload files. The canonical install
+  readback has `installed=true`, `owned=true`, `matches=true`,
+  `marketplaceVisible=true`, and one marketplace entry.
+- The current model exposes exactly 20 typed Hyper-V tools. Typed read-only
+  operations `59e47822-afa0-4f8e-94ae-2bc2e1ba3b83`,
+  `e759a34d-ee00-4292-ad6f-7d904ca3f6c1`, and
+  `673bbade-f6c8-4008-bdf5-80245b906c2c` proved the host is authorized through
+  the non-elevated Hyper-V Administrators token and the only managed VM is Off,
+  Generation 2, ownership/direct-base verified, automatic checkpoints disabled,
+  with zero checkpoints and no warnings.
+- Gate 4 installed-copy acceptance passes on the supported Windows PowerShell
+  5.1 host with 20 tools, read-only host inspection, `INVALID_ISO` rejection,
+  and zero real guest operations or Hyper-V mutations. Gate 7 passes with 452
+  runtime assertions, 16 preserved v1 tools, five v1 schemas, seven v2 schemas,
+  and ten generated evidence documents.
+- The full publication aggregate passed its first ten lanes, then failed only
+  because protected squash commit `16c3b7f...` used the approved public noreply
+  email with GitHub's profile display name and web-flow committer. Adding only
+  raw commit SHA-256 `9c16aeca6686b280b35c65229b60e124eb2fd53dc1c5803a4a0403e0dc5a8164`
+  would recreate the same failure after the next squash merge, so the repair is
+  a closed structural GitHub-squash predicate plus fail-closed policy tests.
+- PowerShell 7 cannot invoke the production adapter's .NET Framework-only
+  `Directory.CreateDirectory(path, DirectorySecurity)` overload. The declared
+  runtime and successful Gate 4 host are Windows PowerShell 5.1; this is a
+  validator-entry host limitation, not evidence of a failed installed runtime.
 
 ## Repository and build state
 
 - Protected base and live `origin/master` at gate start:
-  `39f577a45702cd434fc63ce5fd49ec60f5b8c48c`.
-- The task branch checkout is the unique writable worktree for this repair.
-- Task branch: `codex/fix-fixed-worker-stderr-drain`.
+  `16c3b7faf6fa353afead47cbf02b7e67fc0fa39c`.
+- The task branch checkout is the unique writable follow-up worktree for this
+  test and documentation repair.
+- Task branch: `codex/fix-post-merge-publication-identity`.
 - The permanent original workspace, prior protected-install worktree, installed
   plugin, active cache, and Birdsgone worktrees are outside writable scope.
 - Frozen repaired build: `0.4.1+codex.20260821104322`. The plugin-creator
   cachebuster helper ran exactly once and must not be rerun.
-- Installed predecessor: `0.4.1+codex.20260819091500` from protected commit
-  `39f577a45702cd434fc63ce5fd49ec60f5b8c48c`.
+- Installed payload: `0.4.1+codex.20260821104322` from protected commit
+  `16c3b7faf6fa353afead47cbf02b7e67fc0fa39c`; this test/documentation-only
+  follow-up does not change any of the 31 installed payload files.
 - Task Mail capability is unavailable in this task; coordination is
   advisory-degraded and no Task Mail credential was created.
 
@@ -51,8 +86,9 @@ tag, or GitHub Release. Installation is allowed only after protected merge.
   `3fb1ce19-b044-4842-8963-def096d2f06f` confirmed Off, verified ownership
   and direct-base chain, automatic checkpoints disabled, zero checkpoints,
   and no warnings.
-- This repair task performs no further Hyper-V call. The next G8 task must
-  establish fresh typed admission from live state.
+- The post-merge closure performed only the fresh ordered read-only admission
+  recorded above. Before G8 performs any lifecycle or guest operation, it must
+  repeat the required live readback and obtain a fresh typed plan/confirmation.
 
 ## Confirmed root cause
 
@@ -97,6 +133,11 @@ tag, or GitHub Release. Installation is allowed only after protected merge.
   commit-object SHA-256
   `cbab88ff332a2c8d1d51d2fdc68bef252748a3f03ce643ef0b13c87a23caf606`;
   accepted identity patterns are not broadened.
+- The same validator now recognizes later GitHub-generated protected squash
+  commits structurally only when they have one parent, the exact public noreply
+  author email, the exact GitHub web-flow committer, a GitHub signature
+  envelope, and a bounded `subject (#PR)` message. Policy tests reject each
+  missing or malformed prerequisite independently.
 - Architecture, specification, operations, security, troubleshooting,
   installation, release-process, changelog, and this handoff record the repair
   and its source/install/new-task boundaries.
@@ -130,17 +171,17 @@ profiles, DPAPI behavior, Plan/Apply semantics, evidence semantics, and the
   payload files. The plugin-creator validator passed from the isolated Python
   environment.
 - Documentation validation passed 17 documents and 101 local links with strict
-  UTF-8 and zero mojibake markers. Publication hygiene passed 134 commits and
-  1,017 historical blob paths with 29 exact-object identity exceptions, zero
-  forbidden artifacts, and zero sensitive findings.
+  UTF-8 and zero mojibake markers. Publication hygiene passed 135 commits and
+  1,031 historical blob paths with 29 exact-object identity exceptions, 76
+  ordinary public-noreply commits, 29 GitHub web-flow merges, one structurally
+  accepted GitHub squash, zero forbidden artifacts, and zero sensitive findings.
 - `validate-public-release.ps1` passed all 13 checks with
   `realGuestOperations=0` and `realHyperVMutations=0`.
-- Remaining before the additive review-fix commit: rerun the exact candidate
-  after this handoff-only update, reach `ZERO ACTIONABLE FINDINGS`, push
-  normally, and reconcile every PR conversation and hosted check again.
-- Installed-copy and production guest acceptance remain `notPerformed` for the
-  dirty source candidate. Never reinterpret source/mock validation as installed
-  or real-guest proof.
+- Gate 4 installed-copy acceptance and Gate 7 source acceptance passed on the
+  supported Windows PowerShell 5.1 host. The dirty follow-up changes only tests
+  and documentation, not the installed payload. Production guest acceptance
+  remains `notPerformed`; never reinterpret source or installed-copy smoke as
+  real-guest proof.
 - The post-install H4/G9 lane must run the bounded installed-copy
   `validate-gate4.ps1` readback defined by repository authority. It must not
   manually launch JSON-RPC or call real `inspect_host`/`list_vms` before the
@@ -150,20 +191,19 @@ profiles, DPAPI behavior, Plan/Apply semantics, evidence semantics, and the
 
 ## Required next gates
 
-1. Complete the remaining local gates on the frozen candidate, stage only the
-   intended source, test, manifest, documentation, and handoff changes, and
-   reach `ZERO ACTIONABLE FINDINGS` on that exact staged candidate.
+1. Stage only the intended publication validator, policy tests, documentation,
+   changelog, and handoff changes; rerun affected checks after this final
+   handoff update and reach `ZERO ACTIONABLE FINDINGS` on the exact candidate.
 2. Commit, push, create a Ready PR against protected `master`, reconcile exact
-   head/base, reviews, comments, threads, checks, and protection, then merge
-   only through the ordinary protected path.
-3. From a clean checkout of the exact merged protected commit, run
-   `scripts/install_plugin.ps1` exactly once. Verify installed, marketplace,
-   and active-cache identity plus the complete 31-file size/SHA-256 match.
-4. Create a fresh Birdsgone G8 task. Before any Hyper-V call, its selected model
-   must expose exactly 20 typed `mcp__hyperv_clean_room__*` tools. It then reruns
-   ordered read-only admission, obtains fresh confirmation for any Start plan,
-   starts only through typed Plan/Apply/readback, and retries only
-   `inspect_guest` with the existing credential profile.
+   head/base, reviews, comments, threads, checks, and protection. Merge only
+   after separate authorization through the ordinary protected path.
+3. Because the follow-up changes no plugin payload bytes, do not reinstall or
+   rerun the cachebuster. Confirm the canonical installed copy still matches
+   protected payload commit `16c3b7f...`.
+4. Continue Birdsgone G8 only after the source/test closure. Immediately before
+   any production call, require exactly 20 typed tools, repeat ordered read-only
+   admission, obtain fresh confirmation for any Start plan, use only typed
+   Plan/Apply/readback, and retry only `inspect_guest` with the existing profile.
 
 ## Safety boundaries
 
@@ -176,8 +216,8 @@ profiles, DPAPI behavior, Plan/Apply semantics, evidence semantics, and the
 - Do not modify branch protection, workflows, tags, Releases, remote branch
   history, the plugin source/install bytes before merge, or Birdsgone's
   permanent checkout and user-owned README.
-- Do not resume Birdsgone G8 in this source task after the protected reinstall;
-  the new task must establish its own 20-tool registry and fresh admission.
+- Do not interleave Birdsgone G8 with this source/test closure. Any later G8
+  gate must establish its own fresh 20-tool registry and ordered admission.
 
 ## Ownership
 

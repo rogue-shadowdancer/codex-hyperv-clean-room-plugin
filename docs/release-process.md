@@ -585,3 +585,14 @@ input-binding squash commit to raw commit-object SHA-256
 `cbab88ff332a2c8d1d51d2fdc68bef252748a3f03ce643ef0b13c87a23caf606`.
 This single-object exception does not broaden accepted author or committer
 identity patterns.
+
+The subsequent protected stderr-drain squash commit exposed a closure problem
+with adding another exact-object exception: a follow-up exception itself creates
+another GitHub-generated squash commit that is not knowable before merge. The
+validator therefore accepts the recurring protected squash shape directly,
+but only with exactly one parent, the approved public noreply author address,
+the exact GitHub web-flow committer, a GitHub signature envelope, and a bounded
+`subject (#PR)` message. Commit-message content still passes the full secret,
+identity, machine-path, and forbidden-artifact scan. Ordinary local commits,
+unsigned commits, private author addresses, other committers, merge-shaped
+messages, malformed PR numbers, and multi-parent commits cannot use this path.

@@ -260,6 +260,42 @@ class PublicationHygienePolicyTests(unittest.TestCase):
                 ):
                     hygiene.assert_commit_metadata_safe("f" * 40, raw)
 
+    def test_github_web_flow_squash_policy_fails_closed(self) -> None:
+        message = "Fix metadata validation (#4)\n\nKeep the public history bounded."
+        accepted = self.synthetic_github_merge(parent_count=1, message=message)
+        self.assertEqual(
+            hygiene.assert_commit_metadata_safe("e" * 40, accepted),
+            "github-web-flow-squash",
+        )
+
+        private_email = "person" + "@example.test"
+        rejected = (
+            self.synthetic_github_merge(
+                author_email=private_email, parent_count=1, message=message
+            ),
+            self.synthetic_github_merge(
+                committer=(hygiene.PUBLIC_COMMIT_NAME, hygiene.PUBLIC_COMMIT_EMAIL),
+                parent_count=1,
+                message=message,
+            ),
+            self.synthetic_github_merge(parent_count=2, message=message),
+            self.synthetic_github_merge(
+                parent_count=1, signed=False, message=message
+            ),
+            self.synthetic_github_merge(
+                parent_count=1, message="Fix metadata validation\n\nMissing PR number."
+            ),
+            self.synthetic_github_merge(
+                parent_count=1, message="Fix metadata validation (#0)"
+            ),
+        )
+        for raw in rejected:
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(
+                    AssertionError, "unexpected author/committer identity"
+                ):
+                    hygiene.assert_commit_metadata_safe("f" * 40, raw)
+
     def test_pull_request_scans_base_history_not_synthetic_merge_history(self) -> None:
         self.assertEqual(
             hygiene.select_history_revision("pull_request", "master"),

@@ -24,6 +24,11 @@ the local plugin cache.
 - Bind the preceding protected input-binding squash commit's GitHub-substituted
   display-name/web-flow identity to its exact raw commit-object SHA-256 in the
   publication-history validator without broadening accepted identity patterns.
+- Accept future GitHub-generated protected squash commits structurally only
+  when they have one parent, the approved public noreply author address, the
+  exact GitHub web-flow committer, a GitHub signature envelope, and a bounded
+  `subject (#PR)` message. This closes the post-merge validation loop without
+  requiring an impossible follow-up commit-object exception after every squash.
 - Rename every production fixed-worker function parameter that collided with
   PowerShell's case-insensitive automatic `$input` variable. The supervisor and
   standalone worker now retain the caller's closed request object as

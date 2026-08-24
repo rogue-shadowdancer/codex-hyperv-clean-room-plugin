@@ -58,6 +58,10 @@ GITHUB_MERGE_MESSAGE = re.compile(
     rb"rogue-shadowdancer/codex/(?P<branch>[A-Za-z0-9][A-Za-z0-9._/-]{0,199})"
     rb"\n\n[^\r\n]{1,256}\n?"
 )
+GITHUB_SQUASH_MESSAGE = re.compile(
+    rb"[^\r\n]{1,220} \(#[1-9][0-9]*\)"
+    rb"(?:\n\n[^\x00]{1,4096})?\n?"
+)
 PARENT_HEADER = re.compile(rb"^parent ([0-9a-f]{40})$", re.MULTILINE)
 FORBIDDEN_SUFFIXES = {
     ".avhd",
@@ -441,6 +445,26 @@ def is_safe_github_web_flow_merge(
     return True
 
 
+def is_safe_github_web_flow_squash(
+    header: bytes,
+    message: bytes,
+    author: tuple[str, str],
+    committer: tuple[str, str],
+) -> bool:
+    if author[1].casefold() != PUBLIC_COMMIT_EMAIL.casefold():
+        return False
+    if committer != GITHUB_WEB_FLOW_COMMITTER:
+        return False
+    parents = PARENT_HEADER.findall(header)
+    if len(parents) != 1:
+        return False
+    if b"gpgsig -----BEGIN PGP SIGNATURE-----\n" not in header:
+        return False
+    if b"\n -----END PGP SIGNATURE-----" not in header:
+        return False
+    return GITHUB_SQUASH_MESSAGE.fullmatch(message) is not None
+
+
 def assert_commit_metadata_safe(commit: str, raw: bytes) -> str:
     try:
         header, message = raw.split(b"\n\n", 1)
@@ -457,6 +481,8 @@ def assert_commit_metadata_safe(commit: str, raw: bytes) -> str:
             identity_class = "public-noreply"
         elif is_safe_github_web_flow_merge(header, message, author, committer):
             identity_class = "github-web-flow-merge"
+        elif is_safe_github_web_flow_squash(header, message, author, committer):
+            identity_class = "github-web-flow-squash"
         else:
             raise AssertionError(
                 f"unexpected author/committer identity in history commit {commit}"
@@ -488,6 +514,7 @@ def main() -> int:
     accepted_legacy_digests: set[str] = set()
     public_identity_commits = 0
     github_web_flow_merge_commits = 0
+    github_web_flow_squash_commits = 0
     seen_blob_paths: set[tuple[str, str]] = set()
     blob_cache: dict[str, bytes] = {}
     for commit in commits:
@@ -497,6 +524,8 @@ def main() -> int:
             accepted_legacy_digests.add(hashlib.sha256(raw_commit).hexdigest())
         elif identity_class == "github-web-flow-merge":
             github_web_flow_merge_commits += 1
+        elif identity_class == "github-web-flow-squash":
+            github_web_flow_squash_commits += 1
         else:
             public_identity_commits += 1
         for object_id, path_text in history_tree(commit):
@@ -530,6 +559,7 @@ def main() -> int:
                 "acceptedLegacyCommits": len(accepted_legacy_digests),
                 "publicNoreplyCommits": public_identity_commits,
                 "githubWebFlowMergeCommits": github_web_flow_merge_commits,
+                "githubWebFlowSquashCommits": github_web_flow_squash_commits,
                 "forbiddenArtifacts": 0,
                 "sensitiveFindings": 0,
                 "strictUtf8": True,
