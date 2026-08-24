@@ -604,8 +604,10 @@ fingerprint set is checked before use, and both GPG preprocessing calls begin
 with `--no-options` so user configuration cannot redirect or alter output. This
 avoids persistent or agent-dependent key import, trust databases, program
 wrappers, and version-dependent default-keyring behavior. Windows paths passed
-to Git for Windows GPG/GPGV are normalized to MSYS absolute form so keyring
-resolution cannot drift between runner versions. The accepted signing
+to a GPGV adjacent to Git-for-Windows GPG are normalized to MSYS absolute form;
+native GPGV distributions retain native absolute paths. This paired executable
+and path selection prevents runner `PATH` ordering from changing keyring
+resolution. The accepted signing
 fingerprint is pinned separately to
 `968479A1AFF927E37D1A566BB5690EEEBB952194`, so an official key rotation fails
 closed until it is reviewed and updated. Verification uses a fresh temporary

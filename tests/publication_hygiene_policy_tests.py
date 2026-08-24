@@ -382,6 +382,19 @@ class PublicationHygienePolicyTests(unittest.TestCase):
                 with self.assertRaisesRegex(AssertionError, "key import failed"):
                     hygiene.assert_pinned_github_key_bundle(status)
 
+    def test_gpg_path_format_is_selected_by_gpgv_distribution(self) -> None:
+        candidate = (hygiene.REPO_ROOT / "tests" / "fixture.bin").resolve()
+        self.assertEqual(
+            hygiene.gpg_path(candidate, msys=False),
+            str(candidate),
+        )
+        msys_path = hygiene.gpg_path(candidate, msys=True)
+        if hygiene.os.name == "nt":
+            self.assertRegex(msys_path, r"^/[a-z]/")
+            self.assertNotIn("\\", msys_path)
+        else:
+            self.assertEqual(msys_path, str(candidate))
+
     def test_signed_commit_payload_removes_exactly_one_signature_header(
         self,
     ) -> None:

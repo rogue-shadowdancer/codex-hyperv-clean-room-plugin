@@ -209,19 +209,24 @@ def resolve_gpg() -> str:
 
 
 def resolve_gpgv(gpg: str) -> str:
-    configured = shutil.which("gpgv")
-    if configured:
-        return configured
     for name in ("gpgv.exe", "gpgv"):
         candidate = Path(gpg).with_name(name)
         if candidate.is_file():
             return str(candidate)
+    configured = shutil.which("gpgv")
+    if configured:
+        return configured
     raise AssertionError("GPGV is unavailable for GitHub web-flow verification")
 
 
-def gpg_path(path: Path) -> str:
+def gpgv_uses_msys_paths(gpgv: str) -> bool:
+    executable = Path(gpgv).resolve()
+    return os.name == "nt" and (executable.parent / "msys-2.0.dll").is_file()
+
+
+def gpg_path(path: Path, *, msys: bool) -> str:
     resolved = path.resolve()
-    if os.name == "nt" and resolved.drive:
+    if msys and os.name == "nt" and resolved.drive:
         return f"/{resolved.drive[0].lower()}{resolved.as_posix()[2:]}"
     return str(resolved)
 
@@ -297,6 +302,7 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
         raise AssertionError("pinned GitHub web-flow public key bundle is missing")
     gpg = resolve_gpg()
     gpgv = resolve_gpgv(gpg)
+    msys_paths = gpgv_uses_msys_paths(gpgv)
     counts = {fingerprint: 0 for fingerprint in GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS}
     described = subprocess.run(
         [
@@ -335,13 +341,13 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
                 [
                     gpgv,
                     "--homedir",
-                    gpg_path(home_path),
+                    gpg_path(home_path, msys=msys_paths),
                     "--keyring",
-                    gpg_path(keyring),
+                    gpg_path(keyring, msys=msys_paths),
                     "--status-fd",
                     "1",
-                    gpg_path(signature_path),
-                    gpg_path(payload_path),
+                    gpg_path(signature_path, msys=msys_paths),
+                    gpg_path(payload_path, msys=msys_paths),
                 ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
