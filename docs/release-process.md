@@ -596,8 +596,11 @@ Shape alone is not provenance: every structurally recognized GitHub merge or
 squash must also pass local cryptographic verification against the
 repository-pinned official `https://github.com/web-flow.gpg` bundle. The
 validator reconstructs Git's signed commit payload by removing exactly one
-`gpgsig` header from the raw object, then invokes verification-only `gpgv`
-directly with the extracted signature, payload, and explicit temporary keyring.
+`gpgsig` header from the raw object. The extracted value must be exactly one
+GitHub-style ASCII-armored signature block, with no prefix or nonblank suffix;
+otherwise the commit fails before verification. The validator then invokes
+verification-only `gpgv` directly with the signature, payload, and explicit
+temporary keyring.
 The variable GitHub author display name passes the same private-identity and
 machine-path scan as repository content. The official armored key-bundle bytes
 are pinned by SHA-256 and decoded by the Python standard library, eliminating

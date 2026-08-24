@@ -186,7 +186,9 @@ class PublicationHygienePolicyTests(unittest.TestCase):
             lines.extend(
                 [
                     "gpgsig -----BEGIN PGP SIGNATURE-----",
-                    " synthetic-signature",
+                    " ",
+                    " c3ludGhldGljLXNpZ25hdHVyZQ==",
+                    " =AAAA",
                     " -----END PGP SIGNATURE-----",
                 ]
             )
@@ -410,6 +412,27 @@ class PublicationHygienePolicyTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(AssertionError, "invalid GPG signature header"):
             hygiene.split_signed_commit(duplicate)
+
+        private_email = b"private" + b"@" + b"example.test"
+        contaminated = (
+            raw.replace(
+                b"gpgsig -----BEGIN PGP SIGNATURE-----\n",
+                b"gpgsig "
+                + private_email
+                + b"\n -----BEGIN PGP SIGNATURE-----\n",
+                1,
+            ),
+            raw.replace(
+                b" -----END PGP SIGNATURE-----\n",
+                b" -----END PGP SIGNATURE-----\n " + private_email + b"\n",
+                1,
+            ),
+        )
+        for candidate in contaminated:
+            with self.assertRaisesRegex(
+                AssertionError, "invalid GPG signature header"
+            ):
+                hygiene.split_signed_commit(candidate)
 
     def test_pull_request_scans_base_history_not_synthetic_merge_history(self) -> None:
         self.assertEqual(

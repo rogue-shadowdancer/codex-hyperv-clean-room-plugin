@@ -24,6 +24,13 @@ GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS = {
 GPG_VALIDSIG = re.compile(
     rb"^\[GNUPG:\] VALIDSIG (?P<fingerprint>[0-9A-F]{40}) ", re.MULTILINE
 )
+GITHUB_GPG_SIGNATURE_ARMOR = re.compile(
+    rb"\A-----BEGIN PGP SIGNATURE-----\n"
+    rb"\n"
+    rb"(?:[A-Za-z0-9+/]{1,76}={0,2}\n)+"
+    rb"=[A-Za-z0-9+/]{4}\n"
+    rb"-----END PGP SIGNATURE-----\n(?:\n)?\Z"
+)
 MAX_SCANNED_BLOB_BYTES = 2 * 1024 * 1024
 ACCEPTED_LEGACY_COMMIT_SHA256 = {
     # Eight preserved pre-release commits.
@@ -291,9 +298,13 @@ def split_signed_commit(raw: bytes) -> tuple[bytes, bytes]:
         else:
             inside_signature = False
             payload.append(line)
-    if signature_headers != 1 or not signature:
+    signature_bytes = b"".join(signature)
+    if (
+        signature_headers != 1
+        or not GITHUB_GPG_SIGNATURE_ARMOR.fullmatch(signature_bytes)
+    ):
         raise AssertionError("commit has an invalid GPG signature header")
-    return b"".join(payload) + b"\n" + message, b"".join(signature)
+    return b"".join(payload) + b"\n" + message, signature_bytes
 
 
 def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
