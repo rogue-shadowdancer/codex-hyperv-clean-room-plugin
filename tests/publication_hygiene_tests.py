@@ -257,23 +257,19 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
         stderr=subprocess.PIPE,
     )
     assert_pinned_github_key_bundle(described.stdout)
+    dearmored = subprocess.run(
+        [gpg, "--batch", "--dearmor"],
+        input=GITHUB_WEB_FLOW_PUBLIC_KEY.read_bytes(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if dearmored.returncode != 0 or not dearmored.stdout:
+        raise AssertionError("pinned GitHub web-flow public key dearmor failed")
     with tempfile.TemporaryDirectory(prefix="hyperv-publication-gpg-") as home:
-        subprocess.run(
-            [
-                gpg,
-                "--homedir",
-                home,
-                "--batch",
-                "--quiet",
-                "--import",
-                str(GITHUB_WEB_FLOW_PUBLIC_KEY),
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        # Git for Windows can report an advisory agent status while importing
-        # public keys. The exact source-bundle fingerprints above and every
-        # subsequent cryptographic commit verification remain the hard gates.
+        Path(home, "pubring.gpg").write_bytes(dearmored.stdout)
+        # A legacy read-only public keyring avoids GPG agent/trustdb import
+        # behavior. The source-bundle fingerprints above and every subsequent
+        # cryptographic commit verification remain the hard gates.
         environment = os.environ.copy()
         environment["GNUPGHOME"] = home
         for commit in commits:
