@@ -393,6 +393,13 @@ class PublicationHygienePolicyTests(unittest.TestCase):
         self.assertTrue(signature.startswith(b"-----BEGIN PGP SIGNATURE-----\n"))
         self.assertTrue(signature.endswith(b"-----END PGP SIGNATURE-----\n"))
 
+        documented = raw.rstrip(b"\n") + b"\ngpgsig is documented here\n"
+        documented_payload, documented_signature = hygiene.split_signed_commit(
+            documented
+        )
+        self.assertIn(b"gpgsig is documented here", documented_payload)
+        self.assertEqual(documented_signature, signature)
+
         unsigned = self.synthetic_github_merge(parent_count=1, signed=False)
         with self.assertRaisesRegex(AssertionError, "invalid GPG signature header"):
             hygiene.split_signed_commit(unsigned)

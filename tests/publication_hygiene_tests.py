@@ -266,11 +266,16 @@ def assert_pinned_github_key_bundle(status: bytes) -> set[str]:
 
 
 def split_signed_commit(raw: bytes) -> tuple[bytes, bytes]:
+    boundary = raw.find(b"\n\n")
+    if boundary < 0:
+        raise AssertionError("commit object is malformed before GPG verification")
+    header = raw[: boundary + 1]
+    message = raw[boundary + 2 :]
     payload: list[bytes] = []
     signature: list[bytes] = []
     inside_signature = False
     signature_headers = 0
-    for line in raw.splitlines(keepends=True):
+    for line in header.splitlines(keepends=True):
         if line.startswith(b"gpgsig "):
             signature_headers += 1
             signature.append(line[len(b"gpgsig ") :])
@@ -282,7 +287,7 @@ def split_signed_commit(raw: bytes) -> tuple[bytes, bytes]:
             payload.append(line)
     if signature_headers != 1 or not signature:
         raise AssertionError("commit has an invalid GPG signature header")
-    return b"".join(payload), b"".join(signature)
+    return b"".join(payload) + b"\n" + message, b"".join(signature)
 
 
 def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
