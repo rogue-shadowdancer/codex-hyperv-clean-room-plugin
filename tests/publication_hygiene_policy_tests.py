@@ -296,6 +296,46 @@ class PublicationHygienePolicyTests(unittest.TestCase):
                 ):
                     hygiene.assert_commit_metadata_safe("f" * 40, raw)
 
+    def test_github_web_flow_signature_status_requires_one_pinned_validsig(
+        self,
+    ) -> None:
+        fingerprint = "968479A1AFF927E37D1A566BB5690EEEBB952194"
+        valid = (
+            f"[GNUPG:] VALIDSIG {fingerprint} 1 1 0 4 0 1 10 00\n"
+        ).encode("ascii")
+        self.assertEqual(
+            hygiene.assert_github_signature_status("e" * 40, 0, valid),
+            fingerprint,
+        )
+
+        unpinned = "0123456789ABCDEF0123456789ABCDEF01234567"
+        old_fingerprint = "5DE3E0509C47EA3CF04A42D34AEE18F83AFDEB23"
+        rejected = (
+            (1, valid, "not cryptographically valid"),
+            (0, b"[GNUPG:] NEWSIG\n", "not cryptographically valid"),
+            (
+                0,
+                f"[GNUPG:] VALIDSIG {unpinned} 1 1 0 4 0 1 10 00\n".encode(
+                    "ascii"
+                ),
+                "unpinned key",
+            ),
+            (
+                0,
+                valid
+                + (
+                    f"[GNUPG:] VALIDSIG {old_fingerprint} 1 1 0 4 0 1 10 00\n"
+                ).encode("ascii"),
+                "not cryptographically valid",
+            ),
+        )
+        for return_code, status, expected in rejected:
+            with self.subTest(return_code=return_code, expected=expected):
+                with self.assertRaisesRegex(AssertionError, expected):
+                    hygiene.assert_github_signature_status(
+                        "f" * 40, return_code, status
+                    )
+
     def test_pull_request_scans_base_history_not_synthetic_merge_history(self) -> None:
         self.assertEqual(
             hygiene.select_history_revision("pull_request", "master"),

@@ -4,11 +4,26 @@ import json
 import hashlib
 import re
 import os
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path, PurePosixPath
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+GITHUB_WEB_FLOW_PUBLIC_KEY = (
+    REPO_ROOT / "tests" / "fixtures" / "github-web-flow-public-key.asc"
+)
+GITHUB_WEB_FLOW_KEY_BUNDLE_FINGERPRINTS = {
+    "5DE3E0509C47EA3CF04A42D34AEE18F83AFDEB23",
+    "968479A1AFF927E37D1A566BB5690EEEBB952194",
+}
+GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS = {
+    "968479A1AFF927E37D1A566BB5690EEEBB952194",
+}
+GPG_VALIDSIG = re.compile(
+    rb"^\[GNUPG:\] VALIDSIG (?P<fingerprint>[0-9A-F]{40}) ", re.MULTILINE
+)
 MAX_SCANNED_BLOB_BYTES = 2 * 1024 * 1024
 ACCEPTED_LEGACY_COMMIT_SHA256 = {
     # Eight preserved pre-release commits.
@@ -177,6 +192,108 @@ def git_bytes(*arguments: str) -> bytes:
         stderr=subprocess.PIPE,
     )
     return completed.stdout
+
+
+def resolve_gpg() -> str:
+    configured = shutil.which("gpg")
+    if configured:
+        return configured
+    git_path = shutil.which("git")
+    if git_path:
+        git_root = Path(git_path).resolve().parent.parent
+        for relative in (("usr", "bin", "gpg.exe"), ("usr", "bin", "gpg")):
+            candidate = git_root.joinpath(*relative)
+            if candidate.is_file():
+                return str(candidate)
+    raise AssertionError("GPG is unavailable for GitHub web-flow verification")
+
+
+def assert_github_signature_status(
+    commit: str, return_code: int, status: bytes
+) -> str:
+    fingerprints = {
+        match.group("fingerprint").decode("ascii")
+        for match in GPG_VALIDSIG.finditer(status)
+    }
+    if return_code != 0 or len(fingerprints) != 1:
+        raise AssertionError(
+            f"GitHub web-flow signature is not cryptographically valid: {commit}"
+        )
+    fingerprint = fingerprints.pop()
+    if fingerprint not in GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS:
+        raise AssertionError(
+            f"GitHub web-flow signature uses an unpinned key: {commit}"
+        )
+    return fingerprint
+
+
+def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
+    if not commits:
+        return {}
+    if not GITHUB_WEB_FLOW_PUBLIC_KEY.is_file():
+        raise AssertionError("pinned GitHub web-flow public key bundle is missing")
+    gpg = resolve_gpg()
+    counts = {fingerprint: 0 for fingerprint in GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS}
+    with tempfile.TemporaryDirectory(prefix="hyperv-publication-gpg-") as home:
+        imported = subprocess.run(
+            [
+                gpg,
+                "--homedir",
+                home,
+                "--batch",
+                "--quiet",
+                "--import",
+                str(GITHUB_WEB_FLOW_PUBLIC_KEY),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        listed = subprocess.run(
+            [
+                gpg,
+                "--no-autostart",
+                "--homedir",
+                home,
+                "--batch",
+                "--with-colons",
+                "--fingerprint",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        imported_fingerprints = {
+            row.split(b":")[9].decode("ascii")
+            for row in listed.stdout.splitlines()
+            if row.startswith(b"fpr:") and len(row.split(b":")) > 9
+        }
+        if (
+            listed.returncode != 0
+            or imported_fingerprints != GITHUB_WEB_FLOW_KEY_BUNDLE_FINGERPRINTS
+        ):
+            raise AssertionError("pinned GitHub web-flow public key import failed")
+        environment = os.environ.copy()
+        environment["GNUPGHOME"] = home
+        for commit in commits:
+            verified = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(REPO_ROOT),
+                    "-c",
+                    f"gpg.program={gpg}",
+                    "verify-commit",
+                    "--raw",
+                    commit,
+                ],
+                env=environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            fingerprint = assert_github_signature_status(
+                commit, verified.returncode, verified.stdout + verified.stderr
+            )
+            counts[fingerprint] += 1
+    return {fingerprint: count for fingerprint, count in counts.items() if count}
 
 
 def decode_path(raw: bytes) -> str:
@@ -515,6 +632,7 @@ def main() -> int:
     public_identity_commits = 0
     github_web_flow_merge_commits = 0
     github_web_flow_squash_commits = 0
+    github_web_flow_commits: list[str] = []
     seen_blob_paths: set[tuple[str, str]] = set()
     blob_cache: dict[str, bytes] = {}
     for commit in commits:
@@ -524,8 +642,10 @@ def main() -> int:
             accepted_legacy_digests.add(hashlib.sha256(raw_commit).hexdigest())
         elif identity_class == "github-web-flow-merge":
             github_web_flow_merge_commits += 1
+            github_web_flow_commits.append(commit)
         elif identity_class == "github-web-flow-squash":
             github_web_flow_squash_commits += 1
+            github_web_flow_commits.append(commit)
         else:
             public_identity_commits += 1
         for object_id, path_text in history_tree(commit):
@@ -538,6 +658,10 @@ def main() -> int:
                 blob_cache[object_id] = git_bytes("cat-file", "blob", object_id)
             content = blob_cache[object_id]
             scan_content(path_text, content, f"history blob {object_id}")
+
+    github_web_flow_signatures = verify_github_web_flow_signatures(
+        github_web_flow_commits
+    )
 
     if accepted_legacy_digests != ACCEPTED_LEGACY_COMMIT_SHA256:
         missing = ACCEPTED_LEGACY_COMMIT_SHA256 - accepted_legacy_digests
@@ -560,6 +684,7 @@ def main() -> int:
                 "publicNoreplyCommits": public_identity_commits,
                 "githubWebFlowMergeCommits": github_web_flow_merge_commits,
                 "githubWebFlowSquashCommits": github_web_flow_squash_commits,
+                "githubWebFlowVerifiedSignatures": github_web_flow_signatures,
                 "forbiddenArtifacts": 0,
                 "sensitiveFindings": 0,
                 "strictUtf8": True,

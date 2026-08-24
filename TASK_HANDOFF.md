@@ -44,6 +44,12 @@ both with `changed=false` and zero Hyper-V mutations.
   raw commit SHA-256 `9c16aeca6686b280b35c65229b60e124eb2fd53dc1c5803a4a0403e0dc5a8164`
   would recreate the same failure after the next squash merge, so the repair is
   a closed structural GitHub-squash predicate plus fail-closed policy tests.
+- An independent trust-boundary review correctly found that signature-envelope
+  text is spoofable. The follow-up now treats shape only as a classifier and
+  requires local cryptographic verification against a repository-pinned copy
+  of GitHub's official web-flow public-key bundle and the separately pinned
+  current signing fingerprint. Synthetic envelopes and unpinned fingerprints
+  fail closed.
 - PowerShell 7 cannot invoke the production adapter's .NET Framework-only
   `Directory.CreateDirectory(path, DirectorySecurity)` overload. The declared
   runtime and successful Gate 4 host are Windows PowerShell 5.1; this is a
@@ -136,8 +142,11 @@ both with `changed=false` and zero Hyper-V mutations.
 - The same validator now recognizes later GitHub-generated protected squash
   commits structurally only when they have one parent, the exact public noreply
   author email, the exact GitHub web-flow committer, a GitHub signature
-  envelope, and a bounded `subject (#PR)` message. Policy tests reject each
-  missing or malformed prerequisite independently.
+  envelope, and a bounded `subject (#PR)` message. Every structurally recognized
+  GitHub merge or squash must then pass `git verify-commit` in a fresh temporary
+  GPG home using the complete pinned official key bundle and the separately
+  pinned current signing fingerprint. Policy tests reject missing, malformed,
+  invalid, multiple, and unpinned verification states.
 - Architecture, specification, operations, security, troubleshooting,
   installation, release-process, changelog, and this handoff record the repair
   and its source/install/new-task boundaries.
@@ -171,10 +180,12 @@ profiles, DPAPI behavior, Plan/Apply semantics, evidence semantics, and the
   payload files. The plugin-creator validator passed from the isolated Python
   environment.
 - Documentation validation passed 17 documents and 101 local links with strict
-  UTF-8 and zero mojibake markers. Publication hygiene passed 135 commits and
-  1,031 historical blob paths with 29 exact-object identity exceptions, 76
+  UTF-8 and zero mojibake markers. Publication hygiene passed 136 commits and
+  1,036 historical blob paths with 29 exact-object identity exceptions, 77
   ordinary public-noreply commits, 29 GitHub web-flow merges, one structurally
-  accepted GitHub squash, zero forbidden artifacts, and zero sensitive findings.
+  accepted GitHub squash, 30 cryptographically verified signatures from pinned
+  fingerprint `968479A1AFF927E37D1A566BB5690EEEBB952194`, zero forbidden
+  artifacts, and zero sensitive findings. Fourteen policy regressions pass.
 - `validate-public-release.ps1` passed all 13 checks with
   `realGuestOperations=0` and `realHyperVMutations=0`.
 - Gate 4 installed-copy acceptance and Gate 7 source acceptance passed on the

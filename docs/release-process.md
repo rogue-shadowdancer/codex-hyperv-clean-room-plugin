@@ -591,8 +591,18 @@ with adding another exact-object exception: a follow-up exception itself creates
 another GitHub-generated squash commit that is not knowable before merge. The
 validator therefore accepts the recurring protected squash shape directly,
 but only with exactly one parent, the approved public noreply author address,
-the exact GitHub web-flow committer, a GitHub signature envelope, and a bounded
-`subject (#PR)` message. Commit-message content still passes the full secret,
-identity, machine-path, and forbidden-artifact scan. Ordinary local commits,
-unsigned commits, private author addresses, other committers, merge-shaped
-messages, malformed PR numbers, and multi-parent commits cannot use this path.
+the exact GitHub web-flow committer, and a bounded `subject (#PR)` message.
+Shape alone is not provenance: every structurally recognized GitHub merge or
+squash must also pass local cryptographic `git verify-commit` against the
+repository-pinned official `https://github.com/web-flow.gpg` bundle, whose
+complete imported fingerprint set is checked before use. The accepted signing
+fingerprint is pinned separately to
+`968479A1AFF927E37D1A566BB5690EEEBB952194`, so an official key rotation fails
+closed until it is reviewed and updated. Verification uses a fresh temporary
+GPG home and requires exactly one `VALIDSIG`; it does not trust the user's
+keyring, a signature-envelope marker, mutable network/API state, or branch
+protection as a substitute. Commit-message content still passes the full
+secret, identity, machine-path, and forbidden-artifact scan. Ordinary local
+commits, invalid or unpinned signatures, private author addresses, other
+committers, merge-shaped messages, malformed PR numbers, and multi-parent
+commits cannot use this path.
