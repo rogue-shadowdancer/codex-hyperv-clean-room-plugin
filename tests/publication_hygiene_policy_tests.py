@@ -336,6 +336,29 @@ class PublicationHygienePolicyTests(unittest.TestCase):
                         "f" * 40, return_code, status
                     )
 
+    def test_github_web_flow_key_bundle_requires_exact_fingerprints(self) -> None:
+        old_fingerprint = "5de3e0509c47ea3cf04a42d34aee18f83afdeb23"
+        current_fingerprint = "968479A1AFF927E37D1A566BB5690EEEBB952194"
+        old_row = f"fpr:::::::::{old_fingerprint}:\n".encode("ascii")
+        current_row = f"fpr:::::::::{current_fingerprint}:\n".encode("ascii")
+        self.assertEqual(
+            hygiene.assert_pinned_github_key_bundle(old_row + current_row),
+            hygiene.GITHUB_WEB_FLOW_KEY_BUNDLE_FINGERPRINTS,
+        )
+
+        extra_fingerprint = "0123456789ABCDEF0123456789ABCDEF01234567"
+        rejected = (
+            b"",
+            current_row,
+            old_row + current_row + f"fpr:::::::::{extra_fingerprint}:\n".encode(
+                "ascii"
+            ),
+        )
+        for status in rejected:
+            with self.subTest(status=status):
+                with self.assertRaisesRegex(AssertionError, "key import failed"):
+                    hygiene.assert_pinned_github_key_bundle(status)
+
     def test_pull_request_scans_base_history_not_synthetic_merge_history(self) -> None:
         self.assertEqual(
             hygiene.select_history_revision("pull_request", "master"),

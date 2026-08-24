@@ -227,6 +227,17 @@ def assert_github_signature_status(
     return fingerprint
 
 
+def assert_pinned_github_key_bundle(status: bytes) -> set[str]:
+    fingerprints = {
+        row.split(b":")[9].decode("ascii").upper()
+        for row in status.splitlines()
+        if row.startswith(b"fpr:") and len(row.split(b":")) > 9
+    }
+    if fingerprints != GITHUB_WEB_FLOW_KEY_BUNDLE_FINGERPRINTS:
+        raise AssertionError("pinned GitHub web-flow public key import failed")
+    return fingerprints
+
+
 def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
     if not commits:
         return {}
@@ -235,7 +246,7 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
     gpg = resolve_gpg()
     counts = {fingerprint: 0 for fingerprint in GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS}
     with tempfile.TemporaryDirectory(prefix="hyperv-publication-gpg-") as home:
-        imported = subprocess.run(
+        subprocess.run(
             [
                 gpg,
                 "--homedir",
@@ -261,16 +272,10 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        imported_fingerprints = {
-            row.split(b":")[9].decode("ascii")
-            for row in listed.stdout.splitlines()
-            if row.startswith(b"fpr:") and len(row.split(b":")) > 9
-        }
-        if (
-            listed.returncode != 0
-            or imported_fingerprints != GITHUB_WEB_FLOW_KEY_BUNDLE_FINGERPRINTS
-        ):
-            raise AssertionError("pinned GitHub web-flow public key import failed")
+        # Git for Windows GPG can report an agent-only nonzero status while
+        # successfully importing public keys. Exact bundle fingerprints and
+        # the subsequent commit signature verification remain the hard gates.
+        assert_pinned_github_key_bundle(listed.stdout)
         environment = os.environ.copy()
         environment["GNUPGHOME"] = home
         for commit in commits:
