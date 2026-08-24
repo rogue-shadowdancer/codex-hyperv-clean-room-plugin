@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import hashlib
 import re
@@ -14,10 +15,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 GITHUB_WEB_FLOW_PUBLIC_KEY = (
     REPO_ROOT / "tests" / "fixtures" / "github-web-flow-public-key.asc"
 )
-GITHUB_WEB_FLOW_KEY_BUNDLE_FINGERPRINTS = {
-    "5DE3E0509C47EA3CF04A42D34AEE18F83AFDEB23",
-    "968479A1AFF927E37D1A566BB5690EEEBB952194",
-}
+GITHUB_WEB_FLOW_PUBLIC_KEY_SHA256 = (
+    "c135dfc1e3add3eb84e6119af7095dec97e0e92730a468d234f925a72bacaf74"
+)
 GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS = {
     "968479A1AFF927E37D1A566BB5690EEEBB952194",
 }
@@ -194,28 +194,17 @@ def git_bytes(*arguments: str) -> bytes:
     return completed.stdout
 
 
-def resolve_gpg() -> str:
-    configured = shutil.which("gpg")
+def resolve_gpgv() -> str:
+    configured = shutil.which("gpgv")
     if configured:
         return configured
     git_path = shutil.which("git")
     if git_path:
         git_root = Path(git_path).resolve().parent.parent
-        for relative in (("usr", "bin", "gpg.exe"), ("usr", "bin", "gpg")):
+        for relative in (("usr", "bin", "gpgv.exe"), ("usr", "bin", "gpgv")):
             candidate = git_root.joinpath(*relative)
             if candidate.is_file():
                 return str(candidate)
-    raise AssertionError("GPG is unavailable for GitHub web-flow verification")
-
-
-def resolve_gpgv(gpg: str) -> str:
-    for name in ("gpgv.exe", "gpgv"):
-        candidate = Path(gpg).with_name(name)
-        if candidate.is_file():
-            return str(candidate)
-    configured = shutil.which("gpgv")
-    if configured:
-        return configured
     raise AssertionError("GPGV is unavailable for GitHub web-flow verification")
 
 
@@ -259,15 +248,27 @@ def assert_github_signature_status(
     return fingerprint
 
 
-def assert_pinned_github_key_bundle(status: bytes) -> set[str]:
-    fingerprints = {
-        row.split(b":")[9].decode("ascii").upper()
-        for row in status.splitlines()
-        if row.startswith(b"fpr:") and len(row.split(b":")) > 9
-    }
-    if fingerprints != GITHUB_WEB_FLOW_KEY_BUNDLE_FINGERPRINTS:
-        raise AssertionError("pinned GitHub web-flow public key import failed")
-    return fingerprints
+def decode_pinned_github_key_bundle(raw: bytes) -> bytes:
+    if hashlib.sha256(raw).hexdigest() != GITHUB_WEB_FLOW_PUBLIC_KEY_SHA256:
+        raise AssertionError("pinned GitHub web-flow public key bytes differ")
+    try:
+        lines = raw.decode("ascii", errors="strict").splitlines()
+        if (
+            lines[0] != "-----BEGIN PGP PUBLIC KEY BLOCK-----"
+            or lines[-1] != "-----END PGP PUBLIC KEY BLOCK-----"
+        ):
+            raise ValueError("unexpected armor boundary")
+        encoded = "".join(
+            line
+            for line in lines[1:-1]
+            if line and not line.startswith("=")
+        )
+        decoded = base64.b64decode(encoded, validate=True)
+    except (UnicodeDecodeError, ValueError) as error:
+        raise AssertionError("pinned GitHub web-flow public key armor is invalid") from error
+    if not decoded:
+        raise AssertionError("pinned GitHub web-flow public key armor is empty")
+    return decoded
 
 
 def split_signed_commit(raw: bytes) -> tuple[bytes, bytes]:
@@ -300,35 +301,16 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
         return {}
     if not GITHUB_WEB_FLOW_PUBLIC_KEY.is_file():
         raise AssertionError("pinned GitHub web-flow public key bundle is missing")
-    gpg = resolve_gpg()
-    gpgv = resolve_gpgv(gpg)
+    gpgv = resolve_gpgv()
     msys_paths = gpgv_uses_msys_paths(gpgv)
     counts = {fingerprint: 0 for fingerprint in GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS}
-    described = subprocess.run(
-        [
-            gpg,
-            "--no-options",
-            "--batch",
-            "--with-colons",
-            "--show-keys",
-            str(GITHUB_WEB_FLOW_PUBLIC_KEY),
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+    dearmored = decode_pinned_github_key_bundle(
+        GITHUB_WEB_FLOW_PUBLIC_KEY.read_bytes()
     )
-    assert_pinned_github_key_bundle(described.stdout)
-    dearmored = subprocess.run(
-        [gpg, "--no-options", "--batch", "--dearmor"],
-        input=GITHUB_WEB_FLOW_PUBLIC_KEY.read_bytes(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    if dearmored.returncode != 0 or not dearmored.stdout:
-        raise AssertionError("pinned GitHub web-flow public key dearmor failed")
     with tempfile.TemporaryDirectory(prefix="hyperv-publication-gpg-") as home:
         home_path = Path(home)
         keyring = home_path / "trustedkeys.gpg"
-        keyring.write_bytes(dearmored.stdout)
+        keyring.write_bytes(dearmored)
         signature_path = home_path / "commit-signature.asc"
         payload_path = home_path / "commit-payload.bin"
         for commit in commits:

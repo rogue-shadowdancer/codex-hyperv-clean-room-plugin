@@ -47,9 +47,9 @@ both with `changed=false` and zero Hyper-V mutations.
 - An independent trust-boundary review correctly found that signature-envelope
   text is spoofable. The follow-up now treats shape only as a classifier and
   requires local cryptographic verification against a repository-pinned copy
-  of GitHub's official web-flow public-key bundle and the separately pinned
-  current signing fingerprint. Synthetic envelopes and unpinned fingerprints
-  fail closed.
+  of GitHub's official web-flow public-key bundle. Both the complete armored
+  bundle SHA-256 and current signing fingerprint are pinned. Synthetic
+  envelopes, changed bundle bytes, and unpinned fingerprints fail closed.
 - PowerShell 7 cannot invoke the production adapter's .NET Framework-only
   `Directory.CreateDirectory(path, DirectorySecurity)` overload. The declared
   runtime and successful Gate 4 host are Windows PowerShell 5.1; this is a
@@ -143,10 +143,10 @@ both with `changed=false` and zero Hyper-V mutations.
   commits structurally only when they have one parent, the exact public noreply
   author email, the exact GitHub web-flow committer, a GitHub signature
   envelope, and a bounded `subject (#PR)` message. Every structurally recognized
-  GitHub merge or squash must then pass `git verify-commit` in a fresh temporary
-  GPG home using the complete pinned official key bundle and the separately
-  pinned current signing fingerprint. Policy tests reject missing, malformed,
-  invalid, multiple, and unpinned verification states.
+  GitHub merge or squash then has its signed payload reconstructed from the raw
+  commit header and is verified directly with `gpgv` against an exact-SHA-pinned
+  official key bundle and separately pinned current signing fingerprint. Policy
+  tests reject missing, malformed, invalid, multiple, and unpinned states.
 - Architecture, specification, operations, security, troubleshooting,
   installation, release-process, changelog, and this handoff record the repair
   and its source/install/new-task boundaries.
@@ -180,8 +180,8 @@ profiles, DPAPI behavior, Plan/Apply semantics, evidence semantics, and the
   payload files. The plugin-creator validator passed from the isolated Python
   environment.
 - Documentation validation passed 17 documents and 101 local links with strict
-  UTF-8 and zero mojibake markers. Publication hygiene passed 147 commits and
-  1,072 historical blob paths with 29 exact-object identity exceptions, 88
+  UTF-8 and zero mojibake markers. Publication hygiene passed 148 commits and
+  1,076 historical blob paths with 29 exact-object identity exceptions, 89
   ordinary public-noreply commits, 29 GitHub web-flow merges, one structurally
   accepted GitHub squash, 30 cryptographically verified signatures from pinned
   fingerprint `968479A1AFF927E37D1A566BB5690EEEBB952194`, zero forbidden

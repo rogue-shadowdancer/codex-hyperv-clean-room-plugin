@@ -6,4 +6,5 @@ LICENSE text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
 *.py text eol=lf
+tests/fixtures/github-web-flow-public-key.asc text eol=lf
 *.ps1 text eol=crlf
