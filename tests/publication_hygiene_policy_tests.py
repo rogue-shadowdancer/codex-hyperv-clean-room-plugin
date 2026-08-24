@@ -163,6 +163,7 @@ class PublicationHygienePolicyTests(unittest.TestCase):
     @staticmethod
     def synthetic_github_merge(
         *,
+        author_name: str = "Public User",
         author_email: str = hygiene.PUBLIC_COMMIT_EMAIL,
         committer: tuple[str, str] = hygiene.GITHUB_WEB_FLOW_COMMITTER,
         parent_count: int = 2,
@@ -177,7 +178,7 @@ class PublicationHygienePolicyTests(unittest.TestCase):
             lines.append("parent " + (str(index + 1) * 40))
         lines.extend(
             [
-                f"author Public User <{author_email}> 1 +0000",
+                f"author {author_name} <{author_email}> 1 +0000",
                 f"committer {committer[0]} <{committer[1]}> 1 +0000",
             ]
         )
@@ -185,7 +186,9 @@ class PublicationHygienePolicyTests(unittest.TestCase):
             lines.extend(
                 [
                     "gpgsig -----BEGIN PGP SIGNATURE-----",
-                    " synthetic-signature",
+                    " ",
+                    " c3ludGhldGljLXNpZ25hdHVyZQ==",
+                    " =AAAA",
                     " -----END PGP SIGNATURE-----",
                 ]
             )
@@ -259,6 +262,177 @@ class PublicationHygienePolicyTests(unittest.TestCase):
                     AssertionError, "unexpected author/committer identity"
                 ):
                     hygiene.assert_commit_metadata_safe("f" * 40, raw)
+
+        sensitive_author_names = (
+            "person" + "@example.test",
+            "C:" + "\\Users\\private-user",
+        )
+        for author_name in sensitive_author_names:
+            with self.subTest(author_name=author_name):
+                raw = self.synthetic_github_merge(author_name=author_name)
+                with self.assertRaises(AssertionError):
+                    hygiene.assert_commit_metadata_safe("f" * 40, raw)
+
+    def test_github_web_flow_squash_policy_fails_closed(self) -> None:
+        message = "Fix metadata validation (#4)\n\nKeep the public history bounded."
+        accepted = self.synthetic_github_merge(parent_count=1, message=message)
+        self.assertEqual(
+            hygiene.assert_commit_metadata_safe("e" * 40, accepted),
+            "github-web-flow-squash",
+        )
+
+        private_email = "person" + "@example.test"
+        rejected = (
+            self.synthetic_github_merge(
+                author_email=private_email, parent_count=1, message=message
+            ),
+            self.synthetic_github_merge(
+                committer=(hygiene.PUBLIC_COMMIT_NAME, hygiene.PUBLIC_COMMIT_EMAIL),
+                parent_count=1,
+                message=message,
+            ),
+            self.synthetic_github_merge(parent_count=2, message=message),
+            self.synthetic_github_merge(
+                parent_count=1, signed=False, message=message
+            ),
+            self.synthetic_github_merge(
+                parent_count=1, message="Fix metadata validation\n\nMissing PR number."
+            ),
+            self.synthetic_github_merge(
+                parent_count=1, message="Fix metadata validation (#0)"
+            ),
+        )
+        for raw in rejected:
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(
+                    AssertionError, "unexpected author/committer identity"
+                ):
+                    hygiene.assert_commit_metadata_safe("f" * 40, raw)
+
+        sensitive_author_names = (
+            "person" + "@example.test",
+            "C:" + "\\Users\\private-user",
+        )
+        for author_name in sensitive_author_names:
+            with self.subTest(author_name=author_name):
+                raw = self.synthetic_github_merge(
+                    author_name=author_name, parent_count=1, message=message
+                )
+                with self.assertRaises(AssertionError):
+                    hygiene.assert_commit_metadata_safe("f" * 40, raw)
+
+    def test_github_web_flow_signature_status_requires_one_pinned_validsig(
+        self,
+    ) -> None:
+        fingerprint = "968479A1AFF927E37D1A566BB5690EEEBB952194"
+        valid = (
+            f"[GNUPG:] VALIDSIG {fingerprint} 1 1 0 4 0 1 10 00\n"
+        ).encode("ascii")
+        self.assertEqual(
+            hygiene.assert_github_signature_status("e" * 40, 0, valid),
+            fingerprint,
+        )
+
+        unpinned = "0123456789ABCDEF0123456789ABCDEF01234567"
+        old_fingerprint = "5DE3E0509C47EA3CF04A42D34AEE18F83AFDEB23"
+        rejected = (
+            (1, valid, "not cryptographically valid"),
+            (0, b"[GNUPG:] NEWSIG\n", "not cryptographically valid"),
+            (
+                0,
+                f"[GNUPG:] VALIDSIG {unpinned} 1 1 0 4 0 1 10 00\n".encode(
+                    "ascii"
+                ),
+                "unpinned key",
+            ),
+            (
+                0,
+                valid
+                + (
+                    f"[GNUPG:] VALIDSIG {old_fingerprint} 1 1 0 4 0 1 10 00\n"
+                ).encode("ascii"),
+                "not cryptographically valid",
+            ),
+            (0, valid + valid, "not cryptographically valid"),
+        )
+        for return_code, status, expected in rejected:
+            with self.subTest(return_code=return_code, expected=expected):
+                with self.assertRaisesRegex(AssertionError, expected):
+                    hygiene.assert_github_signature_status(
+                        "f" * 40, return_code, status
+                    )
+
+    def test_github_web_flow_key_bundle_requires_exact_bytes(self) -> None:
+        raw = hygiene.GITHUB_WEB_FLOW_PUBLIC_KEY.read_bytes()
+        self.assertTrue(hygiene.decode_pinned_github_key_bundle(raw))
+        with self.assertRaisesRegex(AssertionError, "key bytes differ"):
+            hygiene.decode_pinned_github_key_bundle(raw + b"\n")
+
+    def test_gpg_path_format_is_selected_by_gpgv_distribution(self) -> None:
+        candidate = (hygiene.REPO_ROOT / "tests" / "fixture.bin").resolve()
+        self.assertEqual(
+            hygiene.gpg_path(candidate, msys=False),
+            str(candidate),
+        )
+        msys_path = hygiene.gpg_path(candidate, msys=True)
+        if hygiene.os.name == "nt":
+            self.assertRegex(msys_path, r"^/[a-z]/")
+            self.assertNotIn("\\", msys_path)
+        else:
+            self.assertEqual(msys_path, str(candidate))
+
+    def test_signed_commit_payload_removes_exactly_one_signature_header(
+        self,
+    ) -> None:
+        raw = self.synthetic_github_merge(parent_count=1)
+        payload, signature = hygiene.split_signed_commit(raw)
+        self.assertNotIn(b"gpgsig ", payload)
+        self.assertIn(b"tree " + (b"0" * 40), payload)
+        self.assertIn(b"Merge pull request #4", payload)
+        self.assertTrue(signature.startswith(b"-----BEGIN PGP SIGNATURE-----\n"))
+        self.assertTrue(signature.endswith(b"-----END PGP SIGNATURE-----\n"))
+
+        documented = raw.rstrip(b"\n") + b"\ngpgsig is documented here\n"
+        documented_payload, documented_signature = hygiene.split_signed_commit(
+            documented
+        )
+        self.assertIn(b"gpgsig is documented here", documented_payload)
+        self.assertEqual(documented_signature, signature)
+
+        unsigned = self.synthetic_github_merge(parent_count=1, signed=False)
+        with self.assertRaisesRegex(AssertionError, "invalid GPG signature header"):
+            hygiene.split_signed_commit(unsigned)
+
+        header, message = raw.split(b"\n\n", 1)
+        duplicate = (
+            header
+            + b"\ngpgsig -----BEGIN PGP SIGNATURE-----\n"
+            + b" duplicate\n -----END PGP SIGNATURE-----\n\n"
+            + message
+        )
+        with self.assertRaisesRegex(AssertionError, "invalid GPG signature header"):
+            hygiene.split_signed_commit(duplicate)
+
+        private_email = b"private" + b"@" + b"example.test"
+        contaminated = (
+            raw.replace(
+                b"gpgsig -----BEGIN PGP SIGNATURE-----\n",
+                b"gpgsig "
+                + private_email
+                + b"\n -----BEGIN PGP SIGNATURE-----\n",
+                1,
+            ),
+            raw.replace(
+                b" -----END PGP SIGNATURE-----\n",
+                b" -----END PGP SIGNATURE-----\n " + private_email + b"\n",
+                1,
+            ),
+        )
+        for candidate in contaminated:
+            with self.assertRaisesRegex(
+                AssertionError, "invalid GPG signature header"
+            ):
+                hygiene.split_signed_commit(candidate)
 
     def test_pull_request_scans_base_history_not_synthetic_merge_history(self) -> None:
         self.assertEqual(

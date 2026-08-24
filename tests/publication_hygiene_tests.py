@@ -1,14 +1,36 @@
 from __future__ import annotations
 
+import base64
 import json
 import hashlib
 import re
 import os
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path, PurePosixPath
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+GITHUB_WEB_FLOW_PUBLIC_KEY = (
+    REPO_ROOT / "tests" / "fixtures" / "github-web-flow-public-key.asc"
+)
+GITHUB_WEB_FLOW_PUBLIC_KEY_SHA256 = (
+    "c135dfc1e3add3eb84e6119af7095dec97e0e92730a468d234f925a72bacaf74"
+)
+GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS = {
+    "968479A1AFF927E37D1A566BB5690EEEBB952194",
+}
+GPG_VALIDSIG = re.compile(
+    rb"^\[GNUPG:\] VALIDSIG (?P<fingerprint>[0-9A-F]{40}) ", re.MULTILINE
+)
+GITHUB_GPG_SIGNATURE_ARMOR = re.compile(
+    rb"\A-----BEGIN PGP SIGNATURE-----\n"
+    rb"\n"
+    rb"(?:[A-Za-z0-9+/]{1,76}={0,2}\n)+"
+    rb"=[A-Za-z0-9+/]{4}\n"
+    rb"-----END PGP SIGNATURE-----\n(?:\n)?\Z"
+)
 MAX_SCANNED_BLOB_BYTES = 2 * 1024 * 1024
 ACCEPTED_LEGACY_COMMIT_SHA256 = {
     # Eight preserved pre-release commits.
@@ -57,6 +79,10 @@ GITHUB_MERGE_MESSAGE = re.compile(
     rb"Merge pull request #[1-9][0-9]* from "
     rb"rogue-shadowdancer/codex/(?P<branch>[A-Za-z0-9][A-Za-z0-9._/-]{0,199})"
     rb"\n\n[^\r\n]{1,256}\n?"
+)
+GITHUB_SQUASH_MESSAGE = re.compile(
+    rb"[^\r\n]{1,220} \(#[1-9][0-9]*\)"
+    rb"(?:\n\n[^\x00]{1,4096})?\n?"
 )
 PARENT_HEADER = re.compile(rb"^parent ([0-9a-f]{40})$", re.MULTILINE)
 FORBIDDEN_SUFFIXES = {
@@ -173,6 +199,157 @@ def git_bytes(*arguments: str) -> bytes:
         stderr=subprocess.PIPE,
     )
     return completed.stdout
+
+
+def resolve_gpgv() -> str:
+    configured = shutil.which("gpgv")
+    if configured:
+        return configured
+    git_path = shutil.which("git")
+    if git_path:
+        git_root = Path(git_path).resolve().parent.parent
+        for relative in (("usr", "bin", "gpgv.exe"), ("usr", "bin", "gpgv")):
+            candidate = git_root.joinpath(*relative)
+            if candidate.is_file():
+                return str(candidate)
+    raise AssertionError("GPGV is unavailable for GitHub web-flow verification")
+
+
+def gpgv_uses_msys_paths(gpgv: str) -> bool:
+    executable = Path(gpgv).resolve()
+    return os.name == "nt" and (executable.parent / "msys-2.0.dll").is_file()
+
+
+def gpg_path(path: Path, *, msys: bool) -> str:
+    resolved = path.resolve()
+    if msys and os.name == "nt" and resolved.drive:
+        return f"/{resolved.drive[0].lower()}{resolved.as_posix()[2:]}"
+    return str(resolved)
+
+
+def assert_github_signature_status(
+    commit: str, return_code: int, status: bytes
+) -> str:
+    fingerprints = [
+        match.group("fingerprint").decode("ascii")
+        for match in GPG_VALIDSIG.finditer(status)
+    ]
+    if return_code != 0 or len(fingerprints) != 1:
+        status_tags = sorted(
+            {
+                match.decode("ascii")
+                for match in re.findall(
+                    rb"^\[GNUPG:\] ([A-Z_]+)", status, re.MULTILINE
+                )
+            }
+        )
+        raise AssertionError(
+            "GitHub web-flow signature is not cryptographically valid: "
+            f"{commit} (exit={return_code}, status={','.join(status_tags) or 'none'})"
+        )
+    fingerprint = fingerprints[0]
+    if fingerprint not in GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS:
+        raise AssertionError(
+            f"GitHub web-flow signature uses an unpinned key: {commit}"
+        )
+    return fingerprint
+
+
+def decode_pinned_github_key_bundle(raw: bytes) -> bytes:
+    if hashlib.sha256(raw).hexdigest() != GITHUB_WEB_FLOW_PUBLIC_KEY_SHA256:
+        raise AssertionError("pinned GitHub web-flow public key bytes differ")
+    try:
+        lines = raw.decode("ascii", errors="strict").splitlines()
+        if (
+            lines[0] != "-----BEGIN PGP PUBLIC KEY BLOCK-----"
+            or lines[-1] != "-----END PGP PUBLIC KEY BLOCK-----"
+        ):
+            raise ValueError("unexpected armor boundary")
+        encoded = "".join(
+            line
+            for line in lines[1:-1]
+            if line and not line.startswith("=")
+        )
+        decoded = base64.b64decode(encoded, validate=True)
+    except (UnicodeDecodeError, ValueError) as error:
+        raise AssertionError("pinned GitHub web-flow public key armor is invalid") from error
+    if not decoded:
+        raise AssertionError("pinned GitHub web-flow public key armor is empty")
+    return decoded
+
+
+def split_signed_commit(raw: bytes) -> tuple[bytes, bytes]:
+    boundary = raw.find(b"\n\n")
+    if boundary < 0:
+        raise AssertionError("commit object is malformed before GPG verification")
+    header = raw[: boundary + 1]
+    message = raw[boundary + 2 :]
+    payload: list[bytes] = []
+    signature: list[bytes] = []
+    inside_signature = False
+    signature_headers = 0
+    for line in header.splitlines(keepends=True):
+        if line.startswith(b"gpgsig "):
+            signature_headers += 1
+            signature.append(line[len(b"gpgsig ") :])
+            inside_signature = True
+        elif inside_signature and line.startswith(b" "):
+            signature.append(line[1:])
+        else:
+            inside_signature = False
+            payload.append(line)
+    signature_bytes = b"".join(signature)
+    if (
+        signature_headers != 1
+        or not GITHUB_GPG_SIGNATURE_ARMOR.fullmatch(signature_bytes)
+    ):
+        raise AssertionError("commit has an invalid GPG signature header")
+    return b"".join(payload) + b"\n" + message, signature_bytes
+
+
+def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
+    if not commits:
+        return {}
+    if not GITHUB_WEB_FLOW_PUBLIC_KEY.is_file():
+        raise AssertionError("pinned GitHub web-flow public key bundle is missing")
+    gpgv = resolve_gpgv()
+    msys_paths = gpgv_uses_msys_paths(gpgv)
+    counts = {fingerprint: 0 for fingerprint in GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS}
+    dearmored = decode_pinned_github_key_bundle(
+        GITHUB_WEB_FLOW_PUBLIC_KEY.read_bytes()
+    )
+    with tempfile.TemporaryDirectory(prefix="hyperv-publication-gpg-") as home:
+        home_path = Path(home)
+        keyring = home_path / "trustedkeys.gpg"
+        keyring.write_bytes(dearmored)
+        signature_path = home_path / "commit-signature.asc"
+        payload_path = home_path / "commit-payload.bin"
+        for commit in commits:
+            payload, signature = split_signed_commit(
+                git_bytes("cat-file", "commit", commit)
+            )
+            signature_path.write_bytes(signature)
+            payload_path.write_bytes(payload)
+            verified = subprocess.run(
+                [
+                    gpgv,
+                    "--homedir",
+                    gpg_path(home_path, msys=msys_paths),
+                    "--keyring",
+                    gpg_path(keyring, msys=msys_paths),
+                    "--status-fd",
+                    "1",
+                    gpg_path(signature_path, msys=msys_paths),
+                    gpg_path(payload_path, msys=msys_paths),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            fingerprint = assert_github_signature_status(
+                commit, verified.returncode, verified.stdout + verified.stderr
+            )
+            counts[fingerprint] += 1
+    return {fingerprint: count for fingerprint, count in counts.items() if count}
 
 
 def decode_path(raw: bytes) -> str:
@@ -441,6 +618,26 @@ def is_safe_github_web_flow_merge(
     return True
 
 
+def is_safe_github_web_flow_squash(
+    header: bytes,
+    message: bytes,
+    author: tuple[str, str],
+    committer: tuple[str, str],
+) -> bool:
+    if author[1].casefold() != PUBLIC_COMMIT_EMAIL.casefold():
+        return False
+    if committer != GITHUB_WEB_FLOW_COMMITTER:
+        return False
+    parents = PARENT_HEADER.findall(header)
+    if len(parents) != 1:
+        return False
+    if b"gpgsig -----BEGIN PGP SIGNATURE-----\n" not in header:
+        return False
+    if b"\n -----END PGP SIGNATURE-----" not in header:
+        return False
+    return GITHUB_SQUASH_MESSAGE.fullmatch(message) is not None
+
+
 def assert_commit_metadata_safe(commit: str, raw: bytes) -> str:
     try:
         header, message = raw.split(b"\n\n", 1)
@@ -457,10 +654,18 @@ def assert_commit_metadata_safe(commit: str, raw: bytes) -> str:
             identity_class = "public-noreply"
         elif is_safe_github_web_flow_merge(header, message, author, committer):
             identity_class = "github-web-flow-merge"
+        elif is_safe_github_web_flow_squash(header, message, author, committer):
+            identity_class = "github-web-flow-squash"
         else:
             raise AssertionError(
                 f"unexpected author/committer identity in history commit {commit}"
             )
+    if identity_class in {"github-web-flow-merge", "github-web-flow-squash"}:
+        scan_content(
+            f"commit-author-{commit}.txt",
+            author[0].encode("utf-8", errors="strict"),
+            f"history commit author {commit}",
+        )
     scan_content(
         f"commit-message-{commit}.txt",
         message,
@@ -488,6 +693,8 @@ def main() -> int:
     accepted_legacy_digests: set[str] = set()
     public_identity_commits = 0
     github_web_flow_merge_commits = 0
+    github_web_flow_squash_commits = 0
+    github_web_flow_commits: list[str] = []
     seen_blob_paths: set[tuple[str, str]] = set()
     blob_cache: dict[str, bytes] = {}
     for commit in commits:
@@ -497,6 +704,10 @@ def main() -> int:
             accepted_legacy_digests.add(hashlib.sha256(raw_commit).hexdigest())
         elif identity_class == "github-web-flow-merge":
             github_web_flow_merge_commits += 1
+            github_web_flow_commits.append(commit)
+        elif identity_class == "github-web-flow-squash":
+            github_web_flow_squash_commits += 1
+            github_web_flow_commits.append(commit)
         else:
             public_identity_commits += 1
         for object_id, path_text in history_tree(commit):
@@ -509,6 +720,10 @@ def main() -> int:
                 blob_cache[object_id] = git_bytes("cat-file", "blob", object_id)
             content = blob_cache[object_id]
             scan_content(path_text, content, f"history blob {object_id}")
+
+    github_web_flow_signatures = verify_github_web_flow_signatures(
+        github_web_flow_commits
+    )
 
     if accepted_legacy_digests != ACCEPTED_LEGACY_COMMIT_SHA256:
         missing = ACCEPTED_LEGACY_COMMIT_SHA256 - accepted_legacy_digests
@@ -530,6 +745,8 @@ def main() -> int:
                 "acceptedLegacyCommits": len(accepted_legacy_digests),
                 "publicNoreplyCommits": public_identity_commits,
                 "githubWebFlowMergeCommits": github_web_flow_merge_commits,
+                "githubWebFlowSquashCommits": github_web_flow_squash_commits,
+                "githubWebFlowVerifiedSignatures": github_web_flow_signatures,
                 "forbiddenArtifacts": 0,
                 "sensitiveFindings": 0,
                 "strictUtf8": True,

@@ -585,3 +585,39 @@ input-binding squash commit to raw commit-object SHA-256
 `cbab88ff332a2c8d1d51d2fdc68bef252748a3f03ce643ef0b13c87a23caf606`.
 This single-object exception does not broaden accepted author or committer
 identity patterns.
+
+The subsequent protected stderr-drain squash commit exposed a closure problem
+with adding another exact-object exception: a follow-up exception itself creates
+another GitHub-generated squash commit that is not knowable before merge. The
+validator therefore accepts the recurring protected squash shape directly,
+but only with exactly one parent, the approved public noreply author address,
+the exact GitHub web-flow committer, and a bounded `subject (#PR)` message.
+Shape alone is not provenance: every structurally recognized GitHub merge or
+squash must also pass local cryptographic verification against the
+repository-pinned official `https://github.com/web-flow.gpg` bundle. The
+validator reconstructs Git's signed commit payload by removing exactly one
+`gpgsig` header from the raw object. The extracted value must be exactly one
+GitHub-style ASCII-armored signature block, with no prefix or nonblank suffix;
+otherwise the commit fails before verification. The validator then invokes
+verification-only `gpgv` directly with the signature, payload, and explicit
+temporary keyring.
+The variable GitHub author display name passes the same private-identity and
+machine-path scan as repository content. The official armored key-bundle bytes
+are pinned by SHA-256 and decoded by the Python standard library, eliminating
+GPG preprocessing and user-configuration influence. This avoids persistent or
+agent-dependent key import, trust databases, program wrappers, and
+version-dependent default-keyring behavior. A Git-for-Windows GPGV runtime is
+detected by its adjacent MSYS runtime and receives MSYS absolute paths; native
+GPGV distributions retain native absolute paths. Executable-aware path
+selection prevents runner `PATH` ordering from changing keyring resolution. The
+accepted signing
+fingerprint is pinned separately to
+`968479A1AFF927E37D1A566BB5690EEEBB952194`, so an official key rotation fails
+closed until it is reviewed and updated. Verification uses a fresh temporary
+GPG home and requires exactly one `VALIDSIG`; it does not trust the user's
+keyring, a signature-envelope marker, mutable network/API state, or branch
+protection as a substitute. Commit-message content still passes the full
+secret, identity, machine-path, and forbidden-artifact scan. Ordinary local
+commits, invalid or unpinned signatures, private author addresses, other
+committers, merge-shaped messages, malformed PR numbers, and multi-parent
+commits cannot use this path.
