@@ -595,8 +595,8 @@ the exact GitHub web-flow committer, and a bounded `subject (#PR)` message.
 Shape alone is not provenance: every structurally recognized GitHub merge or
 squash must also pass local cryptographic `git verify-commit` against the
 repository-pinned official `https://github.com/web-flow.gpg` bundle, whose
-complete imported fingerprint set is checked before use. The accepted signing
-fingerprint is pinned separately to
+complete embedded fingerprint set is checked before import and use. The
+accepted signing fingerprint is pinned separately to
 `968479A1AFF927E37D1A566BB5690EEEBB952194`, so an official key rotation fails
 closed until it is reviewed and updated. Verification uses a fresh temporary
 GPG home and requires exactly one `VALIDSIG`; it does not trust the user's

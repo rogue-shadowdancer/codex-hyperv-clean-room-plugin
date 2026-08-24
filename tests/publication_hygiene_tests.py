@@ -245,6 +245,18 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
         raise AssertionError("pinned GitHub web-flow public key bundle is missing")
     gpg = resolve_gpg()
     counts = {fingerprint: 0 for fingerprint in GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS}
+    described = subprocess.run(
+        [
+            gpg,
+            "--batch",
+            "--with-colons",
+            "--show-keys",
+            str(GITHUB_WEB_FLOW_PUBLIC_KEY),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert_pinned_github_key_bundle(described.stdout)
     with tempfile.TemporaryDirectory(prefix="hyperv-publication-gpg-") as home:
         subprocess.run(
             [
@@ -259,23 +271,9 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        listed = subprocess.run(
-            [
-                gpg,
-                "--no-autostart",
-                "--homedir",
-                home,
-                "--batch",
-                "--with-colons",
-                "--fingerprint",
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        # Git for Windows GPG can report an agent-only nonzero status while
-        # successfully importing public keys. Exact bundle fingerprints and
-        # the subsequent commit signature verification remain the hard gates.
-        assert_pinned_github_key_bundle(listed.stdout)
+        # Git for Windows can report an advisory agent status while importing
+        # public keys. The exact source-bundle fingerprints above and every
+        # subsequent cryptographic commit verification remain the hard gates.
         environment = os.environ.copy()
         environment["GNUPGHOME"] = home
         for commit in commits:

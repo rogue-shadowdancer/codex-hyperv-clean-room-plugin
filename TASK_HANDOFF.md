@@ -180,8 +180,8 @@ profiles, DPAPI behavior, Plan/Apply semantics, evidence semantics, and the
   payload files. The plugin-creator validator passed from the isolated Python
   environment.
 - Documentation validation passed 17 documents and 101 local links with strict
-  UTF-8 and zero mojibake markers. Publication hygiene passed 137 commits and
-  1,042 historical blob paths with 29 exact-object identity exceptions, 78
+  UTF-8 and zero mojibake markers. Publication hygiene passed 138 commits and
+  1,045 historical blob paths with 29 exact-object identity exceptions, 79
   ordinary public-noreply commits, 29 GitHub web-flow merges, one structurally
   accepted GitHub squash, 30 cryptographically verified signatures from pinned
   fingerprint `968479A1AFF927E37D1A566BB5690EEEBB952194`, zero forbidden
