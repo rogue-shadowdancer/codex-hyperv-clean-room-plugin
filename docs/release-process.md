@@ -598,7 +598,10 @@ repository-pinned official `https://github.com/web-flow.gpg` bundle. The
 validator reconstructs Git's signed commit payload by removing exactly one
 `gpgsig` header from the raw object, then invokes verification-only `gpgv`
 directly with the extracted signature, payload, and explicit temporary keyring.
-The complete embedded key-bundle fingerprint set is checked before use. This
+The variable GitHub author display name passes the same private-identity and
+machine-path scan as repository content. The complete embedded key-bundle
+fingerprint set is checked before use, and both GPG preprocessing calls begin
+with `--no-options` so user configuration cannot redirect or alter output. This
 avoids persistent or agent-dependent key import, trust databases, program
 wrappers, and version-dependent default-keyring behavior. Windows paths passed
 to Git for Windows GPG/GPGV are normalized to MSYS absolute form so keyring

@@ -296,6 +296,7 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
     described = subprocess.run(
         [
             gpg,
+            "--no-options",
             "--batch",
             "--with-colons",
             "--show-keys",
@@ -306,7 +307,7 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
     )
     assert_pinned_github_key_bundle(described.stdout)
     dearmored = subprocess.run(
-        [gpg, "--batch", "--dearmor"],
+        [gpg, "--no-options", "--batch", "--dearmor"],
         input=GITHUB_WEB_FLOW_PUBLIC_KEY.read_bytes(),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -655,6 +656,12 @@ def assert_commit_metadata_safe(commit: str, raw: bytes) -> str:
             raise AssertionError(
                 f"unexpected author/committer identity in history commit {commit}"
             )
+    if identity_class in {"github-web-flow-merge", "github-web-flow-squash"}:
+        scan_content(
+            f"commit-author-{commit}.txt",
+            author[0].encode("utf-8", errors="strict"),
+            f"history commit author {commit}",
+        )
     scan_content(
         f"commit-message-{commit}.txt",
         message,

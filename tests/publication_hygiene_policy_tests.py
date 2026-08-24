@@ -163,6 +163,7 @@ class PublicationHygienePolicyTests(unittest.TestCase):
     @staticmethod
     def synthetic_github_merge(
         *,
+        author_name: str = "Public User",
         author_email: str = hygiene.PUBLIC_COMMIT_EMAIL,
         committer: tuple[str, str] = hygiene.GITHUB_WEB_FLOW_COMMITTER,
         parent_count: int = 2,
@@ -177,7 +178,7 @@ class PublicationHygienePolicyTests(unittest.TestCase):
             lines.append("parent " + (str(index + 1) * 40))
         lines.extend(
             [
-                f"author Public User <{author_email}> 1 +0000",
+                f"author {author_name} <{author_email}> 1 +0000",
                 f"committer {committer[0]} <{committer[1]}> 1 +0000",
             ]
         )
@@ -260,6 +261,16 @@ class PublicationHygienePolicyTests(unittest.TestCase):
                 ):
                     hygiene.assert_commit_metadata_safe("f" * 40, raw)
 
+        sensitive_author_names = (
+            "person" + "@example.test",
+            "C:" + "\\Users\\private-user",
+        )
+        for author_name in sensitive_author_names:
+            with self.subTest(author_name=author_name):
+                raw = self.synthetic_github_merge(author_name=author_name)
+                with self.assertRaises(AssertionError):
+                    hygiene.assert_commit_metadata_safe("f" * 40, raw)
+
     def test_github_web_flow_squash_policy_fails_closed(self) -> None:
         message = "Fix metadata validation (#4)\n\nKeep the public history bounded."
         accepted = self.synthetic_github_merge(parent_count=1, message=message)
@@ -294,6 +305,18 @@ class PublicationHygienePolicyTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     AssertionError, "unexpected author/committer identity"
                 ):
+                    hygiene.assert_commit_metadata_safe("f" * 40, raw)
+
+        sensitive_author_names = (
+            "person" + "@example.test",
+            "C:" + "\\Users\\private-user",
+        )
+        for author_name in sensitive_author_names:
+            with self.subTest(author_name=author_name):
+                raw = self.synthetic_github_merge(
+                    author_name=author_name, parent_count=1, message=message
+                )
+                with self.assertRaises(AssertionError):
                     hygiene.assert_commit_metadata_safe("f" * 40, raw)
 
     def test_github_web_flow_signature_status_requires_one_pinned_validsig(
