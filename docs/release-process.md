@@ -593,12 +593,14 @@ validator therefore accepts the recurring protected squash shape directly,
 but only with exactly one parent, the approved public noreply author address,
 the exact GitHub web-flow committer, and a bounded `subject (#PR)` message.
 Shape alone is not provenance: every structurally recognized GitHub merge or
-squash must also pass local cryptographic `git verify-commit` against the
-repository-pinned official `https://github.com/web-flow.gpg` bundle, whose
-complete embedded fingerprint set is checked before use. The bundle is
-dearmored into a temporary public keyring selected by an isolated `gpg.conf`
-with `no-default-keyring`, avoiding persistent or agent-dependent key import
-and version-dependent default-keyring behavior. The accepted signing
+squash must also pass local cryptographic verification against the
+repository-pinned official `https://github.com/web-flow.gpg` bundle. The
+validator reconstructs Git's signed commit payload by removing exactly one
+`gpgsig` header from the raw object, then invokes verification-only `gpgv`
+directly with the extracted signature, payload, and explicit temporary keyring.
+The complete embedded key-bundle fingerprint set is checked before use. This
+avoids persistent or agent-dependent key import, trust databases, program
+wrappers, and version-dependent default-keyring behavior. The accepted signing
 fingerprint is pinned separately to
 `968479A1AFF927E37D1A566BB5690EEEBB952194`, so an official key rotation fails
 closed until it is reviewed and updated. Verification uses a fresh temporary

@@ -359,6 +359,31 @@ class PublicationHygienePolicyTests(unittest.TestCase):
                 with self.assertRaisesRegex(AssertionError, "key import failed"):
                     hygiene.assert_pinned_github_key_bundle(status)
 
+    def test_signed_commit_payload_removes_exactly_one_signature_header(
+        self,
+    ) -> None:
+        raw = self.synthetic_github_merge(parent_count=1)
+        payload, signature = hygiene.split_signed_commit(raw)
+        self.assertNotIn(b"gpgsig ", payload)
+        self.assertIn(b"tree " + (b"0" * 40), payload)
+        self.assertIn(b"Merge pull request #4", payload)
+        self.assertTrue(signature.startswith(b"-----BEGIN PGP SIGNATURE-----\n"))
+        self.assertTrue(signature.endswith(b"-----END PGP SIGNATURE-----\n"))
+
+        unsigned = self.synthetic_github_merge(parent_count=1, signed=False)
+        with self.assertRaisesRegex(AssertionError, "invalid GPG signature header"):
+            hygiene.split_signed_commit(unsigned)
+
+        header, message = raw.split(b"\n\n", 1)
+        duplicate = (
+            header
+            + b"\ngpgsig -----BEGIN PGP SIGNATURE-----\n"
+            + b" duplicate\n -----END PGP SIGNATURE-----\n\n"
+            + message
+        )
+        with self.assertRaisesRegex(AssertionError, "invalid GPG signature header"):
+            hygiene.split_signed_commit(duplicate)
+
     def test_pull_request_scans_base_history_not_synthetic_merge_history(self) -> None:
         self.assertEqual(
             hygiene.select_history_revision("pull_request", "master"),

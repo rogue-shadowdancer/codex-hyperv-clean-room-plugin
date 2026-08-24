@@ -208,6 +208,17 @@ def resolve_gpg() -> str:
     raise AssertionError("GPG is unavailable for GitHub web-flow verification")
 
 
+def resolve_gpgv(gpg: str) -> str:
+    configured = shutil.which("gpgv")
+    if configured:
+        return configured
+    for name in ("gpgv.exe", "gpgv"):
+        candidate = Path(gpg).with_name(name)
+        if candidate.is_file():
+            return str(candidate)
+    raise AssertionError("GPGV is unavailable for GitHub web-flow verification")
+
+
 def assert_github_signature_status(
     commit: str, return_code: int, status: bytes
 ) -> str:
@@ -247,12 +258,33 @@ def assert_pinned_github_key_bundle(status: bytes) -> set[str]:
     return fingerprints
 
 
+def split_signed_commit(raw: bytes) -> tuple[bytes, bytes]:
+    payload: list[bytes] = []
+    signature: list[bytes] = []
+    inside_signature = False
+    signature_headers = 0
+    for line in raw.splitlines(keepends=True):
+        if line.startswith(b"gpgsig "):
+            signature_headers += 1
+            signature.append(line[len(b"gpgsig ") :])
+            inside_signature = True
+        elif inside_signature and line.startswith(b" "):
+            signature.append(line[1:])
+        else:
+            inside_signature = False
+            payload.append(line)
+    if signature_headers != 1 or not signature:
+        raise AssertionError("commit has an invalid GPG signature header")
+    return b"".join(payload), b"".join(signature)
+
+
 def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
     if not commits:
         return {}
     if not GITHUB_WEB_FLOW_PUBLIC_KEY.is_file():
         raise AssertionError("pinned GitHub web-flow public key bundle is missing")
     gpg = resolve_gpg()
+    gpgv = resolve_gpgv(gpg)
     counts = {fingerprint: 0 for fingerprint in GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS}
     described = subprocess.run(
         [
@@ -276,29 +308,28 @@ def verify_github_web_flow_signatures(commits: list[str]) -> dict[str, int]:
         raise AssertionError("pinned GitHub web-flow public key dearmor failed")
     with tempfile.TemporaryDirectory(prefix="hyperv-publication-gpg-") as home:
         home_path = Path(home)
-        keyring = home_path / "github-web-flow.gpg"
+        keyring = home_path / "trustedkeys.gpg"
         keyring.write_bytes(dearmored.stdout)
-        (home_path / "gpg.conf").write_text(
-            f"no-default-keyring\nkeyring {keyring.as_posix()}\n",
-            encoding="ascii",
-        )
-        # The isolated GPG configuration supplies an explicit keyring without
-        # import, agent, or version-dependent default-keyring behavior.
-        environment = os.environ.copy()
-        environment["GNUPGHOME"] = home
+        signature_path = home_path / "commit-signature.asc"
+        payload_path = home_path / "commit-payload.bin"
         for commit in commits:
+            payload, signature = split_signed_commit(
+                git_bytes("cat-file", "commit", commit)
+            )
+            signature_path.write_bytes(signature)
+            payload_path.write_bytes(payload)
             verified = subprocess.run(
                 [
-                    "git",
-                    "-C",
-                    str(REPO_ROOT),
-                    "-c",
-                    f"gpg.program={gpg}",
-                    "verify-commit",
-                    "--raw",
-                    commit,
+                    gpgv,
+                    "--homedir",
+                    home,
+                    "--keyring",
+                    keyring.name,
+                    "--status-fd",
+                    "1",
+                    str(signature_path),
+                    str(payload_path),
                 ],
-                env=environment,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
