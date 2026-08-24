@@ -351,6 +351,7 @@ class PublicationHygienePolicyTests(unittest.TestCase):
                 ).encode("ascii"),
                 "not cryptographically valid",
             ),
+            (0, valid + valid, "not cryptographically valid"),
         )
         for return_code, status, expected in rejected:
             with self.subTest(return_code=return_code, expected=expected):

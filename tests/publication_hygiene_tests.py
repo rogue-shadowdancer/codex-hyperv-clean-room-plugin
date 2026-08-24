@@ -223,10 +223,10 @@ def gpg_path(path: Path, *, msys: bool) -> str:
 def assert_github_signature_status(
     commit: str, return_code: int, status: bytes
 ) -> str:
-    fingerprints = {
+    fingerprints = [
         match.group("fingerprint").decode("ascii")
         for match in GPG_VALIDSIG.finditer(status)
-    }
+    ]
     if return_code != 0 or len(fingerprints) != 1:
         status_tags = sorted(
             {
@@ -240,7 +240,7 @@ def assert_github_signature_status(
             "GitHub web-flow signature is not cryptographically valid: "
             f"{commit} (exit={return_code}, status={','.join(status_tags) or 'none'})"
         )
-    fingerprint = fingerprints.pop()
+    fingerprint = fingerprints[0]
     if fingerprint not in GITHUB_WEB_FLOW_SIGNING_FINGERPRINTS:
         raise AssertionError(
             f"GitHub web-flow signature uses an unpinned key: {commit}"
